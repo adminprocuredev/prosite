@@ -62,7 +62,7 @@
     "jsonwebtoken": "9.0.0",
     "keen-slider": "6.8.3",
     "lodash": "^4.17.21",
-    "moment": "^2.29.4",
+    "moment": "^2.30.1",
     "moment-timezone": "^0.5.43",
     "next": "13.4.13",
     "nprogress": "0.2.0",
