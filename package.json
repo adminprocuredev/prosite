@@ -100,7 +100,7 @@
     "@iconify/json": "2.1.131",
     "@iconify/tools": "2.1.1",
     "@iconify/types": "2.0.0",
-    "@iconify/utils": "2.1.7",
+    "@iconify/utils": "2.1.22",
     "babel-loader": "^9.1.2",
     "eslint": "8.26.0",
     "eslint-config-next": "13.0.0",
