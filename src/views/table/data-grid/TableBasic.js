@@ -114,6 +114,8 @@ const TableBasic = ({ rows, role, roleData }) => {
 
     const hasPrevState = row.state === role - 1
     const createdBySupervisor = row.userRole === 7
+    const createdByPetitioner = row.userRole === 2
+    const createdByContOp = row.userRole === 3
 
     const isContopEmergency =
       role === 3 &&
@@ -151,8 +153,14 @@ const TableBasic = ({ rows, role, roleData }) => {
       },
       5: {
         approve: hasOTEnd && [1, 3, 4].includes(row.state) && !createdBySupervisor,
-        edit: [1, 2, 3, 4, 6].includes(row.state) && !createdBySupervisor && createdByPlanner,
-        reject: [1, 2, 3, 4, 6].includes(row.state) && !createdBySupervisor && createdByPlanner
+        edit:
+          [1, 2, 3, 4, 6].includes(row.state) &&
+          !createdBySupervisor &&
+          (createdByPlanner || createdByPetitioner || createdByContOp),
+        reject:
+          [1, 2, 3, 4, 6].includes(row.state) &&
+          !createdBySupervisor &&
+          (createdByPlanner || createdByPetitioner || createdByContOp)
       },
       6: {
         approve: hasPrevState && !createdBySupervisor,

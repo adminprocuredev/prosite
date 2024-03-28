@@ -209,7 +209,7 @@ exports.checkDatabaseEveryOneHour = functions.pubsub
                   html: emailHtml
                 }
               })
-              console.log('E-mail de actualizacion enviado con éxito.')
+              console.log(`E-mail de actualizacion enviado con éxito.`)
             } catch (error) {
               console.error('Error al enviar email:', error)
               throw error
@@ -364,7 +364,7 @@ exports.sendInfoToSupervisorAt5PM = functions.pubsub
               `
           }
         })
-        console.log('E-mail de tareas diarias al Supervisor enviado con éxito.')
+        console.log(`E-mail ${mailId} de tareas diarias al Supervisor enviado con éxito.`)
       } catch (error) {
         console.error('Error al enviar email:', error)
         throw error
