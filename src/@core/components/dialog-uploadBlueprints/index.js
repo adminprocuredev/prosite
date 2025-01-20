@@ -1,6 +1,6 @@
-import React, { Fragment, useEffect, useState } from 'react'
 import {
   Button,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -9,31 +9,29 @@ import {
   FormControl,
   Grid,
   IconButton,
+  InputAdornment,
   Link,
   List,
   ListItem,
-  ListItemText,
   ListItemSecondaryAction,
+  ListItemText,
   Paper,
-  Typography,
-  CircularProgress
+  Typography
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import Box from '@mui/system/Box'
-import { useDropzone } from 'react-dropzone'
-import DialogErrorFile from 'src/@core/components/dialog-errorFile'
-import AlertDialog from 'src/@core/components/dialog-warning'
-import Icon from 'src/@core/components/icon'
-import { useFirebase } from 'src/context/useFirebase'
-import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
 import 'moment/locale/es'
-import { InputAdornment } from '@mui/material'
+import { Fragment, useEffect, useState } from 'react'
+import { useDropzone } from 'react-dropzone'
 import DateListItem from 'src/@core/components/custom-date'
 import CustomListItem from 'src/@core/components/custom-list'
-import { validateFileName, handleFileUpload } from 'src/context/google-drive-functions/fileHandlers'
-import { validateFiles, getFileIcon } from 'src/context/google-drive-functions/fileValidation'
+import DialogErrorFile from 'src/@core/components/dialog-errorFile'
+import AlertDialog from 'src/@core/components/dialog-warning'
 import FileList from 'src/@core/components/file-list'
-import { getPlantInitals } from 'src/context/firebase-functions/firestoreQuerys'
+import Icon from 'src/@core/components/icon'
+import { getFileIcon, validateFiles } from 'src/context/google-drive-functions/fileValidation'
+import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
+import { useFirebase } from 'src/context/useFirebase'
 
 // ** Configuración de Google Drive
 import googleAuthConfig from 'src/configs/googleDrive'
@@ -77,7 +75,7 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition, 
   const rootFolder = googleAuthConfig.MAIN_FOLDER_ID
 
   const { updateDocs, authUser, addDescription, updateBlueprintsWithStorageOrHlc, deleteReferenceOfLastDocumentAttached } = useFirebase()
-  const { uploadFile, createFolder, fetchFolders, findOrCreateFolder, processFolders } = useGoogleDriveFolder()
+  const { uploadFile, findOrCreateFolder, createFolderStructure, handleFileUpload, validateFileName } = useGoogleDriveFolder()
 
   // Verifica estado
   revision = typeof revision === 'string' ? revision : 100
@@ -248,43 +246,17 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition, 
   )
 
   /**
-   * Función para extraer el número de área desde el string que contiene el nombre completo del área.
-   * @param {string} name - String con el nombre completo del área. Ej: "0100 - Planta Desaladora".
-   * @returns {string} - areaNumber que es un string con él número. Ek: "0100".
-   */
-  function extractAreaNumber(areaFullname) {
-    const nameArray = areaFullname.split(" - ")
-
-    return nameArray[0]
-  }
-
-  /**
    * Función para manejar la carga de la HLC a la carpeta de la Revisión.
    * Se encarga de crear las carpetas en caso de que no existan.
    */
   const handleSubmitHlcDocuments = async () => {
+
     try {
+
       setIsLoading(true)
-      // Busca la carpeta de la planta.
-      const plantInitials = await getPlantInitals(petition.plant)
-      const areaNumber = extractAreaNumber(petition.area)
-      const projectFolderName = `OT N°${petition.ot} - ${petition.title}`
 
-      const subfolders = [
-        'EMITIDOS'
-      ]
-
-      // Procesar carpetas.
-      const projectFolder = await processFolders(
-        googleAuthConfig.MAIN_FOLDER_ID,
-        petition.plant,
-        plantInitials,
-        petition.area,
-        areaNumber,
-        projectFolderName,
-        petition.ot,
-        subfolders
-      )
+      // Crear Estructura de Carpetas en caso de que no exista previamente.
+      const projectFolder = await createFolderStructure(petition, rootFolder, ["EMITIDOS"])
 
       // Ubica la carpeta "EMITIDOS"
       const targetFolder = await findOrCreateFolder(projectFolder.id, "EMITIDOS", "EMITIDOS")
@@ -308,6 +280,7 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition, 
     } catch (error) {
       console.log(error)
     }
+
   }
 
   const handleRemoveAllFiles = () => {
@@ -573,17 +546,13 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition, 
                                 onClick={async () => {
                                   try {
                                     setIsLoading(true)
+                                    // TODO: CORREGIR ACÁ.
                                     await handleFileUpload({
                                       files,
                                       blueprint: doc,
                                       petitionId,
                                       petition,
-                                      fetchFolders,
-                                      uploadFile,
-                                      createFolder,
-                                      updateBlueprintsWithStorageOrHlc,
                                       rootFolder,
-                                      authUser
                                     })
                                     setFiles(null)
                                   } catch (error) {

@@ -1,38 +1,38 @@
-import * as React from 'react'
-import { useState, useEffect } from 'react'
-import { makeStyles } from '@mui/styles'
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz'
 import { useTheme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
-import MoreHorizIcon from '@mui/icons-material/MoreHoriz'
+import { makeStyles } from '@mui/styles'
 import { DataGridPremium, esES } from '@mui/x-data-grid-premium'
+import { useEffect, useState } from 'react'
 
-import { Container } from '@mui/system'
-import { Upload, CheckCircleOutline, CancelOutlined, OpenInNew } from '@mui/icons-material'
+import { CancelOutlined, CheckCircleOutline, OpenInNew, Upload } from '@mui/icons-material'
 import SyncIcon from '@mui/icons-material/Sync'
+import { Container } from '@mui/system'
 
 import KeyboardArrowDownSharpIcon from '@mui/icons-material/KeyboardArrowDownSharp'
 import KeyboardArrowRightSharpIcon from '@mui/icons-material/KeyboardArrowRightSharp'
 import {
-  Button,
-  Select,
   Box,
+  Button,
   Card,
-  Tooltip,
-  Typography,
-  Link,
-  IconButton,
   Dialog,
   DialogActions,
-  DialogContent
+  DialogContent,
+  IconButton,
+  Link,
+  Select,
+  Tooltip,
+  Typography
 } from '@mui/material'
-import { useFirebase } from 'src/context/useFirebase'
-import AlertDialogGabinete from 'src/@core/components/dialog-warning-gabinete'
 import { UploadBlueprintsDialog } from 'src/@core/components/dialog-uploadBlueprints'
+import AlertDialogGabinete from 'src/@core/components/dialog-warning-gabinete'
+import { useFirebase } from 'src/context/useFirebase'
 
-import { getNextRevisionFolderName } from 'src/context/google-drive-functions/fileHandlers'
+import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
 
 // TODO: Move to firebase-functions
-import { getStorage, ref, list } from 'firebase/storage'
+import { getStorage, list, ref } from 'firebase/storage'
+
 
 const TableGabinete = ({
   rows,
@@ -58,6 +58,9 @@ const TableGabinete = ({
   const [openDialog, setOpenDialog] = useState(false)
   const [error, setError] = useState('')
   const [expandedRows, setExpandedRows] = useState(new Set())
+
+  // Hooks de Google Drive.
+  const { getNextRevisionFolderName } = useGoogleDriveFolder()
 
   const defaultSortingModel = [{ field: 'date', sort: 'desc' }]
 

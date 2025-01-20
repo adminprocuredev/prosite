@@ -45,17 +45,6 @@ const Transition = forwardRef(function Transition(props, ref) {
   return <Fade ref={ref} {...props} />
 })
 
-/**
- * Función para extraer el número de área desde el string que contiene el nombre completo del área.
- * @param {string} name - String con el nombre completo del área. Ej: "0100 - Planta Desaladora".
- * @returns {string} - areaNumber que es un string con él número. Ek: "0100".
- */
-function extractAreaNumber(areaFullname) {
-  const nameArray = areaFullname.split(" - ")
-
-  return nameArray[0]
-}
-
 export const DialogDoneProject = ({ open, petition, handleClose, proyectistas }) => {
 
   // ** States
@@ -74,8 +63,8 @@ export const DialogDoneProject = ({ open, petition, handleClose, proyectistas })
   const [deadlineDate, setDeadlineDate] = useState(moment())
 
   // ** Hooks
-  const { updateDocs, authUser, getDomainData, getPlantInitals } = useFirebase()
-  const { fetchFolders, createFolder, uploadFile, findOrCreateFolder, processFolders } = useGoogleDriveFolder()
+  const { updateDocs, authUser } = useFirebase()
+  const { uploadFile, findOrCreateFolder, createFolderStructure } = useGoogleDriveFolder()
 
   const handleClickDelete = name => {
     // Filtramos el array draftmen para mantener todos los elementos excepto aquel con el nombre proporcionado
@@ -180,10 +169,6 @@ export const DialogDoneProject = ({ open, petition, handleClose, proyectistas })
       setLoading(true)
       try {
 
-        const plantInitials = await getPlantInitals(petition.plant)
-        const areaNumber = extractAreaNumber(petition.area)
-        const projectFolderName = `OT N°${petition.ot} - ${petition.title}`
-
         const subfolders = [
           'ANTECEDENTES',
           'SOLICITUD DE REQUERIMIENTO',
@@ -194,17 +179,8 @@ export const DialogDoneProject = ({ open, petition, handleClose, proyectistas })
           'COMENTARIOS CLIENTE'
         ]
 
-        // Procesar carpetas.
-        const projectFolder = await processFolders(
-          googleAuthConfig.MAIN_FOLDER_ID,
-          petition.plant,
-          plantInitials,
-          petition.area,
-          areaNumber,
-          projectFolderName,
-          petition.ot,
-          subfolders
-        )
+        // Se crea la estructura de carpetas.
+        const projectFolder = await createFolderStructure(petition, googleAuthConfig.MAIN_FOLDER_ID, subfolders)
 
         // Buscar o crear la carpeta "LEVANTAMIENTO".
         const targetFolder = await findOrCreateFolder(projectFolder.id, "LEVANTAMIENTO", "LEVANTAMIENTO")

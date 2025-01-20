@@ -1,33 +1,32 @@
-import React, { useState, useEffect, Fragment, useRef } from 'react'
 import {
+  Box,
   Button,
+  Checkbox,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
-  TextField,
   DialogTitle,
   FormControlLabel,
-  Checkbox,
-  Typography,
-  Box,
   IconButton,
   Link,
-  CircularProgress,
   List,
   ListItem,
   ListItemSecondaryAction,
-  ListItemText
+  ListItemText,
+  TextField,
+  Typography
 } from '@mui/material'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import Icon from 'src/@core/components/icon'
 
 import { useDropzone } from 'react-dropzone'
-import { useFirebase } from 'src/context/useFirebase'
-import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
 import DialogErrorFile from 'src/@core/components/dialog-errorFile'
-import { validateFileName, handleFileUpload } from 'src/context/google-drive-functions/fileHandlers'
-import { validateFiles } from 'src/context/google-drive-functions/fileValidation'
 import FileList from 'src/@core/components/file-list'
+import { validateFiles } from 'src/context/google-drive-functions/fileValidation'
+import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
+import { useFirebase } from 'src/context/useFirebase'
 
 // ** Configuración de Google Drive
 import googleAuthConfig from 'src/configs/googleDrive'
@@ -96,7 +95,7 @@ export default function AlertDialogGabinete({
 
     const { folder } = Object.values(folderTypes).find(({ condition }) => condition)
 
-    return folder
+    return [folder]
   }
 
   const uploadInFolder = getUploadFolder()
@@ -175,7 +174,7 @@ export default function AlertDialogGabinete({
 
   const rootFolder = googleAuthConfig.MAIN_FOLDER_ID
   const { updateBlueprintsWithStorageOrHlc, deleteReferenceOfLastDocumentAttached } = useFirebase()
-  const { uploadFile, fetchFolders, createFolder } = useGoogleDriveFolder()
+  const { uploadFile, fetchFolders, createFolder, handleFileUpload, validateFileName } = useGoogleDriveFolder()
 
   // Condición para habilitar el botón de rechazo si hay más de un blueprint y el campo de observaciones está lleno
   const canReject = blueprint.storageBlueprints?.length > 1 && remarksState.length > 0
@@ -509,12 +508,7 @@ export default function AlertDialogGabinete({
         blueprint,
         petitionId,
         petition,
-        fetchFolders,
-        uploadFile,
-        createFolder,
-        updateBlueprintsWithStorageOrHlc,
         rootFolder,
-        authUser,
         onFileUpload,
         uploadInFolder
       })
