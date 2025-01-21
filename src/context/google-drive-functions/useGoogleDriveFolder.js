@@ -335,6 +335,20 @@ export const useGoogleDriveFolder = () => {
 
   }
 
+  /**
+   * Función para copiar un texto al portapapeles.
+   * @param {string} text - Texto que se quiere copiar al portapapeles.
+   */
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        console.log('Texto copiado al portapapeles:', text)
+      })
+      .catch(err => {
+        console.error('Error al copiar al portapapeles:', err)
+      })
+  }
+
   const validateFileName = (acceptedFiles, values, blueprint, authUser, checkRoleAndApproval, approves) => {
 
     // Si es rol 9 y está aprobado por control documental, retornamos válido sin restricciones
@@ -380,17 +394,6 @@ export const useGoogleDriveFolder = () => {
       expectedFileName = `${expectedClientCode}_REV_${expectedRevision}_${initials}`
     }
 
-    const handleCopyToClipboard = text => {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          console.log('Texto copiado al portapapeles:', text)
-        })
-        .catch(err => {
-          console.error('Error al copiar al portapapeles:', err)
-        })
-    }
-
     return acceptedFiles.map(file => {
       const fileNameWithoutExtension = file.name.split('.').slice(0, -1).join('.')
       const isValid = fileNameWithoutExtension === expectedFileName
@@ -409,7 +412,7 @@ export const useGoogleDriveFolder = () => {
                 <IconButton
                   sx={{ ml: 3 }}
                   size='small'
-                  onClick={() => handleCopyToClipboard(expectedFileName)}
+                  onClick={() => copyToClipboard(expectedFileName)}
                   aria-label='copiar'
                 >
                   <FileCopyIcon fontSize='small' />
