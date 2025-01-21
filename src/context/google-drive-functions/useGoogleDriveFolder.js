@@ -461,15 +461,18 @@ export const useGoogleDriveFolder = () => {
     })
   }
 
-  const handleFileUpload = async ({
-    files,
-    blueprint,
-    petitionId,
-    petition,
-    rootFolder,
-    onFileUpload = null,
-    uploadInFolder = ["EN TRABAJO"]
-  }) => {
+  /**
+   * Función para manejar la carga de archivos a Google Drive y la actualización de campos en Firestore.
+   * @param {Object} - Se entrega un Objeto como parámetro:
+   * files: Array con documentos a cargar.
+   * blueprint: Objeto con los datos del entregable/plano.
+   * petitionId: String con ID de la OT.
+   * petition: Objeto con los datos de la OT.
+   * rootFolder: ID de la carpeta Principal de Google Drive.
+   * uploadInFolder: Array con nombres de Carpetas que se quieren crear.
+   * @returns
+   */
+  const handleFileUpload = async ({files, blueprint, petitionId, petition, rootFolder, uploadInFolder = ["EN TRABAJO"]}) => {
 
     if (!files || !blueprint.id) {
       return null
@@ -482,23 +485,26 @@ export const useGoogleDriveFolder = () => {
       // Buscar o crear la carpeta final en la que se almacenará el documento.
       const destinationFolder = await findOrCreateFolder(projectFolder.id, uploadInFolder[0], uploadInFolder[0])
 
+      // Se obtiene la letra/número de la siguiente revisión.
       const revision = getNextRevisionFolderName(blueprint)
       const revisionFolderName = `REV_${revision}`
+
+      // Se busca en Google Drive la Carpeta a Crear.
       const revisionFolders = await fetchFolders(destinationFolder.id)
       let revisionFolder = revisionFolders.files.find(folder => folder.name === revisionFolderName)
 
+      // Si no existe la Carpeta, se crea.
       if (!revisionFolder) {
         revisionFolder = await createFolder(revisionFolderName, destinationFolder.id)
       }
+
+      // Luego de asegurada la existencia de la carpeta, se carga el documento en ella.
       const fileData = await uploadFile(files.name, files, revisionFolder.id)
 
+      // Se genera el Link del archivo y se almacena en Firestore.
       if (fileData?.id) {
         const fileLink = `https://drive.google.com/file/d/${fileData.id}/view`
         await updateBlueprintsWithStorageOrHlc(petitionId, blueprint.id, fileLink, fileData.name, 'storage')
-
-        if (onFileUpload) {
-          onFileUpload(fileLink, fileData.name)
-        }
 
         return { fileLink, fileName: fileData.name }
       }

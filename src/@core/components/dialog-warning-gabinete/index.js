@@ -44,7 +44,6 @@ export default function AlertDialogGabinete({
   petition,
   error,
   setError,
-  onFileUpload,
   setDoc
 }) {
 
@@ -493,7 +492,6 @@ export default function AlertDialogGabinete({
       console.log(updateBlueprintsWithStorageOrHlc)
       console.log(rootFolder)
       console.log(authUser)
-      console.log(onFileUpload)
       console.log(uploadInFolder)
 
       await handleFileUpload({
@@ -502,7 +500,6 @@ export default function AlertDialogGabinete({
         petitionId,
         petition,
         rootFolder,
-        onFileUpload,
         uploadInFolder
       })
       updateFormState('files', null)

@@ -546,7 +546,6 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
                                 onClick={async () => {
                                   try {
                                     setIsLoading(true)
-                                    // TODO: CORREGIR ACÁ.
                                     await handleFileUpload({
                                       files,
                                       blueprint: doc,

@@ -1461,14 +1461,6 @@ const TableGabinete = ({
     return false
   }
 
-  // Función para actualizar `doc` con un nuevo archivo en storageBlueprints
-  const handleFileUpload = (fileLink, fileName) => {
-    setDoc(prevDoc => ({
-      ...prevDoc,
-      storageBlueprints: [...(prevDoc.storageBlueprints || []), { url: fileLink, name: fileName }]
-    }))
-  }
-
   return (
     <Card sx={{ height: 'inherit' }}>
       <DataGridPremium
@@ -1545,7 +1537,6 @@ const TableGabinete = ({
           petitionId={petitionId}
           error={error}
           setError={setError}
-          onFileUpload={handleFileUpload}
           setDoc={setDoc}
         ></AlertDialogGabinete>
       )}
