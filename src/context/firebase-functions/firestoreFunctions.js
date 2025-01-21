@@ -1726,6 +1726,15 @@ const deleteBlueprintAndDecrementCounters = async (
   })
 }
 
+/**
+ * Función para actualizar Firestore con la información del Entregable (blueprint).
+ * En específico se añade/actualiza un array con los links de Google Drive del Entregable o de su HLC.
+ * @param {string} petitionId - ID de la OT.
+ * @param {string} blueprintId - ID del Entregable.
+ * @param {string} fileLink - Link de Google Drive donde se almacena el documento.
+ * @param {string} fileName - Nombre del documento almacenado.
+ * @param {string} destination - String que define si se actualiza el campo storageBlueprints o storageHlcDocuments en Firestore.
+ */
 const updateBlueprintsWithStorageOrHlc = async (petitionId, blueprintId, fileLink, fileName, destination) => {
   try {
     // Referencia al documento del blueprint dentro de la colección "blueprints" de una "solicitud"
