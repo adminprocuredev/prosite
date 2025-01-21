@@ -531,6 +531,7 @@ export const useGoogleDriveFolder = () => {
     createFolderStructure,
     getNextRevisionFolderName,
     validateFileName,
-    handleFileUpload
+    handleFileUpload,
+    checkRoleAndApproval
   }
 }

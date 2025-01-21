@@ -28,9 +28,6 @@ import { validateFiles } from 'src/context/google-drive-functions/fileValidation
 import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
 import { useFirebase } from 'src/context/useFirebase'
 
-// ** Configuración de Google Drive
-import googleAuthConfig from 'src/configs/googleDrive'
-
 export default function AlertDialogGabinete({
   open,
   handleClose,
