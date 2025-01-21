@@ -171,8 +171,8 @@ export default function AlertDialogGabinete({
     (isRevisionAtLeastB || isRevisionAtLeast0) && isRole9 && !approves && blueprint.approvedByDocumentaryControl
 
   const rootFolder = googleAuthConfig.MAIN_FOLDER_ID
-  const { updateBlueprintsWithStorageOrHlc, deleteReferenceOfLastDocumentAttached } = useFirebase()
-  const { uploadFile, fetchFolders, createFolder, handleFileUpload, validateFileName } = useGoogleDriveFolder()
+  const { deleteReferenceOfLastDocumentAttached } = useFirebase()
+  const { handleFileUpload, validateFileName } = useGoogleDriveFolder()
 
   // Condición para habilitar el botón de rechazo si hay más de un blueprint y el campo de observaciones está lleno
   const canReject = blueprint.storageBlueprints?.length > 1 && remarksState.length > 0
@@ -481,27 +481,7 @@ export default function AlertDialogGabinete({
   const handleUploadFile = async () => {
     try {
       updateFormState('isUploading', true)
-
-      console.log(files)
-      console.log(blueprint)
-      console.log(petitionId)
-      console.log(petition)
-      console.log(fetchFolders)
-      console.log(uploadFile)
-      console.log(createFolder)
-      console.log(updateBlueprintsWithStorageOrHlc)
-      console.log(rootFolder)
-      console.log(authUser)
-      console.log(uploadInFolder)
-
-      await handleFileUpload({
-        files,
-        blueprint,
-        petitionId,
-        petition,
-        rootFolder,
-        uploadInFolder
-      })
+      await handleFileUpload(files, blueprint, petitionId, petition, rootFolder, uploadInFolder)
       updateFormState('files', null)
     } catch (error) {
       console.error('Error al subir el archivo:', error)

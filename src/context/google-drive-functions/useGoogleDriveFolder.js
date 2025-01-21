@@ -462,17 +462,16 @@ export const useGoogleDriveFolder = () => {
   }
 
   /**
-   * Función para manejar la carga de archivos a Google Drive y la actualización de campos en Firestore.
-   * @param {Object} - Se entrega un Objeto como parámetro:
-   * files: Array con documentos a cargar.
-   * blueprint: Objeto con los datos del entregable/plano.
-   * petitionId: String con ID de la OT.
-   * petition: Objeto con los datos de la OT.
-   * rootFolder: ID de la carpeta Principal de Google Drive.
-   * uploadInFolder: Array con nombres de Carpetas que se quieren crear.
+   *
+   * @param {Object} files - Objeto con información del documento a cargar: name, size, path...
+   * @param {Object} blueprint - Objeto con los datos del entregable/plano.
+   * @param {string} petitionId - String con ID de la OT.
+   * @param {Object} petition - Objeto con los datos de la OT.
+   * @param {string} rootFolder - ID de la carpeta Principal de Google Drive.
+   * @param {Array.<string>} uploadInFolder - Array con nombres de Carpetas que se quieren crear.
    * @returns
    */
-  const handleFileUpload = async ({files, blueprint, petitionId, petition, rootFolder, uploadInFolder = ["EN TRABAJO"]}) => {
+  const handleFileUpload = async (files, blueprint, petitionId, petition, rootFolder, uploadInFolder = ["EN TRABAJO"]) => {
 
     if (!files || !blueprint.id) {
       return null

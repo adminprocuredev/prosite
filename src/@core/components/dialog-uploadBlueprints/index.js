@@ -546,13 +546,7 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
                                 onClick={async () => {
                                   try {
                                     setIsLoading(true)
-                                    await handleFileUpload({
-                                      files,
-                                      blueprint: doc,
-                                      petitionId,
-                                      petition,
-                                      rootFolder,
-                                    })
+                                    await handleFileUpload(files, doc, petitionId, petition, rootFolder)
                                     setFiles(null)
                                   } catch (error) {
                                     console.error('Error al subir el archivo:', error)
