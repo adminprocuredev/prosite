@@ -10,8 +10,6 @@ import googleAuthConfig from 'src/configs/googleDrive'
 const callAddRegular = require('public/fonts/calibri-normal.js')
 const callAddBold = require('public/fonts/calibri-bold.js')
 
-const rootFolder = googleAuthConfig.MAIN_FOLDER_ID
-
 export const generateTransmittal = async (
   tableElement,
   selected,
@@ -19,7 +17,6 @@ export const generateTransmittal = async (
   newCode,
   petition,
   uploadFile,
-  createFolder,
   fetchFolders,
   setIsLoading,
   setOpenTransmittalDialog
@@ -132,7 +129,7 @@ export const generateTransmittal = async (
 
   doc.setFont('Calibri', 'bold')
   doc.text(
-    '1. Como acuso de su recepción, devuelva una copia de esta firmada a Procure – Administrador de Contrato',
+    '1. Como acuso de su recepción, devuelva una copia de esta firmada a Procure - Administrador de Contrato',
     15,
     pageBreak ? 20 : doc.lastAutoTable.finalY + 10
   )
@@ -175,7 +172,7 @@ export const generateTransmittal = async (
   const pdfBlob = doc.output('blob') // Genera el blob del documento PDF
 
   // Lógica de carga a Google Drive
-  const plantFolders = await fetchFolders(rootFolder)
+  const plantFolders = await fetchFolders()
   const plantFolder = plantFolders.files.find(folder => folder.name.includes(getPlantInitals(petition.plant)))
 
   if (plantFolder) {

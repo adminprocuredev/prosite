@@ -167,10 +167,8 @@ export default function AlertDialogGabinete({
 
   const canAprove = getApprovalStatus()
 
-  const canRejectedByClient =
-    (isRevisionAtLeastB || isRevisionAtLeast0) && isRole9 && !approves && blueprint.approvedByDocumentaryControl
+  const canRejectedByClient = (isRevisionAtLeastB || isRevisionAtLeast0) && isRole9 && !approves && blueprint.approvedByDocumentaryControl
 
-  const rootFolder = googleAuthConfig.MAIN_FOLDER_ID
   const { deleteReferenceOfLastDocumentAttached } = useFirebase()
   const { handleFileUpload, validateFileName } = useGoogleDriveFolder()
 
@@ -481,7 +479,7 @@ export default function AlertDialogGabinete({
   const handleUploadFile = async () => {
     try {
       updateFormState('isUploading', true)
-      await handleFileUpload(files, blueprint, petitionId, petition, rootFolder, uploadInFolder)
+      await handleFileUpload(files, blueprint, petitionId, petition, uploadInFolder)
       updateFormState('files', null)
     } catch (error) {
       console.error('Error al subir el archivo:', error)

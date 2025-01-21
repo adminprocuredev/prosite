@@ -180,7 +180,7 @@ export const DialogDoneProject = ({ open, petition, handleClose, proyectistas })
         ]
 
         // Se crea la estructura de carpetas.
-        const projectFolder = await createFolderStructure(petition, googleAuthConfig.MAIN_FOLDER_ID, subfolders)
+        const projectFolder = await createFolderStructure(petition, subfolders)
 
         // Buscar o crear la carpeta "LEVANTAMIENTO".
         const targetFolder = await findOrCreateFolder(projectFolder.id, "LEVANTAMIENTO", "LEVANTAMIENTO")

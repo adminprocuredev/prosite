@@ -44,7 +44,7 @@ export const DialogAssignProject = ({ open, doc, proyectistas, handleClose }) =>
   // ** Hooks
   const { updateDocs, authUser } = useFirebase()
 
-  const { fetchFolders, createFolder, createPermission, isLoading: folderLoading } = useGoogleDriveFolder() // Use the new hook
+  const { isLoading: folderLoading } = useGoogleDriveFolder() // Use the new hook
 
   const handleClickDelete = name => {
     // Filtramos el array draftmen para mantener todos los elementos excepto aquel con el nombre proporcionado

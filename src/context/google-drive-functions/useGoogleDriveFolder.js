@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { updateBlueprintsWithStorageOrHlc } from 'src/context/firebase-functions/firestoreFunctions'
 import { getPlantInitals } from 'src/context/firebase-functions/firestoreQuerys'
 import { useGoogleAuth } from './useGoogleDriveAuth'
+// ** Configuración de Google Drive
+import googleAuthConfig from 'src/configs/googleDrive'
 
 /**
  * Hook para interactuar con Google Drive, que incluye gestión de carpetas, permisos y subida de archivos.
@@ -14,6 +16,11 @@ export const useGoogleDriveFolder = () => {
   const { refreshAccessToken, signInToGoogle } = useGoogleAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
+
+  /**
+   * Se llama al ID de la carpeta principal de Google Drive.
+   */
+  const rootFolder = googleAuthConfig.MAIN_FOLDER_ID
 
   /**
    * Maneja errores y la autenticación para cada solicitud a la API de Google Drive.
@@ -81,10 +88,10 @@ export const useGoogleDriveFolder = () => {
 
   /**
    * Obtiene una lista de carpetas dentro de una carpeta específica en Google Drive.
-   * @param {string} parentId - ID de la carpeta padre.
+   * @param {string} parentId - ID de la carpeta padre. Si no se entrega el parámetro se asume que la carpeta a buscar es la carpeta principal.
    * @returns {Promise<Object>} Lista de carpetas.
    */
-  const fetchFolders = async (parentId) => {
+  const fetchFolders = async (parentId = rootFolder) => {
 
     const url = `https://www.googleapis.com/drive/v3/files?q='${parentId}'+in+parents+and+mimeType='application/vnd.google-apps.folder'&includeItemsFromAllDrives=true&supportsAllDrives=true`
 
@@ -95,10 +102,10 @@ export const useGoogleDriveFolder = () => {
   /**
    * Crea una nueva carpeta en Google Drive.
    * @param {string} name - Nombre de la carpeta.
-   * @param {string} [parentFolderId='root'] - ID de la carpeta padre.
+   * @param {string} parentFolderId - ID de la carpeta padre.
    * @returns {Promise<Object>} Carpeta creada.
    */
-  const createFolder = async (name, parentFolderId = 'root') => {
+  const createFolder = async (name, parentFolderId = rootFolder) => {
 
     const url = 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true'
 
@@ -200,11 +207,10 @@ export const useGoogleDriveFolder = () => {
   /**
    * Crea una estructura de carpetas jerárquica en Google Drive basada en los datos de la petición.
    * @param {object} petition - Objeto con la información de la OT.
-   * @param {string} rootFolder - String con el ID de la carpeta.
    * @param {string} uploadInFolder - Nombre de la carpeta específica que se quiere crear.
    * @returns {Promise<object>} - Objeto que representa la carpeta final creada o encontrada en Google Drive.
    */
-  const createFolderStructure = async (petition, rootFolder, newFolder = []) => {
+  const createFolderStructure = async (petition, newFolder = []) => {
 
     const plantInitials = await getPlantInitals(petition.plant)
     const plantFolder = await findOrCreateFolder(rootFolder, plantInitials, plantInitials)
@@ -467,11 +473,10 @@ export const useGoogleDriveFolder = () => {
    * @param {Object} blueprint - Objeto con los datos del entregable/plano.
    * @param {string} petitionId - String con ID de la OT.
    * @param {Object} petition - Objeto con los datos de la OT.
-   * @param {string} rootFolder - ID de la carpeta Principal de Google Drive.
    * @param {Array.<string>} uploadInFolder - Array con nombres de Carpetas que se quieren crear.
    * @returns
    */
-  const handleFileUpload = async (files, blueprint, petitionId, petition, rootFolder, uploadInFolder = ["EN TRABAJO"]) => {
+  const handleFileUpload = async (files, blueprint, petitionId, petition, uploadInFolder = ["EN TRABAJO"]) => {
 
     if (!files || !blueprint.id) {
       return null
@@ -479,7 +484,7 @@ export const useGoogleDriveFolder = () => {
 
     try {
       // Utilizamos createFolderStructure para manejar toda la lógica de carpetas
-      const projectFolder = await createFolderStructure(petition, rootFolder, uploadInFolder)
+      const projectFolder = await createFolderStructure(petition, uploadInFolder)
 
       // Buscar o crear la carpeta final en la que se almacenará el documento.
       const destinationFolder = await findOrCreateFolder(projectFolder.id, uploadInFolder[0], uploadInFolder[0])

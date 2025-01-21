@@ -72,7 +72,6 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
   const [isLoading, setIsLoading] = useState(false)
 
   const theme = useTheme()
-  const rootFolder = googleAuthConfig.MAIN_FOLDER_ID
 
   const { updateDocs, authUser, addDescription, updateBlueprintsWithStorageOrHlc, deleteReferenceOfLastDocumentAttached } = useFirebase()
   const { uploadFile, findOrCreateFolder, createFolderStructure, handleFileUpload, validateFileName, checkRoleAndApproval } = useGoogleDriveFolder()
@@ -256,7 +255,7 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
       setIsLoading(true)
 
       // Crear Estructura de Carpetas en caso de que no exista previamente.
-      const projectFolder = await createFolderStructure(petition, rootFolder, ["EMITIDOS"])
+      const projectFolder = await createFolderStructure(petition, ["EMITIDOS"])
 
       // Ubica la carpeta "EMITIDOS"
       const targetFolder = await findOrCreateFolder(projectFolder.id, "EMITIDOS", "EMITIDOS")
@@ -546,7 +545,7 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
                                 onClick={async () => {
                                   try {
                                     setIsLoading(true)
-                                    await handleFileUpload(files, doc, petitionId, petition, rootFolder)
+                                    await handleFileUpload(files, doc, petitionId, petition)
                                     setFiles(null)
                                   } catch (error) {
                                     console.error('Error al subir el archivo:', error)
