@@ -60,7 +60,7 @@ const TableGabinete = ({
   const [expandedRows, setExpandedRows] = useState(new Set())
 
   // Hooks de Google Drive.
-  const { getNextRevisionFolderName } = useGoogleDriveFolder()
+  const { getNextRevisionFolderName, checkRoleAndApproval } = useGoogleDriveFolder()
 
   const defaultSortingModel = [{ field: 'date', sort: 'desc' }]
 
@@ -313,26 +313,6 @@ const TableGabinete = ({
         {canResume && renderButton(row, true, 'info', SyncIcon, disabled, true)}
       </Container>
     )
-  }
-
-  const checkRoleAndApproval = (role, row) => {
-    if (row.revisions && row.revisions.length > 0) {
-      const sortedRevisions = [...row.revisions].sort((a, b) => new Date(b.date) - new Date(a.date))
-      const lastRevision = sortedRevisions[0]
-
-      if (
-        'lastTransmittal' in lastRevision &&
-        role === 9 &&
-        row.approvedByDocumentaryControl &&
-        (row.sentByDesigner === true || row.sentBySupervisor === true) &&
-        (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48) &&
-        !row.blueprintCompleted
-      ) {
-        return true
-      }
-    }
-
-    return false
   }
 
   const checkRoleAndGenerateTransmittal = (role, row) => {
@@ -1567,7 +1547,6 @@ const TableGabinete = ({
           setError={setError}
           onFileUpload={handleFileUpload}
           setDoc={setDoc}
-          checkRoleAndApproval={checkRoleAndApproval}
         ></AlertDialogGabinete>
       )}
 
@@ -1580,7 +1559,6 @@ const TableGabinete = ({
             petitionId={petitionId}
             currentRow={currentRow}
             petition={petition}
-            checkRoleAndApproval={checkRoleAndApproval}
           />
         </DialogContent>
         <DialogActions>

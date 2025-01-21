@@ -39,7 +39,7 @@ import googleAuthConfig from 'src/configs/googleDrive'
 // Dialog para cargar entregables.
 // doc: Object con la información del entregable.
 // petition: Object con la información de la OT.
-export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition, checkRoleAndApproval }) => {
+export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }) => {
 
   let id, userId, userName, userEmail, revision, storageBlueprints, description, date, clientCode, storageHlcDocuments
 
@@ -75,7 +75,7 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition, 
   const rootFolder = googleAuthConfig.MAIN_FOLDER_ID
 
   const { updateDocs, authUser, addDescription, updateBlueprintsWithStorageOrHlc, deleteReferenceOfLastDocumentAttached } = useFirebase()
-  const { uploadFile, findOrCreateFolder, createFolderStructure, handleFileUpload, validateFileName } = useGoogleDriveFolder()
+  const { uploadFile, findOrCreateFolder, createFolderStructure, handleFileUpload, validateFileName, checkRoleAndApproval } = useGoogleDriveFolder()
 
   // Verifica estado
   revision = typeof revision === 'string' ? revision : 100
@@ -167,11 +167,11 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition, 
       }
 
       // Valida los archivos con base en el nombre
-      const invalidFileNames = validateFileName(acceptedFiles, values, doc, authUser, checkRoleAndApproval).filter(
+      const invalidFileNames = validateFileName(acceptedFiles, doc, authUser).filter(
         file => !file.isValid
       )
       if (invalidFileNames.length > 0) {
-        const res = validateFileName(invalidFileNames, values, doc, authUser, checkRoleAndApproval)
+        const res = validateFileName(invalidFileNames, doc, authUser)
         const msj = res[0].msj
         handleOpenErrorDialog(msj)
 

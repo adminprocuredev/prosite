@@ -45,8 +45,7 @@ export default function AlertDialogGabinete({
   error,
   setError,
   onFileUpload,
-  setDoc,
-  checkRoleAndApproval
+  setDoc
 }) {
 
   const isRole9 = authUser.role === 9 // Ctrl. Documental : C-Doc
@@ -220,14 +219,8 @@ export default function AlertDialogGabinete({
         return
       }
 
-      const invalidFileNames = validateFileName(
-        acceptedFiles,
-        values,
-        blueprint,
-        authUser,
-        checkRoleAndApproval,
-        approves
-      ).filter(file => !file.isValid)
+      const invalidFileNames = validateFileName(acceptedFiles, blueprint, authUser).filter(file => !file.isValid)
+
       if (invalidFileNames.length > 0) {
         handleOpenErrorDialog(invalidFileNames[0].msj)
 

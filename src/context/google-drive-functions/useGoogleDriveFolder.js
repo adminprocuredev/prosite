@@ -275,7 +275,7 @@ export const useGoogleDriveFolder = () => {
  */
   const getNextRevisionFolderName = (blueprint) => {
 
-    // Desestructuración de los Objetos blueprint y authUser.
+    // Desestructuración de blueprint.
     const { revision, id, approvedByClient, approvedByDocumentaryControl } = blueprint
 
     // Se obtiene la letra o número de la siguiente revisión.
@@ -349,14 +349,54 @@ export const useGoogleDriveFolder = () => {
       })
   }
 
-  const validateFileName = (acceptedFiles, values, blueprint, authUser, checkRoleAndApproval, approves) => {
+  /**
+   * Función para definir si el Entregable puede ser revisado por el Cliente. Creo...
+   * @param {number} role - Rol del usuario conectado que ejecuta la acción.
+   * @param {Object} blueprint - Blueprint modificado que contiene array "revisions" que contiene los datos de todas sus revisiones.
+   * @returns {boolean}
+   */
+  const checkRoleAndApproval = (role, blueprint) => {
 
-    // Si es rol 9 y está aprobado por control documental, retornamos válido sin restricciones
-    if (
-      authUser.role === 9 &&
-      blueprint.approvedByDocumentaryControl === true &&
-      checkRoleAndApproval(authUser.role, blueprint)
-    ) {
+    // Desestructuración de blueprint.
+    const { revision, revisions, approvedByDocumentaryControl, sentByDesigner, sentBySupervisor, blueprintCompleted } = blueprint
+
+    if (revisions && revisions.length > 0) {
+      const sortedRevisions = [...revisions].sort((a, b) => new Date(b.date) - new Date(a.date))
+      const lastRevision = sortedRevisions[0]
+
+      if (
+        'lastTransmittal' in lastRevision &&
+        role === 9 &&
+        approvedByDocumentaryControl &&
+        (sentByDesigner === true || sentBySupervisor === true) &&
+        (revision.charCodeAt(0) >= 66 || revision.charCodeAt(0) >= 48) &&
+        !blueprintCompleted
+      ) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  /**
+   *
+   * @param {Array.<Object>} acceptedFiles - Contiene datos del archivo como name, size, type...
+   * @param {Object} blueprint - Objeto con los datos del entregable/plano.
+   * @param {Object} authUser - Objeto con la información del usuario conectado que ejecuta la acción.
+   * @returns {Object} - Objeto con
+   */
+  const validateFileName = (acceptedFiles, blueprint, authUser) => {
+
+    // Desustructuración de objetos.
+    const { uid, role, displayName } = authUser
+    const { userId, clientCode, revision, approvedByDocumentaryControl, approvedBySupervisor, approvedByContractAdmin } = blueprint
+
+    // Booleano para definir si el Entregable puede ser definido por el Cliente o no.
+    const canBeCheckedByClient = checkRoleAndApproval(role, blueprint)
+
+    // Si es Rol 9, está aprobado por control documental y puede ser revisado por el Cliente, se puede subir un documento con cualquier nombre.
+    if (role === 9 && approvedByDocumentaryControl === true && canBeCheckedByClient) {
       return acceptedFiles.map(file => ({
         name: file.name,
         isValid: true,
@@ -364,40 +404,29 @@ export const useGoogleDriveFolder = () => {
       }))
     }
 
-    const expectedClientCode = values.clientCode
+    // Se define la letra/número de la siguiente revisión teórica.
     const expectedRevision = getNextRevisionFolderName(blueprint, authUser)
 
     let expectedFileName = null
 
-    if (authUser.role === 8 || (authUser.role === 7 && blueprint.userId === authUser.uid)) {
-      expectedFileName = `${expectedClientCode}_REV_${expectedRevision}`
-    } else if (
-      authUser.role === 9 &&
-      blueprint.approvedByDocumentaryControl &&
-      !checkRoleAndApproval(authUser.role, blueprint)
-    ) {
-      expectedFileName = `${expectedClientCode}_REV_${expectedRevision}_HLC`
-    } else if (
-      authUser.role === 9 &&
-      (blueprint.approvedBySupervisor || blueprint.approvedByContractAdmin) &&
-      blueprint.revision !== 'A' &&
-      approves
-    ) {
-      expectedFileName = `${expectedClientCode}_REV_${expectedRevision}`
+    // Se define el nombre esperado del Entregable a cargar según sea el caso.
+    // TODO: VALIDAR ESTOS CASOS
+    if (role === 8 || (role === 7 && userId === uid)) {
+      expectedFileName = `${clientCode}_REV_${expectedRevision}`
+    } else if (role === 9 && approvedByDocumentaryControl && !canBeCheckedByClient) {
+      expectedFileName = `${clientCode}_REV_${expectedRevision}_HLC`
+    } else if (role === 9 && (approvedBySupervisor || approvedByContractAdmin) && revision !== 'A') { // ACÁ ANTES HABÍA UN && approves
+      expectedFileName = `${clientCode}_REV_${expectedRevision}`
     } else {
-      const initials = authUser.displayName
-        .toUpperCase()
-        .split(' ')
-        .map(word => word.charAt(0))
-        .join('')
-
-      expectedFileName = `${expectedClientCode}_REV_${expectedRevision}_${initials}`
+      const initials = displayName.toUpperCase().split(' ').map(word => word.charAt(0)).join('')
+      expectedFileName = `${clientCode}_REV_${expectedRevision}_${initials}`
     }
 
     return acceptedFiles.map(file => {
-      const fileNameWithoutExtension = file.name.split('.').slice(0, -1).join('.')
+      const fileNameWithoutExtension = file.name.split('.')[0]
       const isValid = fileNameWithoutExtension === expectedFileName
 
+      // Si el nombre del archivo no es válido, se retorna un Dialog con indicaciones.
       return {
         name: file.name,
         isValid,
