@@ -133,6 +133,7 @@ export const useGoogleAuth = () => {
 
       // Lanza un error si la respuesta no es exitosa
       if (!response.ok) {
+        // TODO: EVALUAR SI ESTO ES LO MEJOR O NECESITO EJECUTAR LA AUTENTICACIÓN.
         throw new Error('Error al refrescar el Token de Acceso.')
       }
 
