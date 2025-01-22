@@ -138,76 +138,97 @@ const TableGabinete = ({
     }
   }
 
-  function permissions(row, role, authUser) {
+  function permissions(row, authUser) {
+
     if (!row) {
       return undefined
     }
 
-    const isMyBlueprint = row.userId === authUser.uid
+    // Desestructuración de Objetos.
+    const {
+      userId,
+      description,
+      clientCode,
+      storageBlueprints,
+      revision,
+      sentByDesigner,
+      sentBySupervisor,
+      approvedByContractAdmin,
+      approvedByDocumentaryControl,
+      approvedBySupervisor
+    } = row
 
-    const hasRequiredFields =
-      row.description && row.clientCode && row.storageBlueprints && row.storageBlueprints.length >= 1
+    const { uid, role } = authUser
+
+    // Definición de variables booleanas.
+    const isRole6 = role === 6
+    const isRole7 = role === 7
+    const isRole8 = role === 8
+    const isRole9 = role === 9
+    const isInitialRevition = revision === 'Iniciado'
+    const isMyBlueprint = userId === uid
+    const hasRequiredFields = description && clientCode && storageBlueprints && storageBlueprints.length >= 1
 
     const dictionary = {
       6: {
         approve:
-          role === 6 &&
-          row.revision !== 'Iniciado' &&
-          (row.revision?.charCodeAt(0) >= 65 || row.revision?.charCodeAt(0) >= 48) &&
-          (row.sentByDesigner === true || row.sentBySupervisor === true) &&
-          row.approvedByContractAdmin === false &&
-          row.approvedByDocumentaryControl === false &&
-          row.approvedBySupervisor === false,
+          isRole6 &&
+          !isInitialRevition &&
+          (revision?.charCodeAt(0) >= 65 || revision?.charCodeAt(0) >= 48) &&
+          (sentByDesigner === true || sentBySupervisor === true) &&
+          approvedByContractAdmin === false &&
+          approvedByDocumentaryControl === false &&
+          approvedBySupervisor === false,
         reject:
-          role === 6 &&
-          row.revision !== 'Iniciado' &&
-          (row.revision?.charCodeAt(0) >= 65 || row.revision?.charCodeAt(0) >= 48) &&
-          (row.sentByDesigner === true || row.sentBySupervisor === true) &&
-          row.approvedByContractAdmin === false &&
-          row.approvedByDocumentaryControl === false &&
-          row.approvedBySupervisor === false
+          isRole6 &&
+          !isInitialRevition &&
+          (revision?.charCodeAt(0) >= 65 || revision?.charCodeAt(0) >= 48) &&
+          (sentByDesigner === true || sentBySupervisor === true) &&
+          approvedByContractAdmin === false &&
+          approvedByDocumentaryControl === false &&
+          approvedBySupervisor === false
       },
       7: {
         approve:
-          (role === 7 &&
-            row.revision !== 'Iniciado' &&
-            (row.revision?.charCodeAt(0) >= 65 || row.revision?.charCodeAt(0) >= 48) &&
-            row.sentByDesigner === true &&
-            row.approvedBySupervisor === false &&
-            row.approvedByDocumentaryControl === false &&
-            row.approvedByContractAdmin === false) ||
-          (role === 7 &&
+          (isRole7 &&
+            !isInitialRevition &&
+            (revision?.charCodeAt(0) >= 65 || revision?.charCodeAt(0) >= 48) &&
+            sentByDesigner === true &&
+            approvedBySupervisor === false &&
+            approvedByDocumentaryControl === false &&
+            approvedByContractAdmin === false) ||
+          (isRole7 &&
             isMyBlueprint &&
             hasRequiredFields &&
-            row.sentBySupervisor === false &&
+            sentBySupervisor === false &&
             !row.blueprintCompleted),
         reject:
-          role === 7 &&
-          row.revision !== 'Iniciado' &&
-          (row.revision?.charCodeAt(0) >= 65 || row.revision?.charCodeAt(0) >= 48) &&
-          row.sentByDesigner === true &&
-          row.approvedBySupervisor === false &&
-          row.approvedByDocumentaryControl === false &&
-          row.approvedByContractAdmin === false
+          isRole7 &&
+          !isInitialRevition &&
+          (revision?.charCodeAt(0) >= 65 || revision?.charCodeAt(0) >= 48) &&
+          sentByDesigner === true &&
+          approvedBySupervisor === false &&
+          approvedByDocumentaryControl === false &&
+          approvedByContractAdmin === false
       },
       8: {
         approve:
-          role === 8 && isMyBlueprint && hasRequiredFields && row.sentByDesigner === false && !row.blueprintCompleted,
+          isRole8 && isMyBlueprint && hasRequiredFields && sentByDesigner === false && !row.blueprintCompleted,
         reject: false
       },
       9: {
         approve:
-          row.revision === 'Iniciado'
-            ? role === 9 && (row.sentByDesigner === true || row.sentBySupervisor === true)
+          isInitialRevition
+            ? isRole9 && (sentByDesigner === true || sentBySupervisor === true)
             : role === 9 &&
-              (row.sentByDesigner === true || row.sentBySupervisor === true) &&
-              (row.approvedByContractAdmin === true || row.approvedBySupervisor === true),
+              (sentByDesigner === true || sentBySupervisor === true) &&
+              (approvedByContractAdmin === true || approvedBySupervisor === true),
         reject:
-          row.revision === 'Iniciado'
-            ? role === 9 && (row.sentByDesigner === true || row.sentBySupervisor === true)
-            : role === 9 &&
-              (row.sentByDesigner === true || row.sentBySupervisor === true) &&
-              (row.approvedByContractAdmin === true || row.approvedBySupervisor === true)
+          isInitialRevition
+            ? isRole9 && (sentByDesigner === true || sentBySupervisor === true)
+            : isRole9 &&
+              (sentByDesigner === true || sentBySupervisor === true) &&
+              (approvedByContractAdmin === true || approvedBySupervisor === true)
       }
     }
 
@@ -283,6 +304,12 @@ const TableGabinete = ({
   }
 
   const renderButtons = (row, flexDirection, canApprove, canReject, disabled, canResume = false) => {
+
+    console.log(row)
+    console.log(disabled ? disabled : '')
+    console.log(canApprove)
+    console.log(canReject)
+
     return (
       <Container
         sx={{ display: 'flex', flexDirection: { flexDirection }, padding: '0rem!important', margin: '0rem!important' }}
@@ -1208,7 +1235,7 @@ const TableGabinete = ({
       renderCell: params => {
         const { row } = params
         localStorage.setItem('remarksGabineteWidthColumn', params.colDef.computedWidth)
-        const permissionsData = permissions(row, role, authUser)
+        const permissionsData = permissions(row, authUser)
         const canApprove = permissionsData?.approve
         const canReject = permissionsData?.reject
 
