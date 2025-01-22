@@ -29,7 +29,7 @@ import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoog
 import { useFirebase } from 'src/context/useFirebase'
 
 // Importación de funciones útiles para este componente
-import { getApprovalStatus, getUploadFolder, getButtonDisabledState, getDialogText, shouldShowRemarkCheckbox, getRemarkFieldConfig } from './conditions'
+import { getApprovalStatus, getButtonDisabledState, getDialogText, getRemarkFieldConfig, getUploadFolder, shouldShowRemarkCheckbox } from './conditions'
 
 export default function AlertDialogGabinete({
   open,
@@ -326,9 +326,7 @@ export default function AlertDialogGabinete({
       }
     }
 
-    return Object.values(sections)
-      .filter(({ condition }) => condition)
-      .map(({ component }) => component)
+    return Object.values(sections).filter(({ condition }) => condition).map(({ component }) => component)
   }
 
   return (
@@ -346,7 +344,7 @@ export default function AlertDialogGabinete({
         )}
 
         {getRemarkFieldConfig({toggleRemarks, approves, error}) && (
-          <TextField sx={{ mt: 4 }} {...getRemarkFieldConfig({toggleRemarks, approves, error})} onChange={e => setRemarksState(e.target.value)} />
+          <TextField sx={{ mt: 4 }} {...getRemarkFieldConfig({toggleRemarks, approves, error})} onBlur={e => setRemarksState(e.target.value)} />
         )}
 
         {isRevisor ? (
