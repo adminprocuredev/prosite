@@ -58,6 +58,7 @@ const TableGabinete = ({
   const [openDialog, setOpenDialog] = useState(false)
   const [error, setError] = useState('')
   const [expandedRows, setExpandedRows] = useState(new Set())
+  const [buttonClicked, setButtonClicked] = useState(false)
 
   // Hooks de Google Drive.
   const { getNextRevisionFolderName, checkRoleAndApproval } = useGoogleDriveFolder()
@@ -102,6 +103,11 @@ const TableGabinete = ({
   }
 
   const writeCallback = async () => {
+
+    // Se bloquean botones mientras se actualiza la información en Firestore.
+    // Esto es para evitar posibles errores de actualización de Firestore por apretar botones rápidamente.
+    setButtonClicked(true)
+
     const remarks = remarksState.length > 0 ? remarksState : false
 
     authUser.role === 8
@@ -121,6 +127,9 @@ const TableGabinete = ({
             setOpenAlert(false), setRemarksState('')
           })
           .catch(err => console.error(err), setOpenAlert(false))
+
+    // Al terminar la actualización se desbloquean los botones
+    setButtonClicked(false)
   }
 
   const handleCloseAlert = () => {
@@ -282,7 +291,7 @@ const TableGabinete = ({
       <Button
         onClick={handleClick}
         variant='contained'
-        disabled={disabled}
+        disabled={disabled || buttonClicked}
         color={color}
         sx={{
           padding: '0rem!important',
