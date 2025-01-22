@@ -33,8 +33,10 @@ import { getApprovalStatus, getButtonDisabledState, getDialogText, getRemarkFiel
 
 export default function AlertDialogGabinete({
   open,
+  setOpenAlert,
+  buttonClicked,
+  setButtonClicked,
   handleClose,
-  callback,
   approves,
   authUser,
   setRemarksState,
@@ -51,7 +53,7 @@ export default function AlertDialogGabinete({
   const { revision, approvedByDocumentaryControl, storageBlueprints } = blueprint
 
   // Uso de Hooks
-  const { deleteReferenceOfLastDocumentAttached } = useFirebase()
+  const { deleteReferenceOfLastDocumentAttached, updateBlueprint } = useFirebase()
   const { handleFileUpload, validateFileName } = useGoogleDriveFolder()
 
   // Constantes booleanas
@@ -191,6 +193,37 @@ export default function AlertDialogGabinete({
       updateFormState('isUploading', false)
     }
   }
+
+  const handleUpdateFirestore = async () => {
+    // Bloquea botones mientras se actualiza la información en Firestore
+    setButtonClicked(true)
+
+    // Determina el valor de `remarks`
+    const remarks = remarksState.length > 0 ? remarksState : false
+
+    try {
+      if (authUser.role === 8) {
+        // Lógica para el rol 8
+        await updateBlueprint(petitionId, blueprint, approves, authUser, false)
+      } else if (authUser.role === 9) {
+        // Lógica para el rol 9
+        await updateBlueprint(petitionId, blueprint, approves, authUser, remarks)
+        setRemarksState('');
+      } else {
+        // Lógica para otros roles
+        await updateBlueprint(petitionId, blueprint, approves, authUser, remarks)
+        setRemarksState('');
+      }
+    } catch (err) {
+      console.error(err)
+      setOpenAlert(false)
+    } finally {
+      // Desbloquea botones al terminar la actualización
+      setOpenAlert(false)
+      setButtonClicked(false)
+    }
+  }
+
 
   // Función para manejar el diálogo de error
   const handleOpenErrorDialog = msj => {
@@ -355,18 +388,23 @@ export default function AlertDialogGabinete({
                 {getFileUploadSection()}
               </Fragment>
             ) : (
-              <CircularProgress sx={{ m: 5 }} />
+              <CircularProgress sx={{ m: 5 }}/>
             )}
           </Fragment>
         ) : (
           ''
         )}
+
+        <Fragment>
+          {buttonClicked && <CircularProgress sx={{ m: 5 }}/>}
+        </Fragment>
+
       </DialogContent>
       <DialogActions>
-        <Button onClick={() => {handleOnClickNo()}}>
+        <Button onClick={() => {handleOnClickNo()}} disabled={buttonClicked} >
           No
         </Button>
-        <Button onClick={callback} autoFocus disabled={getButtonDisabledState({canRejectedByClient, toggleAttach, toggleRemarks, storageBlueprints, remarksState, approves, canReject, canApprove})}>
+        <Button onClick={() => handleUpdateFirestore()} autoFocus disabled={buttonClicked || getButtonDisabledState({canRejectedByClient, toggleAttach, toggleRemarks, storageBlueprints, remarksState, approves, canReject, canApprove})}>
           Sí
         </Button>
       </DialogActions>

@@ -102,36 +102,6 @@ const TableGabinete = ({
     }
   }
 
-  const writeCallback = async () => {
-
-    // Se bloquean botones mientras se actualiza la información en Firestore.
-    // Esto es para evitar posibles errores de actualización de Firestore por apretar botones rápidamente.
-    setButtonClicked(true)
-
-    const remarks = remarksState.length > 0 ? remarksState : false
-
-    authUser.role === 8
-      ? await updateBlueprint(petitionId, doc, approve, authUser, false)
-          .then(() => {
-            setOpenAlert(false)
-          })
-          .catch(err => console.error(err), setOpenAlert(false))
-      : authUser.role === 9
-      ? await updateBlueprint(petitionId, doc, approve, authUser, remarks)
-          .then(() => {
-            setOpenAlert(false), setRemarksState('')
-          })
-          .catch(err => console.error(err), setOpenAlert(false))
-      : await updateBlueprint(petitionId, doc, approve, authUser, remarks)
-          .then(() => {
-            setOpenAlert(false), setRemarksState('')
-          })
-          .catch(err => console.error(err), setOpenAlert(false))
-
-    // Al terminar la actualización se desbloquean los botones
-    setButtonClicked(false)
-  }
-
   const handleCloseAlert = () => {
     setOpenAlert(false)
   }
@@ -1535,8 +1505,10 @@ const TableGabinete = ({
       {doc && openAlert && (
         <AlertDialogGabinete
           open={openAlert}
+          setOpenAlert={setOpenAlert}
+          buttonClicked={buttonClicked}
+          setButtonClicked={setButtonClicked}
           handleClose={handleCloseAlert}
-          callback={writeCallback}
           approves={approve}
           authUser={authUser}
           setRemarksState={setRemarksState}
