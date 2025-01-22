@@ -131,10 +131,14 @@ export const useGoogleAuth = () => {
         body: params.toString() // Cuerpo con los parámetros en formato URL-encoded
       })
 
-      // Lanza un error si la respuesta no es exitosa
+      // Si la respuesta al hacer la solicitud para refrescar el Token no es exitosa,
+      // Se forzará la re-autenticación a Google y luego se ejecuta la detención de refreshAccessToken.
       if (!response.ok) {
-        // TODO: EVALUAR SI ESTO ES LO MEJOR O NECESITO EJECUTAR LA AUTENTICACIÓN.
-        throw new Error('Error al refrescar el Token de Acceso.')
+        // TODO: EVALUAR ESTO.
+        //throw new Error('Error al refrescar el Token de Acceso.')
+        console.log('Error al refrescar el Token de Acceso.')
+        signInToGoogle()
+        return
       }
 
       // Analiza la respuesta JSON para obtener el nuevo token y el tiempo de expiración
