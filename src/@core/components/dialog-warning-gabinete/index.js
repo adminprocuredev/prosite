@@ -50,6 +50,10 @@ export default function AlertDialogGabinete({
   // Desestructuración de Objetos
   const { revision, approvedByDocumentaryControl, storageBlueprints } = blueprint
 
+  // Uso de Hooks
+  const { deleteReferenceOfLastDocumentAttached } = useFirebase()
+  const { handleFileUpload, validateFileName } = useGoogleDriveFolder()
+
   // Constantes booleanas
   const isRole9 = authUser.role === 9 // Control Documental
   const isRole8 = authUser.role === 8 // Proyectista
@@ -63,7 +67,7 @@ export default function AlertDialogGabinete({
   const showOptionsInRejected = !approves && !approvedByDocumentaryControl
   const showUploadFile = storageInEmitidos || showOptionsInRejected
 
-
+  // Estado formState
   const [formState, setFormState] = useState({
     values: {},
     toggleRemarks: showOptionsInRejected,
@@ -76,6 +80,7 @@ export default function AlertDialogGabinete({
   })
   const previousBlueprintRef = useRef(blueprint)
 
+  // Desestructuración de formState
   const { values, toggleRemarks, toggleAttach, files, isLoading, isUploading, errorDialog, errorFileMsj } = formState
 
   const updateFormState = (key, value) => {
@@ -100,31 +105,17 @@ export default function AlertDialogGabinete({
 
 
   const canApprove = getApprovalStatus({storageInEmitidos, storageBlueprints, toggleRemarks, toggleAttach, approves, remarksState})
-
   const canRejectedByClient = (isRevisionAtLeastB || isRevisionAtLeast0) && isRole9 && !approves && approvedByDocumentaryControl
-
-  const { deleteReferenceOfLastDocumentAttached } = useFirebase()
-  const { handleFileUpload, validateFileName } = useGoogleDriveFolder()
-
   // Condición para habilitar el botón de rechazo si hay más de un blueprint y el campo de observaciones está lleno
   const canReject = storageBlueprints?.length > 1 && remarksState.length > 0
 
   useEffect(() => {
     const { storageBlueprints, ...otherBlueprintFields } = blueprint || {}
     updateFormState('values', otherBlueprintFields)
-  }, [
-    blueprint.id,
-    blueprint.clientCode,
-    blueprint.userId,
-    blueprint.userName,
-    blueprint.userEmail,
-    blueprint.revision,
-    blueprint.storageHlcDocuments,
-    blueprint.description,
-    blueprint.date
-  ])
+  }, [blueprint])
 
   useEffect(() => {
+
     if (previousBlueprintRef.current?.storageBlueprints !== storageBlueprints) {
       updateFormState('values', prev => ({
         ...prev,
@@ -133,10 +124,6 @@ export default function AlertDialogGabinete({
       previousBlueprintRef.current = blueprint
     }
   }, [storageBlueprints])
-
-  useEffect(() => {
-    console.log(formState)
-  }, [formState])
 
   // Actualiza estados en caso de aprobación
   useEffect(() => {
@@ -167,6 +154,44 @@ export default function AlertDialogGabinete({
     multiple: false
   })
 
+  const handleClickDeleteDocumentReturned = async () => {
+    try {
+      updateFormState('isUploading', true)
+      await deleteReferenceOfLastDocumentAttached(petitionId, blueprint.id)
+
+      // Actualiza el estado de `values` directamente para reflejar la eliminación
+      setDoc(prevValues => ({
+        ...prevValues,
+        storageBlueprints: storageBlueprints.slice(0, -1) // elimina el último archivo localmente
+      }))
+      updateFormState('isUploading', false)
+    } catch (error) {
+      console.error('Error al cargar el ultimo archivo:', error)
+      setError('Error al cargar el ultimo archivo. Intente nuevamente.')
+    }
+  }
+
+  // Extraer la función de carga de archivos
+  const handleUploadFile = async () => {
+    try {
+      updateFormState('isUploading', true)
+      const uploadedFile = await handleFileUpload(files, blueprint, petitionId, petition, getUploadFolder({storageInEmitidos, storageInComentByCLient}))
+
+      // Función para actualizar `doc` con un nuevo archivo en storageBlueprints
+      setDoc(prevDoc => ({
+        ...prevDoc,
+        storageBlueprints: [...(prevDoc.storageBlueprints || []), { url: uploadedFile.fileLink, name: uploadedFile.fileName }]
+      }))
+
+      updateFormState('files', null)
+
+    } catch (error) {
+      console.error('Error al subir el archivo:', error)
+    } finally {
+      updateFormState('isUploading', false)
+    }
+  }
+
   // Función para manejar el diálogo de error
   const handleOpenErrorDialog = msj => {
     updateFormState('errorDialog', true)
@@ -186,24 +211,28 @@ export default function AlertDialogGabinete({
     updateFormState('files', null)
   }
 
-  const handleClickDeleteDocumentReturned = async () => {
-    try {
-      updateFormState('isUploading', true)
-      await deleteReferenceOfLastDocumentAttached(petitionId, blueprint.id)
+  const handleOnCloseDialog = () => {
+    handleDialogClose()
+    updateFormState('files', null)
+    updateFormState('toggleRemarks', showOptionsInRejected)
+    updateFormState('toggleAttach', showUploadFile)
+    setRemarksState('')
+    updateFormState('errorDialog', false)
+    setError('')
+  }
 
-      // Actualiza el estado de `values` directamente para reflejar la eliminación
-      setDoc(prevValues => ({
-        ...prevValues,
-        storageBlueprints: storageBlueprints.slice(0, -1) // elimina el último archivo localmente
-      }))
-      updateFormState('isUploading', false)
-    } catch (error) {
-      console.error('Error al cargar el ultimo archivo:', error)
-      setError('Error al cargar el ultimo archivo. Intente nuevamente.')
-    }
+  const handleOnClickNo = () => {
+    setRemarksState('')
+    updateFormState('toggleRemarks', showOptionsInRejected)
+    updateFormState('toggleAttach', showUploadFile)
+    updateFormState('errorDialog', false)
+    setError('')
+    updateFormState('files', null)
+    handleDialogClose()
   }
 
   const getAttachmentConfig = () => {
+
     const configs = {
       showCheckbox: {
         condition: (approves && toggleRemarks) || (canRejectedByClient && toggleRemarks),
@@ -248,9 +277,7 @@ export default function AlertDialogGabinete({
       }
     }
 
-    return Object.values(configs)
-      .filter(({ condition }) => condition)
-      .map(({ component }) => component)
+    return Object.values(configs).filter(({ condition }) => condition).map(({ component }) => component)
   }
 
   const getFileUploadSection = () => {
@@ -302,40 +329,6 @@ export default function AlertDialogGabinete({
     return Object.values(sections)
       .filter(({ condition }) => condition)
       .map(({ component }) => component)
-  }
-
-  const handleOnCloseDialog = () => {
-    handleDialogClose()
-    updateFormState('files', null)
-    updateFormState('toggleRemarks', showOptionsInRejected)
-    updateFormState('toggleAttach', showUploadFile)
-    setRemarksState('')
-    updateFormState('errorDialog', false)
-    setError('')
-  }
-
-  const handleOnClickNo = () => {
-    setRemarksState('')
-    updateFormState('toggleRemarks', showOptionsInRejected)
-    updateFormState('toggleAttach', showUploadFile)
-    updateFormState('errorDialog', false)
-    setError('')
-    updateFormState('files', null)
-    handleDialogClose()
-  }
-
-  // Extraer la función de carga de archivos
-  const handleUploadFile = async () => {
-    try {
-      updateFormState('isUploading', true)
-      const asd = await handleFileUpload(files, blueprint, petitionId, petition, getUploadFolder({storageInEmitidos, storageInComentByCLient}))
-      console.log(asd)
-      updateFormState('files', null)
-    } catch (error) {
-      console.error('Error al subir el archivo:', error)
-    } finally {
-      updateFormState('isUploading', false)
-    }
   }
 
   return (
