@@ -287,6 +287,9 @@ export const useGoogleDriveFolder = () => {
     // Se obtiene la letra o número de la siguiente revisión.
     const nextChar = getNextChar(revision)
 
+    // Se define si la revisión actual es numérica.
+    const isNumeric = !isNaN(revision)
+
     // Booleano que define si el código Procure del entregable es un M3D (Memoria de Cálculo)
     const isM3D = id.split('-')[2] === 'M3D'
 
@@ -296,19 +299,19 @@ export const useGoogleDriveFolder = () => {
       {
         // Si la revisión es mayor o igual a Rev. 0, está aprobada por el Cliente y no está Aprobada por Control Documental.
         // Se retorna la revisión actual (Rev. 0)
-        condition: () => revision.charCodeAt(0) >= 48 && approvedByClient && !approvedByDocumentaryControl,
+        condition: () => isNumeric && approvedByClient && !approvedByDocumentaryControl,
         action: () => revision
       },
       {
-        // Si la revisión es mayor o igual a Rev. B y es aprobado por el Cliente.
+        // Si la revisión es menor a Rev.0 y es aprobado por el Cliente.
         // Se retorna Rev. 0.
-        condition: () => revision.charCodeAt(0) >= 66 && approvedByClient,
+        condition: () => !isNumeric && approvedByClient,
         action: () => '0'
       },
       {
         // Si la revisión es mayor o igual a Rev. 0, no está aprobada por el Cliente y está aprobado por Control Documental.
         // Se retorna la Revisión siguinete (1, 2, 3...)
-        condition: () => revision.charCodeAt(0) >= 48 && !approvedByClient && approvedByDocumentaryControl,
+        condition: () => isNumeric && !approvedByClient && approvedByDocumentaryControl,
         action: () => nextChar
       },
       {
