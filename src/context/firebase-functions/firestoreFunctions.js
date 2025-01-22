@@ -26,9 +26,9 @@ import { db } from 'src/configs/firebase'
 import { getUnixTime } from 'date-fns'
 import { useEffect, useState } from 'react'
 import { solicitudValidator } from '../form-validation/helperSolicitudValidator'
+import { getData, getPlantInitals } from './firestoreQuerys'
 import { sendEmailDeliverableNextRevision } from './mailing/sendEmailDeliverableNextRevision'
 import { sendEmailWhenReviewDocs } from './mailing/sendEmailWhenReviewDocs'
-import { getData, getPlantInitals } from './firestoreQuerys'
 
 const moment = require('moment')
 
@@ -734,6 +734,55 @@ const getLatestRevision = async (petitionID, blueprintID) => {
   return latestRevision
 }
 
+/**
+ * Función para obtener la siguiente revisión letra o número de un entregable.
+ * Si es Iniciado, la siguiente revisión es A.
+ * Si es una letra, la siguiente revisión es la siguiente letra. En el caso de Z cambia a AA.
+ * Si es un número, la siguiente revisión es el siguiente número.
+ * @param {string} revision - Revisión en que se encuentra el entregable.
+ * @returns {string} - Retorna la siguiente revisión.
+ */
+function getNextChar(revision) {
+
+  if (revision === "Iniciado" || revision === "iniciado") {
+      return "A"
+  }
+
+  // Caso en que el string es un número
+  if (/^[0-9]+$/.test(revision)) {
+
+    return (parseInt(revision, 10) + 1).toString()
+
+  // Caso en que el string es una letra o secuencia de letras en mayúscula
+  } else if (/^[A-Z]+$/.test(revision)) {
+
+    let result = ""
+    let carry = 1 // Representa el incremento
+
+    for (let i = revision.length - 1; i >= 0; i--) {
+      const charCode = revision.charCodeAt(i) + carry
+
+      if (charCode > 90) { // 90 es el código ASCII de 'Z'
+        result = "A" + result
+        carry = 1 // Hay acarreo
+      } else {
+        result = String.fromCharCode(charCode) + result
+        carry = 0 // No hay acarreo
+      }
+    }
+
+    // Si hay un acarreo restante, añadimos 'A' al principio
+    if (carry > 0) {
+      result = "A" + result
+    }
+
+    return result
+
+  } else {
+    throw new Error("La Revisión debe ser un número, una letra mayúscula o la palabra 'Iniciado'.")
+  }
+}
+
 // getNextRevision calcula la próxima revisión basándose en una serie de condiciones
 const getNextRevision = async (approves, latestRevision, authUser, blueprint, remarks) => {
 
@@ -762,9 +811,14 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
   let newBlueprintPercent = blueprintPercent
 
   // Calcula el código de carácter de la próxima letra en el alfabeto
-  const nextCharCode = revision.charCodeAt(0) + 1
+  const nextChar = getNextChar(revision)
 
-  const nextChar = String.fromCharCode(nextCharCode)
+  // Se define si la revisión actual es numérica.
+  const isNumeric = !isNaN(revision)
+
+  // Se define se la revisión actual es "Iniciado"
+  const isInitialRevision = revision === "Iniciado"
+  const isRevisionAtLeastB = revision.charCodeAt(0) >= 66 && !isNumeric
 
   // Verifica si el id contiene "M3D" antes del último guion
   const isM3D = id.split('-')[2] === 'M3D'
@@ -773,31 +827,27 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
   if (role === 8 && approves) {
     // Define las acciones posibles
     const actions = {
-      // * Si la revisión es mayor o igual a 'B' y no ha sido aprobada por el cliente, se mantiene la revisión actual
+      // * Si la revisión es mayor o igual a '0' y no ha sido aprobada por el cliente, se mantiene la revisión actual
       keepRevision: {
-        condition: () =>
-          revision.charCodeAt(0) >= 48 && approvedByClient === true && approvedByDocumentaryControl === false,
+        condition: () => isNumeric && approvedByClient && !approvedByDocumentaryControl,
         action: () => (newRevision = revision)
       },
       incrementResume: {
-        condition: () => revision.charCodeAt(0) >= 48 && resumeBlueprint === true,
+        condition: () => isNumeric && resumeBlueprint,
         action: () => (newRevision = nextChar)
       },
-      // * Si la revisión es mayor o igual a 'B', ha sido aprobada por el cliente, se resetea la revisión a '0'
+      // * Si la revisión es mayor o igual a 'B' y menor a '0' y ha sido aprobada por el cliente, se resetea la revisión a '0'
       resetRevision: {
-        condition: () => revision.charCodeAt(0) >= 66 && approvedByClient === true,
+        condition: () => isRevisionAtLeastB && !isNumeric && approvedByClient,
         action: () => (newRevision = '0')
       },
       // * Si la revisión es 'B', 'C' o 'D', no ha sido aprobada por el cliente y ha sido aprobada por el administrador de contrato o el supervisor, se incrementa la revisión a la siguiente letra
       incrementRevision: {
-        condition: () =>
-          (revision.charCodeAt(0) >= 66 || revision.charCodeAt(0) >= 48) &&
-          approvedByClient === false &&
-          approvedByDocumentaryControl === true,
+        condition: () => isRevisionAtLeastB && !isNumeric && !approvedByClient && approvedByDocumentaryControl,
         action: () => (newRevision = nextChar)
       },
       startRevision: {
-        condition: () => revision === 'Iniciado' && !isM3D,
+        condition: () => isInitialRevision && !isM3D,
         action: () => (newRevision = 'A')
       },
       incrementRevisionInA: {
@@ -809,7 +859,7 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
         action: () => (newBlueprintPercent = 60)
       },
       dotCloud: {
-        condition: () => revision === 'Iniciado' && isM3D,
+        condition: () => isInitialRevision && isM3D,
         action: () => {
           newRevision = '0'
         }
@@ -822,46 +872,40 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
         action()
       }
     })
+
   } else if (role === 7 && approves && userId === uid) {
     // Define las acciones posibles
     const actions = {
-      // * Si la revisión es mayor o igual a 'B' y no ha sido aprobada por el cliente, se mantiene la revisión actual
+      // * Si la revisión es mayor o igual a '0' y no ha sido aprobada por el cliente, se mantiene la revisión actual
       keepRevision: {
         condition: () =>
-          revision.charCodeAt(0) >= 48 && approvedByClient === true && approvedByDocumentaryControl === false,
+          isNumeric && approvedByClient && !approvedByDocumentaryControl,
         action: () => (newRevision = revision)
       },
       incrementResume: {
-        condition: () => revision.charCodeAt(0) >= 48 && resumeBlueprint === true,
+        condition: () => isNumeric && resumeBlueprint,
         action: () => (newRevision = nextChar)
       },
       // * Si la revisión es mayor o igual a 'B', ha sido aprobada por el cliente, se resetea la revisión a '0'
       resetRevision: {
-        condition: () => revision.charCodeAt(0) >= 66 && approvedByClient === true,
+        condition: () => isRevisionAtLeastB && approvedByClient,
         action: () => (newRevision = '0')
       },
       // * Si la revisión es 'B', 'C' o 'D', no ha sido aprobada por el cliente y ha sido aprobada por el administrador de contrato o el supervisor, se incrementa la revisión a la siguiente letra
       incrementRevision: {
-        condition: () =>
-          (revision.charCodeAt(0) >= 66 || revision.charCodeAt(0) >= 48) &&
-          approvedByClient === false &&
-          approvedByDocumentaryControl === true,
+        condition: () => isRevisionAtLeastB && !isNumeric && !approvedByClient && approvedByDocumentaryControl,
         action: () => (newRevision = nextChar)
       },
       startRevision: {
-        condition: () => revision === 'Iniciado' && !isM3D,
+        condition: () => isInitialRevision && !isM3D,
         action: () => (newRevision = 'A')
       },
       incrementRevisionInA: {
         condition: () => revision === 'A',
-        action: () => ((newRevision = approvedByDocumentaryControl ? nextChar : revision), (newBlueprintPercent = 60))
-      },
-      incrementBlueprintPercent: {
-        condition: () => revision === 'A',
-        action: () => (newBlueprintPercent = 60)
+        action: () => ((newRevision = approvedByDocumentaryControl ? nextChar : revision), (newBlueprintPercent = approvedByDocumentaryControl ? 60 : blueprintPercent))
       },
       dotCloud: {
-        condition: () => revision === 'Iniciado' && isM3D,
+        condition: () => isInitialRevision && isM3D,
         action: () => {
           newRevision = '0'
         }
@@ -1052,7 +1096,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         ...updateData,
         sentBySupervisor: approves,
         approvedByContractAdmin: approves && isInitialRevision && !isM3D,
-        attentive: (isInitialRevision && !isM3D) ? 9 : 6,
+        attentive: (isInitialRevision && !isM3D) ? 9 : approvedByDocumentaryControl ? 6 : 9,
         blueprintPercent: isInitialRevision && !isM3D ? 20 : isInitialRevision && isM3D ? 60 : updateData.blueprintPercent
       }
     } else {

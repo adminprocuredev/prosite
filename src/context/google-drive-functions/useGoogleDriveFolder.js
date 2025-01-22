@@ -290,6 +290,9 @@ export const useGoogleDriveFolder = () => {
     // Se define si la revisión actual es numérica.
     const isNumeric = !isNaN(revision)
 
+    // Se define se la revisión actual es "Iniciado"
+    const isInitialRevision = revision === "Iniciado"
+
     // Booleano que define si el código Procure del entregable es un M3D (Memoria de Cálculo)
     const isM3D = id.split('-')[2] === 'M3D'
 
@@ -317,13 +320,13 @@ export const useGoogleDriveFolder = () => {
       {
         // Si la reivisión es "Iniciado" y el entregable es un M3D (Memoria de Cálculo).
         // Se retorna Rev. 0.
-        condition: () => (revision === 'Iniciado' || revision === 'iniciado') && isM3D,
+        condition: () => isInitialRevision && isM3D,
         action: () => '0'
       },
       {
         // Si la reivisión es "Iniciado" y el entregable no es un M3D (Memoria de Cálculo).
         // Se retorna Rev. A.
-        condition: () => (revision === 'Iniciado' || revision === 'iniciado') && !isM3D,
+        condition: () => isInitialRevision && !isM3D,
         action: () => 'A'
       },
       {
