@@ -1053,15 +1053,15 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
   const nextRevision = await getNextRevision(approves, latestRevision, authUser, blueprint, remarks)
 
   // Comprueba varias condiciones sobre el plano
-  const isNotApprovedByAdminAndSupervisor = !approvedByContractAdmin && !approvedBySupervisor
-  const isApprovedByClient = approvedByClient
-  const isOverResumable = isRevisionAtLeast1 && resumeBlueprint && blueprintCompleted
   const isM3D = id.split('-')[2] === 'M3D'
   const isInitialRevision = revision === 'Iniciado'
   const isRevA = revision === 'A'
   const isRevisionAtLeastB = !isInitialRevision && !isRevA
   const isRevisionAtLeast0 = isNumeric
   const isRevisionAtLeast1 = isNumeric && revision !== '0'
+  const isNotApprovedByAdminAndSupervisor = !approvedByContractAdmin && !approvedBySupervisor
+  const isApprovedByClient = approvedByClient
+  const isOverResumable = isRevisionAtLeast1 && resumeBlueprint && blueprintCompleted
 
   // Inicializa los datos que se van a actualizar
   let updateData = {
@@ -1079,6 +1079,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
   // Define las acciones a realizar en función del rol del usuario.
   const handleRole6 = () => {
+
     return {
       ...updateData,
       sentByDesigner: approves,
@@ -1092,6 +1093,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
   // TODO: Mejorar la legibilidad de esta parte.
   const handleRole7 = () => {
     if (userId === uid) {
+
       return {
         ...updateData,
         sentBySupervisor: approves,
@@ -1100,6 +1102,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         blueprintPercent: isInitialRevision && !isM3D ? 20 : isInitialRevision && isM3D ? 60 : updateData.blueprintPercent
       }
     } else {
+
       return {
         ...updateData,
         sentByDesigner: approves,
@@ -1112,17 +1115,19 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
   // TODO: Mejorar la legibilidad de esta parte.
   const handleRole8 = () => {
+
     return {
       ...updateData,
       sentByDesigner: approves,
-      attentive: (isInitialRevision || !isInitialRevision && !approvedByDocumentaryControl) ? 9 : 7,
-      blueprintPercent: (isInitialRevision && !isM3D) ? 20 : (isInitialRevision && isM3D) ? 60 : updateData.blueprintPercent
+      attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 7 : 9) : (approvedBySupervisor ? 9 : 7),
+      blueprintPercent : (isInitialRevision && !isM3D) ? 20 : (isInitialRevision && isM3D) ? 60 : updateData.blueprintPercent
     }
   }
 
   // TODO: Mejorar la legibilidad de esta parte.
   const handleRole9 = () => {
     if (isRevisionAtLeastB && isNotApprovedByAdminAndSupervisor) {
+
       return {
         ...updateData,
         approvedByClient: blueprintCompleted ? false : approves,
@@ -1138,6 +1143,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         blueprintPercent: (isRevisionAtLeast0 || isRevisionAtLeast1) && approves ? 100 : updateData.blueprintPercent,
       }
     } else if (isOverResumable) {
+
       return {
         ...updateData,
         approvedByClient: false,
@@ -1147,6 +1153,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         remarks: remarks ? true : false,
       }
     } else {
+
       return {
         ...updateData,
         approvedByDocumentaryControl: approves,
