@@ -1034,7 +1034,8 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
     userId, // ID del Autor del entregable.
     storageBlueprints, // Array con Objeto que contiene Nombre y Link del Entregable en Google Drive.
     sentByDesigner, // Entregable creado por un Proyectista.
-    sentBySupervisor // Entregable creado por un Supervisor.
+    sentBySupervisor, // Entregable creado por un Supervisor.
+    attentive // Rol del usuario que tiene en su poder el Entregable. Caso especial: attentive = 4, cuando Control Documental toma acción por el Cliente.
   } = blueprint
 
   // Desestructuración de authUser.
@@ -1059,7 +1060,6 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
   const isRevisionAtLeastB = !isInitialRevision && !isRevA
   const isRevisionAtLeast0 = isNumeric
   const isRevisionAtLeast1 = isNumeric && revision !== '0'
-  const isNotApprovedByAdminAndSupervisor = !approvedByContractAdmin && !approvedBySupervisor
   const isApprovedByClient = approvedByClient
   const isOverResumable = isRevisionAtLeast1 && resumeBlueprint && blueprintCompleted
 
@@ -1126,7 +1126,10 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
   // TODO: Mejorar la legibilidad de esta parte.
   const handleRole9 = () => {
-    if (isRevisionAtLeastB && isNotApprovedByAdminAndSupervisor) {
+
+    console.log(attentive)
+
+    if (isRevisionAtLeastB && attentive === 4 && !isOverResumable) {
 
       console.log("CASO 1")
 
