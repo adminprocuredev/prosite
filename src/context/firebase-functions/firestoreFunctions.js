@@ -1098,7 +1098,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         ...updateData,
         sentBySupervisor: approves,
         approvedBySupervisor: approves,
-        attentive: (isInitialRevision && !isM3D) ? 9 : approvedByDocumentaryControl ? 6 : 9,
+        attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 6 : 9) : (approvedByContractAdmin ? 9 : 6),
         blueprintPercent: isInitialRevision && !isM3D ? 20 : isInitialRevision && isM3D ? 60 : updateData.blueprintPercent
       }
     } else {
