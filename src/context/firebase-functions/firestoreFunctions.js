@@ -1140,7 +1140,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         attentive: approves && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? 10 : authorRole,
         remarks: remarks ? true : false,
         storageHlcDocuments: null,
-        blueprintPercent: (isRevisionAtLeast0 || isRevisionAtLeast1) && approves ? 100 : updateData.blueprintPercent,
+        blueprintPercent: isRevisionAtLeast0 && approves ? 100 : updateData.blueprintPercent,
       }
     } else if (isOverResumable) {
 
@@ -1158,11 +1158,11 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         ...updateData,
         approvedByDocumentaryControl: approves,
         attentive: approves && isRevA ? authorRole : approves ? 4 : authorRole,
-        sentByDesigner: approves && (isRevisionAtLeastB || isRevisionAtLeast0) && sentByDesigner,
-        sentBySupervisor: approves && (isRevisionAtLeastB || isRevisionAtLeast0) && sentBySupervisor,
+        sentByDesigner: approves && isRevisionAtLeastB && sentByDesigner,
+        sentBySupervisor: approves && isRevisionAtLeastB && sentBySupervisor,
         blueprintPercent: approves && isRevA ? 50 : updateData.blueprintPercent,
         remarks: remarks ? true : false,
-        storageBlueprints: approves && (isRevisionAtLeastB || isRevisionAtLeast0) ? [storageBlueprints[0]] : null,
+        storageBlueprints: approves && isRevisionAtLeastB ? [storageBlueprints[0]] : null,
       }
     }
   }
