@@ -312,6 +312,12 @@ export const useGoogleDriveFolder = () => {
         action: () => '0'
       },
       {
+        // Si la revisión es menor a Rev.0 y es no es aprobado por el Cliente.
+        // Se retorna la siguiente letra.
+        condition: () => !isNumeric && !approvedByClient,
+        action: () => nextChar
+      },
+      {
         // Si la revisión es mayor o igual a Rev. 0, no está aprobada por el Cliente y está aprobado por Control Documental.
         // Se retorna la Revisión siguinete (1, 2, 3...)
         condition: () => isNumeric && !approvedByClient && approvedByDocumentaryControl,
