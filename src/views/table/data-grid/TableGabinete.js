@@ -51,7 +51,6 @@ const TableGabinete = ({
   const [proyectistas, setProyectistas] = useState([])
   const [loadingProyectistas, setLoadingProyectistas] = useState(true)
   const [approve, setApprove] = useState(true)
-  const { authUser, getUserData, updateBlueprint } = useFirebase()
   const [currentRow, setCurrentRow] = useState(null)
   const [fileNames, setFileNames] = useState({})
   const [remarksState, setRemarksState] = useState('')
@@ -60,7 +59,8 @@ const TableGabinete = ({
   const [expandedRows, setExpandedRows] = useState(new Set())
   const [buttonClicked, setButtonClicked] = useState(false)
 
-  // Hooks de Google Drive.
+  // Hooks.
+  const { authUser, getUserData } = useFirebase()
   const { getNextRevisionFolderName, checkRoleAndApproval } = useGoogleDriveFolder()
 
   const defaultSortingModel = [{ field: 'date', sort: 'desc' }]
@@ -138,6 +138,13 @@ const TableGabinete = ({
     }
   }
 
+
+  /**
+   * Función que define si el usuario conectado puede ver o no los botones para Aprobar o Rechazar
+   * @param {Object} row - Información del Entregable.
+   * @param {Object} authUser - Información del Usuario conectado que realiza la acción.
+   * @returns {Object|undefined} - Retorna un Objeto con booleanos o Undefined en caso de errores.
+   */
   function permissions(row, authUser) {
 
     if (!row) {
@@ -150,85 +157,39 @@ const TableGabinete = ({
       description,
       clientCode,
       storageBlueprints,
-      revision,
-      sentByDesigner,
-      sentBySupervisor,
       approvedByContractAdmin,
       approvedByDocumentaryControl,
-      approvedBySupervisor
+      approvedBySupervisor,
+      blueprintCompleted,
+      attentive
     } = row
 
     const { uid, role } = authUser
 
     // Definición de variables booleanas.
-    const isRole6 = role === 6
-    const isRole7 = role === 7
-    const isRole8 = role === 8
-    const isRole9 = role === 9
-    const isInitialRevition = revision === 'Iniciado'
+    const isRole6Turn = attentive === 6
+    const isRole7Turn = attentive === 7
+    const isRole8Turn = attentive === 8
+    const isRole9Turn = attentive === 9
     const isMyBlueprint = userId === uid
     const hasRequiredFields = description && clientCode && storageBlueprints && storageBlueprints.length >= 1
 
     const dictionary = {
       6: {
-        approve:
-          isRole6 &&
-          !isInitialRevition &&
-          (revision?.charCodeAt(0) >= 65 || revision?.charCodeAt(0) >= 48) &&
-          (sentByDesigner === true || sentBySupervisor === true) &&
-          approvedByContractAdmin === false &&
-          approvedByDocumentaryControl === false &&
-          approvedBySupervisor === false,
-        reject:
-          isRole6 &&
-          !isInitialRevition &&
-          (revision?.charCodeAt(0) >= 65 || revision?.charCodeAt(0) >= 48) &&
-          (sentByDesigner === true || sentBySupervisor === true) &&
-          approvedByContractAdmin === false &&
-          approvedByDocumentaryControl === false &&
-          approvedBySupervisor === false
+        approve: isRole6Turn && !approvedByContractAdmin,
+        reject: isRole6Turn && !approvedByContractAdmin
       },
       7: {
-        approve:
-          (isRole7 &&
-            !isInitialRevition &&
-            (revision?.charCodeAt(0) >= 65 || revision?.charCodeAt(0) >= 48) &&
-            sentByDesigner === true &&
-            approvedBySupervisor === false &&
-            approvedByDocumentaryControl === false &&
-            approvedByContractAdmin === false) ||
-          (isRole7 &&
-            isMyBlueprint &&
-            hasRequiredFields &&
-            sentBySupervisor === false &&
-            !row.blueprintCompleted),
-        reject:
-          isRole7 &&
-          !isInitialRevition &&
-          (revision?.charCodeAt(0) >= 65 || revision?.charCodeAt(0) >= 48) &&
-          sentByDesigner === true &&
-          approvedBySupervisor === false &&
-          approvedByDocumentaryControl === false &&
-          approvedByContractAdmin === false
+        approve: (isRole7Turn && !isMyBlueprint && !approvedBySupervisor) || (isRole7Turn && isMyBlueprint && hasRequiredFields && !blueprintCompleted),
+        reject: isRole7Turn  && !isMyBlueprint && !approvedBySupervisor
       },
       8: {
-        approve:
-          isRole8 && isMyBlueprint && hasRequiredFields && sentByDesigner === false && !row.blueprintCompleted,
+        approve: isRole8Turn && isMyBlueprint && hasRequiredFields && !blueprintCompleted,
         reject: false
       },
       9: {
-        approve:
-          isInitialRevition
-            ? isRole9 && (sentByDesigner === true || sentBySupervisor === true)
-            : role === 9 &&
-              (sentByDesigner === true || sentBySupervisor === true) &&
-              (approvedByContractAdmin === true || approvedBySupervisor === true),
-        reject:
-          isInitialRevition
-            ? isRole9 && (sentByDesigner === true || sentBySupervisor === true)
-            : isRole9 &&
-              (sentByDesigner === true || sentBySupervisor === true) &&
-              (approvedByContractAdmin === true || approvedBySupervisor === true)
+        approve: isRole9Turn && !approvedByDocumentaryControl,
+        reject: isRole9Turn && !approvedByDocumentaryControl
       }
     }
 
@@ -305,11 +266,6 @@ const TableGabinete = ({
 
   const renderButtons = (row, flexDirection, canApprove, canReject, disabled, canResume = false) => {
 
-    console.log(row)
-    console.log(disabled ? disabled : '')
-    console.log(canApprove)
-    console.log(canReject)
-
     return (
       <Container
         sx={{ display: 'flex', flexDirection: { flexDirection }, padding: '0rem!important', margin: '0rem!important' }}
@@ -319,6 +275,7 @@ const TableGabinete = ({
         {canResume && renderButton(row, true, 'info', SyncIcon, disabled, true)}
       </Container>
     )
+
   }
 
   const checkRoleAndGenerateTransmittal = (role, row) => {

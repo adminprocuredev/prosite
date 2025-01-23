@@ -50,7 +50,8 @@ import {
   deleteBlueprintAndDecrementCounters,
   updateBlueprintsWithStorageOrHlc,
   deleteReferenceOfLastDocumentAttached,
-  useBlueprints
+  useBlueprints,
+  getNextChar
 } from 'src/context/firebase-functions/firestoreFunctions'
 
 import {
@@ -195,7 +196,8 @@ const FirebaseContextProvider = props => {
     modifyCostCenter,
     deleteCostCenter,
     setDefaultCostCenter,
-    getPlantInitals
+    getPlantInitals,
+    getNextChar
   }
 
   return <FirebaseContext.Provider value={value}>{props.children}</FirebaseContext.Provider>

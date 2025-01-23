@@ -1095,7 +1095,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
       return {
         ...updateData,
         sentBySupervisor: approves,
-        approvedByContractAdmin: approves && isInitialRevision && !isM3D,
+        approvedBySupervisor: approves,
         attentive: (isInitialRevision && !isM3D) ? 9 : approvedByDocumentaryControl ? 6 : 9,
         blueprintPercent: isInitialRevision && !isM3D ? 20 : isInitialRevision && isM3D ? 60 : updateData.blueprintPercent
       }
@@ -1115,9 +1115,8 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
     return {
       ...updateData,
       sentByDesigner: approves,
-      attentive: isInitialRevision ? 9 : 7,
-      blueprintPercent: (isInitialRevision && !isM3D) ? 20 : (isInitialRevision && isM3D) ? 60 : updateData.blueprintPercent,
-      approvedBySupervisor: (approves && isInitialRevision && !isM3D) || (isRevA && !approvedByDocumentaryControl)
+      attentive: (isInitialRevision || !isInitialRevision && !approvedByDocumentaryControl) ? 9 : 7,
+      blueprintPercent: (isInitialRevision && !isM3D) ? 20 : (isInitialRevision && isM3D) ? 60 : updateData.blueprintPercent
     }
   }
 
@@ -1946,5 +1945,6 @@ export {
   createCostCenter,
   modifyCostCenter,
   deleteCostCenter,
-  setDefaultCostCenter
+  setDefaultCostCenter,
+  getNextChar
 }
