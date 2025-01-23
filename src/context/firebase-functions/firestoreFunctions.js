@@ -1043,8 +1043,8 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
   // Referencia al documento del entregable (blueprint) en la base de datos.
   const blueprintRef = doc(db, 'solicitudes', petitionID, 'blueprints', id)
 
-  // Referencia al documento de la OT (petition) en la base de datos.
-  const petitionRef = doc(db, 'solicitudes', petitionID)
+  // Se define si la revisión actual es numérica.
+  const isNumeric = !isNaN(revision)
 
   // Obtiene la última revisión del plano
   const latestRevision = await getLatestRevision(petitionID, id)
@@ -1053,15 +1053,15 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
   const nextRevision = await getNextRevision(approves, latestRevision, authUser, blueprint, remarks)
 
   // Comprueba varias condiciones sobre el plano
-  const isRevisionAtLeastB = revision.charCodeAt(0) >= 66
-  const isRevisionAtLeast0 = revision.charCodeAt(0) >= 48 && revision.charCodeAt(0) <= 57
-  const isRevisionAtLeast1 = revision.charCodeAt(0) >= 49 && revision.charCodeAt(0) <= 57
   const isNotApprovedByAdminAndSupervisor = !approvedByContractAdmin && !approvedBySupervisor
   const isApprovedByClient = approvedByClient
   const isOverResumable = isRevisionAtLeast1 && resumeBlueprint && blueprintCompleted
   const isM3D = id.split('-')[2] === 'M3D'
   const isInitialRevision = revision === 'Iniciado'
   const isRevA = revision === 'A'
+  const isRevisionAtLeastB = !isInitialRevision && !isRevA
+  const isRevisionAtLeast0 = isNumeric
+  const isRevisionAtLeast1 = isNumeric && revision !== '0'
 
   // Inicializa los datos que se van a actualizar
   let updateData = {
@@ -1122,7 +1122,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
   // TODO: Mejorar la legibilidad de esta parte.
   const handleRole9 = () => {
-    if ((isRevisionAtLeastB || isRevisionAtLeast0) && isNotApprovedByAdminAndSupervisor) {
+    if (isRevisionAtLeastB && isNotApprovedByAdminAndSupervisor) {
       return {
         ...updateData,
         approvedByClient: blueprintCompleted ? false : approves,
