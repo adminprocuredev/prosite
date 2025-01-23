@@ -169,6 +169,7 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
       const invalidFileNames = validateFileName(acceptedFiles, doc, authUser).filter(
         file => !file.isValid
       )
+
       if (invalidFileNames.length > 0) {
         const res = validateFileName(invalidFileNames, doc, authUser)
         const msj = res[0].msj
@@ -183,8 +184,7 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
 
       if (
         (authUser.uid === doc.userId && !doc.sentByDesigner) ||
-        ((authUser.role === 6 || authUser.role === 7) && doc.sentByDesigner && !doc.approvedByDocumentaryControl) ||
-        (authUser.role === 9 && (doc.approvedBySupervisor || doc.approvedByContractAdmin)) ||
+        (authUser.role === 7 && doc.sentByDesigner && !doc.approvedByDocumentaryControl) ||
         (doc.approvedByDocumentaryControl && checkRoleAndApproval(authUser.role, doc))
       ) {
         setFiles(acceptedFiles[0])

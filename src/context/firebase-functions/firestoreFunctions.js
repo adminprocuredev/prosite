@@ -1157,7 +1157,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
       return {
         ...updateData,
         approvedByDocumentaryControl: approves,
-        attentive: approves && isRevA ? authorRole : approves ? 4 : authorRole,
+        attentive: authorRole,
         sentByDesigner: approves && isRevisionAtLeastB && sentByDesigner,
         sentBySupervisor: approves && isRevisionAtLeastB && sentBySupervisor,
         blueprintPercent: approves && isRevA ? 50 : updateData.blueprintPercent,

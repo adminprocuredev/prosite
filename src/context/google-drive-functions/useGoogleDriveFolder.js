@@ -372,18 +372,18 @@ export const useGoogleDriveFolder = () => {
     // Desestructuración de blueprint.
     const { revision, revisions, approvedByDocumentaryControl, sentByDesigner, sentBySupervisor, blueprintCompleted } = blueprint
 
+    const isInitialRevision = revision === 'Iniciado'
+    const isRevA = revision === 'A'
+    const isRevisionAtLeastB = !isInitialRevision && !isRevA
+    const sentByAuthor = sentByDesigner || sentBySupervisor
+    const isRole9 = role === 9
+
     if (revisions && revisions.length > 0) {
       const sortedRevisions = [...revisions].sort((a, b) => new Date(b.date) - new Date(a.date))
       const lastRevision = sortedRevisions[0]
+      const lastTransmittalExists = 'lastTransmittal' in lastRevision
 
-      if (
-        'lastTransmittal' in lastRevision &&
-        role === 9 &&
-        approvedByDocumentaryControl &&
-        (sentByDesigner === true || sentBySupervisor === true) &&
-        (revision.charCodeAt(0) >= 66 || revision.charCodeAt(0) >= 48) &&
-        !blueprintCompleted
-      ) {
+      if (lastTransmittalExists && isRole9 && approvedByDocumentaryControl && sentByAuthor && isRevisionAtLeastB && !blueprintCompleted) {
         return true
       }
     }

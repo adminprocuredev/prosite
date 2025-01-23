@@ -1,11 +1,7 @@
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
-import { getPlantInitals } from 'src/context/firebase-functions/firestoreQuerys'
 import base64Image from 'src/views/pages/gabinete/base64Image'
 import base64MEL from 'src/views/pages/gabinete/base64MEL'
-
-// ** Configuración de Google Drive
-import googleAuthConfig from 'src/configs/googleDrive'
 
 const callAddRegular = require('public/fonts/calibri-normal.js')
 const callAddBold = require('public/fonts/calibri-bold.js')
@@ -17,7 +13,8 @@ export const generateTransmittal = async (
   newCode,
   petition,
   uploadFile,
-  fetchFolders,
+  findOrCreateFolder,
+  createFolderStructure,
   setIsLoading,
   setOpenTransmittalDialog
 ) => {
@@ -171,36 +168,21 @@ export const generateTransmittal = async (
 
   const pdfBlob = doc.output('blob') // Genera el blob del documento PDF
 
-  // Lógica de carga a Google Drive
-  const plantFolders = await fetchFolders()
-  const plantFolder = plantFolders.files.find(folder => folder.name.includes(getPlantInitals(petition.plant)))
+  // Crear Estructura de Carpetas en caso de que no exista previamente.
+  const projectFolder = await createFolderStructure(petition, ["EMITIDOS"])
 
-  if (plantFolder) {
-    const areaFolders = await fetchFolders(plantFolder.id)
-    const areaFolder = areaFolders.files.find(folder => folder.name === petition.area)
+  // Ubica la carpeta "EMITIDOS"
+  const targetFolder = await findOrCreateFolder(projectFolder.id, "EMITIDOS", "EMITIDOS")
 
-    if (areaFolder) {
-      const projectFolderName = `OT N°${petition.ot} - ${petition.title}`
-      const existingProjectFolders = await fetchFolders(areaFolder.id)
-      const projectFolder = existingProjectFolders.files.find(folder => folder.name === projectFolderName)
+  if (targetFolder) {
+    const fileData = await uploadFile(`${newCode}.pdf`, pdfBlob, targetFolder.id)
 
-      if (projectFolder) {
-        const issuedFolders = await fetchFolders(projectFolder.id)
-        const issuedFolder = issuedFolders.files.find(folder => folder.name === 'EMITIDOS')
+    if (fileData && fileData.id) {
+      const fileLink = `https://drive.google.com/file/d/${fileData.id}/view`
 
-        if (issuedFolder) {
-          const fileData = await uploadFile(`${newCode}.pdf`, pdfBlob, issuedFolder.id)
-
-          if (fileData && fileData.id) {
-            const fileLink = `https://drive.google.com/file/d/${fileData.id}/view`
-
-            console.log('Transmittal almacenado en Google Drive con éxito:', fileLink)
-          }
-        }
-      }
+      console.log('Transmittal almacenado en Google Drive con éxito:', fileLink)
     }
   }
-
   setTransmittalGenerated(true)
   setOpenTransmittalDialog(false)
   setIsLoading(false)

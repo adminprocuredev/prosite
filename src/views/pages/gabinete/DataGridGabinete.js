@@ -62,7 +62,7 @@ const DataGridGabinete = () => {
 
   const apiRef = useGridApiRef()
 
-  const { uploadFile, createFolder, fetchFolders } = useGoogleDriveFolder()
+  const { uploadFile, findOrCreateFolder, createFolderStructure } = useGoogleDriveFolder()
 
   const currentPetitionRef = useRef()
 
@@ -168,8 +168,8 @@ const DataGridGabinete = () => {
       newCode,
       currentPetition,
       uploadFile,
-      createFolder,
-      fetchFolders,
+      findOrCreateFolder,
+      createFolderStructure,
       setIsLoading,
       setOpenTransmittalDialog
     )
