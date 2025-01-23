@@ -1067,9 +1067,9 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
   let updateData = {
     revision: nextRevision.newRevision,
     sentByDesigner: false,
-    approvedByContractAdmin: false,
-    approvedBySupervisor: false,
-    approvedByDocumentaryControl: false,
+    approvedByContractAdmin: approvedByContractAdmin || false,
+    approvedBySupervisor: approvedBySupervisor || false,
+    approvedByDocumentaryControl: approvedByDocumentaryControl || false,
     sentTime: Timestamp.fromDate(new Date()),
     blueprintPercent: nextRevision.newBlueprintPercent
   }

@@ -166,11 +166,11 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
       }
 
       // Valida los archivos con base en el nombre
-      const invalidFileNames = validateFileName(acceptedFiles, doc, authUser, approves).filter(
+      const invalidFileNames = validateFileName(acceptedFiles, doc, authUser).filter(
         file => !file.isValid
       )
       if (invalidFileNames.length > 0) {
-        const res = validateFileName(invalidFileNames, doc, authUser, approves)
+        const res = validateFileName(invalidFileNames, doc, authUser)
         const msj = res[0].msj
         handleOpenErrorDialog(msj)
 
