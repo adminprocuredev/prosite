@@ -143,7 +143,7 @@ export default function AlertDialogGabinete({
         return
       }
 
-      const invalidFileNames = validateFileName(acceptedFiles, blueprint, authUser).filter(file => !file.isValid)
+      const invalidFileNames = validateFileName(acceptedFiles, blueprint, authUser, approves).filter(file => !file.isValid)
 
       if (invalidFileNames.length > 0) {
         handleOpenErrorDialog(invalidFileNames[0].msj)

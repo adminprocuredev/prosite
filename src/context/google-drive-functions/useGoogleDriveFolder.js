@@ -398,7 +398,7 @@ export const useGoogleDriveFolder = () => {
    * @param {Object} authUser - Objeto con la información del usuario conectado que ejecuta la acción.
    * @returns {Object} - Objeto con
    */
-  const validateFileName = (acceptedFiles, blueprint, authUser) => {
+  const validateFileName = (acceptedFiles, blueprint, authUser, approves) => {
 
     // Desustructuración de objetos.
     const { uid, role, displayName } = authUser
@@ -427,7 +427,7 @@ export const useGoogleDriveFolder = () => {
       expectedFileName = `${clientCode}_REV_${expectedRevision}`
     } else if (role === 9 && approvedByDocumentaryControl && !canBeCheckedByClient) {
       expectedFileName = `${clientCode}_REV_${expectedRevision}_HLC`
-    } else if (role === 9 && (approvedBySupervisor || approvedByContractAdmin) && revision !== 'A') { // ACÁ ANTES HABÍA UN && approves
+    } else if (role === 9 && (approvedBySupervisor || approvedByContractAdmin) && revision !== 'A' && approves) {
       expectedFileName = `${clientCode}_REV_${expectedRevision}`
     } else {
       const initials = displayName.toUpperCase().split(' ').map(word => word.charAt(0)).join('')
