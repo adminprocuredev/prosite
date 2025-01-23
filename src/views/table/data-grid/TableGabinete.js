@@ -1085,7 +1085,7 @@ const TableGabinete = ({
                     }}
                     color='success'
                     onClick={
-                      authUser.role === 9 && row.approvedByDocumentaryControl && row.sentByDesigner
+                      authUser.role === 9 && row.approvedByDocumentaryControl
                         ? () => handleOpenUploadDialog(row)
                         : null
                     }

@@ -1128,6 +1128,8 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
   const handleRole9 = () => {
     if (isRevisionAtLeastB && isNotApprovedByAdminAndSupervisor) {
 
+      console.log("CASO 1")
+
       return {
         ...updateData,
         approvedByClient: blueprintCompleted ? false : approves,
@@ -1144,6 +1146,8 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
       }
     } else if (isOverResumable) {
 
+      console.log("CASO 2")
+
       return {
         ...updateData,
         approvedByClient: false,
@@ -1154,10 +1158,12 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
       }
     } else {
 
+      console.log("CASO 3")
+
       return {
         ...updateData,
         approvedByDocumentaryControl: approves,
-        attentive: authorRole,
+        attentive: !approves ? authorRole : isRevisionAtLeastB ? 4 : authorRole,
         sentByDesigner: approves && isRevisionAtLeastB && sentByDesigner,
         sentBySupervisor: approves && isRevisionAtLeastB && sentBySupervisor,
         blueprintPercent: approves && isRevA ? 50 : updateData.blueprintPercent,
