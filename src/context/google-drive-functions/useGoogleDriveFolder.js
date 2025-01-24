@@ -274,15 +274,17 @@ export const useGoogleDriveFolder = () => {
     }
   }
 
-/**
- * Función para obtener la letra con la que debe ser creada la carpeta de la revisión en Google Drive.
- * @param {Object} blueprint - Objeto con los datos del entregable/plano.
- * @returns {string} - Retorna la letra de la siguiente revisión con la que debe ser creada una carpeta.
- */
+  /**
+   * Función para obtener la letra con la que debe ser creada la carpeta de la revisión en Google Drive.
+   * @param {Object} blueprint - Objeto con los datos del entregable/plano.
+   * @returns {string} - Retorna la letra de la siguiente revisión con la que debe ser creada una carpeta.
+   */
   const getNextRevisionFolderName = (blueprint) => {
 
     // Desestructuración de blueprint.
-    const { revision, id, approvedByClient, approvedByDocumentaryControl } = blueprint
+    const { revision, id, approvedByClient, approvedByDocumentaryControl, attentive, sentByDesigner, sentBySupervisor } = blueprint
+
+    console.log(id)
 
     // Se obtiene la letra o número de la siguiente revisión.
     const nextChar = getNextChar(revision)
@@ -290,68 +292,115 @@ export const useGoogleDriveFolder = () => {
     // Se define si la revisión actual es numérica.
     const isNumeric = !isNaN(revision)
 
-    // Se define se la revisión actual es "Iniciado"
+    // Se define si está siendo revisado por el Cliente.
+    const beingReviewedByClient = attentive === 4
+
+    // Se define si la revisión actual es "Iniciado".
     const isInitialRevision = revision === "Iniciado"
 
-    // Booleano que define si el código Procure del entregable es un M3D (Memoria de Cálculo)
+    // Se define si la revisión actual es "A".
+    const isRevA = revision === "A"
+
+    // Se define Booleano para cuando se encuentra en Rev >= B.
+    const isRevisionAtLeastB = !isRevA && !isInitialRevision
+
+    // Booleano que define si el código Procure del entregable es un M3D (Memoria de Cálculo).
     const isM3D = id.split('-')[2] === 'M3D'
 
+    const sentByAuthor = sentByDesigner || sentBySupervisor
+
     // Se define Patrón de reglas con condiciones y acciones para definir la siguiente revisión de la carpeta.
-    // Este patrón
     const actions = [
       {
-        // Si la revisión es mayor o igual a Rev. 0, está aprobada por el Cliente y no está Aprobada por Control Documental.
-        // Se retorna la revisión actual (Rev. 0)
-        condition: () => isNumeric && approvedByClient && !approvedByDocumentaryControl,
-        action: () => revision
-      },
-      {
-        // Si la revisión es menor a Rev.0 y es aprobado por el Cliente.
-        // Se retorna Rev. 0.
-        condition: () => !isNumeric && approvedByClient,
+        // Si la revisión es "Iniciado" y el entregable es un M3D (Memoria de Cálculo).
+        condition: () => {
+            const result = isInitialRevision && isM3D
+            if (result) console.log("Condición 1.")
+
+            return result
+        },
         action: () => '0'
       },
       {
-        // Si la revisión es menor a Rev.0 y es no es aprobado por el Cliente.
-        // Se retorna la siguiente letra.
-        condition: () => !isNumeric && !approvedByClient,
-        action: () => nextChar
-      },
-      {
-        // Si la revisión es mayor o igual a Rev. 0, no está aprobada por el Cliente y está aprobado por Control Documental.
-        // Se retorna la Revisión siguinete (1, 2, 3...)
-        condition: () => isNumeric && !approvedByClient && approvedByDocumentaryControl,
-        action: () => nextChar
-      },
-      {
-        // Si la reivisión es "Iniciado" y el entregable es un M3D (Memoria de Cálculo).
-        // Se retorna Rev. 0.
-        condition: () => isInitialRevision && isM3D,
-        action: () => '0'
-      },
-      {
-        // Si la reivisión es "Iniciado" y el entregable no es un M3D (Memoria de Cálculo).
-        // Se retorna Rev. A.
-        condition: () => isInitialRevision && !isM3D,
+        // Si la revisión es "Iniciado" y el entregable no es un M3D (Memoria de Cálculo).
+        condition: () => {
+            const result = isInitialRevision && !isM3D
+            if (result) console.log("Condición 2.")
+
+            return result
+        },
         action: () => 'A'
       },
       {
-        // Si la revisión es Rev. A.
-        // Se retorna la siguiente letra si ha sido aprobada por Control Documental.
-        // Se retorna Rev. A no si ha sido aprobada por Control Documental.
-        condition: () => revision === 'A',
-        action: () => approvedByDocumentaryControl ? nextChar : revision
-      }
+        // Si la revisión es Rev. A y ha sido Aprobada por Control Documental.
+        condition: () => {
+            const result = isRevA && approvedByDocumentaryControl
+            if (result) console.log("Condición 3.")
+
+            return result
+        },
+        action: () => nextChar
+      },
+      {
+        // Si la revisión es Rev. A y no ha sido Aprobada por Control Documental.
+        condition: () => {
+            const result = isRevA && !approvedByDocumentaryControl
+            if (result) console.log("Condición 4.")
+
+            return result
+        },
+        action: () => revision
+      },
+      {
+        // Si la revisión es al menos B, está siendo revisada por Procure y no fue Aprobada por el Cliente.
+        condition: () => {
+            const result = isRevisionAtLeastB && !beingReviewedByClient && !approvedByClient && !sentByAuthor
+            if (result) console.log("Condición 5.")
+
+            return result
+        },
+        action: () => nextChar
+      },
+      {
+        // Si la revisión es al menos B, está siendo revisada por Procure y no fue Aprobada por el Cliente.
+        condition: () => {
+            const result = isRevisionAtLeastB && !beingReviewedByClient && !approvedByClient && !sentByAuthor
+            if (result) console.log("Condición 6")
+
+            return result
+        },
+        action: () => revision
+      },
+      {
+        // Si la revisión es al menos B, está siendo revisada por Procure y fue Aprobada por el Cliente.
+        condition: () => {
+            const result = isRevisionAtLeastB && !isNumeric && !beingReviewedByClient && approvedByClient
+            if (result) console.log("Condición 7.")
+
+            return result
+        },
+        action: () => '0'
+      },
+      {
+        // Si la revisión es al menos B, está siendo revisada por Procure y fue Aprobada por el Cliente.
+        condition: () => {
+            const result = isRevisionAtLeastB && isNumeric && !beingReviewedByClient && approvedByClient
+            if (result) console.log("Condición 8.")
+
+            return result
+        },
+        action: () => nextChar
+      },
     ]
 
     // Se ejecuta la definición de la siguiente revisión.
     const matchedAction = actions.find(({ condition }) => condition())
 
     // Se retorna la siguiente revisión en caso de que concuerde con alguna de las condiciones definidas.
-    // Si no, se retorna la revisión actual
+    // Si no, se retorna la revisión actual.
     return matchedAction ? matchedAction.action() : revision
-
   }
+
 
   /**
    * Función para copiar un texto al portapapeles.
