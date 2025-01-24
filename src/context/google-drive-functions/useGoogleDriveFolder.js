@@ -352,40 +352,46 @@ export const useGoogleDriveFolder = () => {
         action: () => revision
       },
       {
-        // Si la revisión es al menos B, está siendo revisada por Procure y no fue Aprobada por el Cliente.
+        // Si la revisión está en manos del Cliente.
         condition: () => {
-            const result = isRevisionAtLeastB && !beingReviewedByClient && !approvedByClient && !sentByAuthor
+            const result = beingReviewedByClient
             if (result) console.log("Condición 5.")
-
-            return result
-        },
-        action: () => nextChar
-      },
-      {
-        // Si la revisión es al menos B, está siendo revisada por Procure y no fue Aprobada por el Cliente.
-        condition: () => {
-            const result = isRevisionAtLeastB && !beingReviewedByClient && !approvedByClient && !sentByAuthor
-            if (result) console.log("Condición 6")
 
             return result
         },
         action: () => revision
       },
       {
-        // Si la revisión es al menos B, está siendo revisada por Procure y fue Aprobada por el Cliente.
         condition: () => {
-            const result = isRevisionAtLeastB && !isNumeric && !beingReviewedByClient && approvedByClient
-            if (result) console.log("Condición 7.")
+            const result = !beingReviewedByClient && isRevisionAtLeastB && !isNumeric && approvedByClient
+            if (result) console.log("Condición 6.")
 
             return result
         },
         action: () => '0'
       },
       {
-        // Si la revisión es al menos B, está siendo revisada por Procure y fue Aprobada por el Cliente.
         condition: () => {
-            const result = isRevisionAtLeastB && isNumeric && !beingReviewedByClient && approvedByClient
-            if (result) console.log("Condición 8.")
+            const result = !beingReviewedByClient && isRevisionAtLeastB && !approvedByClient && !sentByAuthor
+            if (result) console.log("Condición 7.")
+
+            return result
+        },
+        action: () => nextChar
+      },
+      {
+        condition: () => {
+            const result = !beingReviewedByClient && isRevisionAtLeastB && !approvedByClient && !sentByAuthor
+            if (result) console.log("Condición 8")
+
+            return result
+        },
+        action: () => revision
+      },
+      {
+        condition: () => {
+            const result = !beingReviewedByClient && isRevisionAtLeastB && isNumeric && approvedByClient
+            if (result) console.log("Condición 9.")
 
             return result
         },
