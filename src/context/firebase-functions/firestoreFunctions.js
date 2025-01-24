@@ -1038,6 +1038,11 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
     attentive // Rol del usuario que tiene en su poder el Entregable. Caso especial: attentive = 4, cuando Control Documental toma acción por el Cliente.
   } = blueprint
 
+  console.log(petitionID)
+  console.log(blueprint)
+  console.log(authUser)
+
+
   // Desestructuración de authUser.
   const { uid, role } = authUser
 
@@ -1049,6 +1054,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
   // Obtiene la última revisión del plano
   const latestRevision = await getLatestRevision(petitionID, id)
+  console.log(latestRevision)
 
   // Calcula la próxima revisión del plano
   const nextRevision = await getNextRevision(approves, latestRevision, authUser, blueprint, remarks)
@@ -1241,13 +1247,23 @@ const generateTransmittalCounter = async currentPetition => {
   }
 }
 
+/**
+ * Función para actualizar campos del blueprint y agregar un nuevo document en "revisions".
+ * @param {string} newCode
+ * @param {Array} selected
+ * @param {Object} currentPetition
+ * @param {Object} authUser
+ */
 const updateSelectedDocuments = async (newCode, selected, currentPetition, authUser) => {
+
   try {
-    // Actualiza el campo lastTransmittal en cada uno de los documentos seleccionados
+
     for (const id of selected) {
       const docRef = doc(db, 'solicitudes', currentPetition.id, 'blueprints', id[0])
-      const isM3D = id[0].split('-').slice(-2, -1)[0] === 'M3D'
+      const isM3D = id[0].split('-')[2] === 'M3D'
+
       await updateDoc(docRef, {
+        attentive: 4,
         lastTransmittal: newCode,
         blueprintPercent: id[1].revision === 'B' || id[1].revision === '0' ? 80 : id[1].blueprintPercent,
         ...(isM3D && { approvedByClient: true })
@@ -1263,10 +1279,10 @@ const updateSelectedDocuments = async (newCode, selected, currentPetition, authU
         userName: authUser.displayName,
         userId: authUser.uid,
         date: Timestamp.fromDate(new Date()),
-        remarks: 'transmittal generado',
+        remarks: 'Transmittal generado',
         lastTransmittal: newCode,
         storageHlcDocuments: id[1].storageHlcDocuments ? id[1].storageHlcDocuments[0] : null,
-        attentive: 9
+        attentive: 4
       }
 
       // Añade la nueva revisión a la subcolección de revisiones del entregable (blueprint)
