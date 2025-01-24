@@ -395,7 +395,7 @@ export const useGoogleDriveFolder = () => {
 
             return result
         },
-        action: () => nextChar
+        action: () => revision
       },
     ]
 
