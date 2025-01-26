@@ -386,7 +386,7 @@ export const useGoogleDriveFolder = () => {
 
             return result
         },
-        action: () => revision
+        action: () => nextChar
       },
       {
         condition: () => {

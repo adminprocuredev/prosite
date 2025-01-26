@@ -197,33 +197,26 @@ const TableGabinete = ({
   }
 
   const statusMap = {
-    Enviado: row =>
-      row.sentByDesigner ||
-      row.sentBySupervisor ||
-      (row.sentByDesigner && (row.approvedByContractAdmin || row.approvedBySupervisor)),
-    'Enviado a cliente': row =>
-      row.sentByDesigner &&
-      row.approvedByDocumentaryControl &&
+    "Iniciado": row => !row.sentTime,
+    "Enviado": row =>row.sentByDesigner || row.sentBySupervisor ||(row.sentByDesigner && (row.approvedByContractAdmin || row.approvedBySupervisor)),
+    "Enviado a Cliente": row =>
+      row.sentByDesigner && row.approvedByDocumentaryControl &&
       (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48),
-    Reanudado: row => row.resumeBlueprint && !row.approvedByClient && !row.sentByDesigner,
-    'Aprobado por Cliente con comentarios': row =>
-      row.approvedByClient && row.approvedByDocumentaryControl && row.remarks,
-    'Aprobado por Cliente sin comentarios': row =>
-      (row.approvedByClient && row.approvedByDocumentaryControl) || row.zeroReviewCompleted,
-    'Aprobado por Control Documental con comentarios': row =>
+    "Reanudado": row => row.resumeBlueprint && !row.approvedByClient && !row.sentByDesigner,
+    "Aprobado por Cliente con comentarios": row =>row.approvedByClient && row.remarks,
+    "Aprobado por Cliente sin comentarios": row => row.approvedByClient && !row.remarks,
+    "Aprobado por Control Documental con comentarios": row =>
       row.approvedByDocumentaryControl && !row.sentByDesigner && row.revision === 'A' && row.remarks,
-    'Aprobado por Control Documental': row =>
-      row.approvedByDocumentaryControl && !row.sentByDesigner && row.revision === 'A',
-
-    Rechazado: row => !row.sentByDesigner && row.approvedByDocumentaryControl && !row.approvedByClient && !row.remarks,
-    Iniciado: row => !row.sentTime,
+    "Aprobado por Control Documental": row => row.approvedByDocumentaryControl && !row.sentByDesigner && row.revision === 'A',
+    "Rechazado por Cliente": row => !row.sentByDesigner && row.checkedByClient && !row.approvedByClient && !row.remarks,
     'Con Observaciones y Comentarios': row =>
       (!row.sentByDesigner &&
         (!row.approvedByDocumentaryControl || row.approvedByContractAdmin || row.approvedBySupervisor)) ||
       (!row.sentByDesigner && row.approvedByDocumentaryControl && !row.approvedByClient && row.remarks) ||
       (row.approvedByDocumentaryControl &&
         !row.sentByDesigner &&
-        (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48))
+        (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48)),
+    "Entregable Terminado": row => row.zeroReviewCompleted,
   }
 
   const renderStatus = row => {

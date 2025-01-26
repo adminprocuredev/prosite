@@ -1035,7 +1035,8 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
     storageBlueprints, // Array con Objeto que contiene Nombre y Link del Entregable en Google Drive.
     sentByDesigner, // Entregable creado por un Proyectista.
     sentBySupervisor, // Entregable creado por un Supervisor.
-    attentive // Rol del usuario que tiene en su poder el Entregable. Caso especial: attentive = 4, cuando Control Documental toma acción por el Cliente.
+    attentive, // Rol del usuario que tiene en su poder el Entregable. Caso especial: attentive = 4, cuando Control Documental toma acción por el Cliente.
+    sentToClient // Booleano que define si el Entregable fue enviado al Cliente mediante el Transmittal.
   } = blueprint
 
   console.log(petitionID)
@@ -1102,6 +1103,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
       return {
         ...updateData,
+        checkedByClient: false,
         sentBySupervisor: approves,
         approvedBySupervisor: approves,
         attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 6 : 9) : (approvedByContractAdmin ? 9 : 6),
@@ -1124,6 +1126,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
     return {
       ...updateData,
+      checkedByClient: false,
       sentByDesigner: approves,
       attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 7 : 9) : (approvedBySupervisor ? 9 : 7),
       blueprintPercent : (isInitialRevision && !isM3D) ? 20 : (isInitialRevision && isM3D) ? 60 : updateData.blueprintPercent
@@ -1135,24 +1138,31 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
     console.log(attentive)
 
-    if (isRevisionAtLeastB && attentive === 4 && !isOverResumable) {
+    // Este debería ser el Caso cuando el Cliente responde (No para reabrir un Entregable).
+    if (sentToClient && attentive === 4 && !isOverResumable) {
 
       console.log("CASO 1")
 
       return {
         ...updateData,
+        approvedBySupervisor: false,
+        approvedByContractAdmin: false,
+        approvedByDocumentaryControl: false,
         approvedByClient: blueprintCompleted ? false : approves,
-        approvedByDocumentaryControl: true,
-        storageBlueprints: approves && ((!blueprintCompleted && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? storageBlueprints : null,
-        resumeBlueprint: (isApprovedByClient && blueprintCompleted) || (resumeBlueprint && !approvedByDocumentaryControl) ? true : false,
-        blueprintCompleted: approves && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? true : false,
         sentByDesigner: false,
         sentBySupervisor: false,
+        checkedByClient: true,
+        sentToClient: false,
+        storageBlueprints: approves && ((!blueprintCompleted && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? storageBlueprints : null,
+        storageHlcDocuments: null,
+        resumeBlueprint: (isApprovedByClient && blueprintCompleted) || (resumeBlueprint && !approvedByDocumentaryControl) ? true : false,
+        blueprintCompleted: approves && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? true : false,
         attentive: approves && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? 10 : authorRole,
         remarks: remarks ? true : false,
-        storageHlcDocuments: null,
         blueprintPercent: isRevisionAtLeast0 && approves ? 100 : updateData.blueprintPercent,
       }
+
+    // Este debería ser el Caso cuando el Cliente reabre un Entregable.
     } else if (isOverResumable) {
 
       console.log("CASO 2")
@@ -1161,10 +1171,14 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         ...updateData,
         approvedByClient: false,
         approvedByDocumentaryControl: false,
+        approvedBySupervisor: false,
+        approvedByContractAdmin: false,
         storageBlueprints: null,
         sentByDesigner: false,
         remarks: remarks ? true : false,
       }
+
+    // Este debería ser el caso por defecto (Ni respuesta de cliente ni reabrir Entregable).
     } else {
 
       console.log("CASO 3")
@@ -1248,7 +1262,7 @@ const generateTransmittalCounter = async currentPetition => {
 }
 
 /**
- * Función para actualizar campos del blueprint y agregar un nuevo document en "revisions".
+ * Función para actualizar campos del blueprint y agregar un nuevo document en "revisions" cuando se genera un Transmittal.
  * @param {string} newCode
  * @param {Array} selected
  * @param {Object} currentPetition
@@ -1264,6 +1278,7 @@ const updateSelectedDocuments = async (newCode, selected, currentPetition, authU
 
       await updateDoc(docRef, {
         attentive: 4,
+        sentToClient: true,
         lastTransmittal: newCode,
         blueprintPercent: id[1].revision === 'B' || id[1].revision === '0' ? 80 : id[1].blueprintPercent,
         ...(isM3D && { approvedByClient: true })
