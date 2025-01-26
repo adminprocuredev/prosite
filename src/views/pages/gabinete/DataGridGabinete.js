@@ -459,7 +459,7 @@ const DataGridGabinete = () => {
           <Button
             sx={{ width: '50%', m: 2.5, fontSize: xlDown ? '0.7rem' : '0.8rem' }}
             variant='contained'
-            disabled={currentPetition?.otFinished || !currentPetition}
+            disabled={currentPetition?.otFinished || !currentPetition || isLoading}
             onClick={handleOpenTransmittalDialog}
           >
             Generar Transmittal
