@@ -645,6 +645,7 @@ const TableGabinete = ({
 
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
           // Para las filas de revisión, muestra el registro de la revisión a modo de historial
+
           percentContent = getBlueprintPercent(row)
 
           return (

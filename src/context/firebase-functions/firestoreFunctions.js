@@ -617,8 +617,8 @@ const blockDayInDatabase = async (date, cause = '') => {
  */
 const getBlueprintPercent = (blueprint) => {
 
-  // Desestructuración de row
-  const { revision, sentTime, approvedByDocumentaryControl, lastTransmittal, approvedByClient } = blueprint
+  // Desestructuración de blueprint.
+  const { revision, approvedByDocumentaryControl, lastTransmittal, approvedByClient } = blueprint
 
   const isInitialRevision = revision === "Iniciado"
   const isRevA = revision === "A"
@@ -626,7 +626,7 @@ const getBlueprintPercent = (blueprint) => {
 
   const blueprintPercents = [
     {
-      condition: () => !sentTime,
+      condition: () => isInitialRevision,
       percent: 5,
     },
     {
