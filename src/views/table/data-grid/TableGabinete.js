@@ -196,37 +196,68 @@ const TableGabinete = ({
     return dictionary[role]
   }
 
-  const statusMap = {
-    "Iniciado": row => !row.sentTime,
-    "Enviado": row =>row.sentByDesigner || row.sentBySupervisor ||(row.sentByDesigner && (row.approvedByContractAdmin || row.approvedBySupervisor)),
-    "Enviado a Cliente": row =>
-      row.sentByDesigner && row.approvedByDocumentaryControl &&
-      (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48),
-    "Reanudado": row => row.resumeBlueprint && !row.approvedByClient && !row.sentByDesigner,
-    "Aprobado por Cliente con comentarios": row =>row.approvedByClient && row.remarks,
-    "Aprobado por Cliente sin comentarios": row => row.approvedByClient && !row.remarks,
-    "Aprobado por Control Documental con comentarios": row =>
-      row.approvedByDocumentaryControl && !row.sentByDesigner && row.revision === 'A' && row.remarks,
-    "Aprobado por Control Documental": row => row.approvedByDocumentaryControl && !row.sentByDesigner && row.revision === 'A',
-    "Rechazado por Cliente": row => !row.sentByDesigner && row.checkedByClient && !row.approvedByClient && !row.remarks,
-    'Con Observaciones y Comentarios': row =>
-      (!row.sentByDesigner &&
-        (!row.approvedByDocumentaryControl || row.approvedByContractAdmin || row.approvedBySupervisor)) ||
-      (!row.sentByDesigner && row.approvedByDocumentaryControl && !row.approvedByClient && row.remarks) ||
-      (row.approvedByDocumentaryControl &&
-        !row.sentByDesigner &&
-        (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48)),
-    "Entregable Terminado": row => row.zeroReviewCompleted,
-  }
+
+  const statusChecks = [
+    // OK.
+    {
+      status: "Iniciado",
+      check: row => !row.sentTime
+    },
+    {
+      status: "Enviado a siguiente Revisor",
+      check: row => row.sentByDesigner || row.sentBySupervisor || (row.sentByDesigner && (row.approvedByContractAdmin || row.approvedBySupervisor))
+    },
+    {
+      status: "Enviado a Cliente",
+      check: row => row.sentToClient
+    },
+    {
+      status: "Reanudado",
+      check: row => row.resumeBlueprint && !row.approvedByClient && !row.sentByDesigner
+    },
+    {
+      status: "Aprobado con comentarios por Cliente ",
+      check: row => row.approvedByClient && row.remarks
+    },
+    {
+      status: "Aprobado sin comentarios por Cliente ",
+      check: row => row.approvedByClient && !row.remarks
+    },
+    {
+      status: "Aprobado por Control Documental",
+      check: row => row.approvedByDocumentaryControl && !row.sentByDesigner && row.revision === 'A'
+    },
+    {
+      status: "Aprobado con comentarios por Control Documental",
+      check: row => row.approvedByDocumentaryControl &&
+                    !row.sentByDesigner &&
+                    row.revision === 'A' &&
+                    row.remarks
+    },
+    {
+      status: "Rechazado por Cliente",
+      check: row => row.checkedByClient && !row.approvedByClient
+    },
+    {
+      status: "Con Observaciones y Comentarios",
+      check: row =>
+        (!row.sentByDesigner && (!row.approvedByDocumentaryControl || row.approvedByContractAdmin || row.approvedBySupervisor)) ||
+        (!row.sentByDesigner && row.approvedByDocumentaryControl && !row.approvedByClient && row.remarks) ||
+        (row.approvedByDocumentaryControl &&
+        !row.sentByDesigner && (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48))
+    },
+    {
+      status: "Entregable Terminado",
+      check: row => row.blueprintCompleted
+    }
+  ]
 
   const renderStatus = row => {
-    for (const status in statusMap) {
-      if (statusMap[status](row)) {
-        return status
-      }
-    }
 
-    return 'Aprobado1'
+    const result = statusChecks.find(({ check }) => check(row))
+
+    return result ? result.status : 'Aprobado1'
+
   }
 
   const renderButton = (row, approve, color, IconComponent, disabled, resume = false) => {
