@@ -282,7 +282,7 @@ export const useGoogleDriveFolder = () => {
   const getNextRevisionFolderName = (blueprint) => {
 
     // Desestructuración de blueprint.
-    const { revision, id, approvedByClient, approvedByDocumentaryControl, attentive, sentByDesigner, sentBySupervisor } = blueprint
+    const { revision, id, approvedByClient, approvedByDocumentaryControl, attentive, sentByDesigner, sentBySupervisor, blueprintCompleted } = blueprint
 
     console.log(id)
 
@@ -390,13 +390,22 @@ export const useGoogleDriveFolder = () => {
       },
       {
         condition: () => {
-            const result = !beingReviewedByClient && isRevisionAtLeastB && isNumeric && approvedByClient
+            const result = isRevisionAtLeastB && isNumeric && approvedByClient && !blueprintCompleted
             if (result) console.log("Condición 9.")
 
             return result
         },
-        action: () => revision
+        action: () => nextChar
       },
+      {
+        condition: () => {
+            const result = !beingReviewedByClient && isRevisionAtLeastB && isNumeric && approvedByClient
+            if (result) console.log("Condición 10.")
+
+            return result
+        },
+        action: () => revision
+      }
     ]
 
     // Se ejecuta la definición de la siguiente revisión.
