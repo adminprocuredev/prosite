@@ -638,11 +638,11 @@ const getBlueprintPercent = (blueprint) => {
       percent: 50,
     },
     {
-      condition: () => !isInitialRevision && !isRevA && !lastTransmittal,
+      condition: () => !isInitialRevision && !isRevA && !isNumeric && !lastTransmittal,
       percent: 60,
     },
     {
-      condition: () => isInitialRevision && !isRevA && lastTransmittal,
+      condition: () => !isInitialRevision && !isRevA && !isNumeric && lastTransmittal,
       percent: 80,
     },
     {
