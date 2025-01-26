@@ -463,7 +463,10 @@ export const useGoogleDriveFolder = () => {
 
     // Desustructuración de objetos.
     const { uid, role, displayName } = authUser
-    const { userId, clientCode, revision, approvedByDocumentaryControl, approvedBySupervisor, approvedByContractAdmin } = blueprint
+    const { id, userId, clientCode, revision, approvedByDocumentaryControl, approvedBySupervisor, approvedByContractAdmin } = blueprint
+
+    // Booleano para definir si el Entregable es M3D.
+    const isM3D = id.split('-')[2] === 'M3D'
 
     // Booleano para definir si el Entregable puede ser definido por el Cliente o no.
     const canBeCheckedByClient = checkRoleAndApproval(role, blueprint)
@@ -482,13 +485,15 @@ export const useGoogleDriveFolder = () => {
 
     let expectedFileName = null
 
+    console.log(canBeCheckedByClient)
+
     // Se define el nombre esperado del Entregable a cargar según sea el caso.
     // TODO: VALIDAR ESTOS CASOS
     if (role === 8 || (role === 7 && userId === uid)) {
       expectedFileName = `${clientCode}_REV_${expectedRevision}`
     } else if (role === 9 && approvedByDocumentaryControl && !canBeCheckedByClient) {
       expectedFileName = `${clientCode}_REV_${expectedRevision}_HLC`
-    } else if (role === 9 && (approvedBySupervisor || approvedByContractAdmin) && revision !== 'A' && approves) {
+    } else if (role === 9 && (approvedBySupervisor || approvedByContractAdmin || isM3D) && revision !== 'A' && approves) {
       expectedFileName = `${clientCode}_REV_${expectedRevision}`
     } else {
       const initials = displayName.toUpperCase().split(' ').map(word => word.charAt(0)).join('')
