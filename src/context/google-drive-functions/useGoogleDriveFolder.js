@@ -372,7 +372,7 @@ export const useGoogleDriveFolder = () => {
       },
       {
         condition: () => {
-            const result = !beingReviewedByClient && isRevisionAtLeastB && !approvedByClient && !sentByAuthor
+            const result = !beingReviewedByClient && isRevisionAtLeastB && approvedByDocumentaryControl && !approvedByClient && !sentByAuthor
             if (result) console.log("Condición 7.")
 
             return result
@@ -381,7 +381,7 @@ export const useGoogleDriveFolder = () => {
       },
       {
         condition: () => {
-            const result = !beingReviewedByClient && isRevisionAtLeastB && !approvedByClient && !sentByAuthor
+            const result = !beingReviewedByClient && isRevisionAtLeastB && approvedByDocumentaryControl && !approvedByClient && !sentByAuthor
             if (result) console.log("Condición 8")
 
             return result

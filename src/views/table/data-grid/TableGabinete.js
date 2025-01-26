@@ -205,7 +205,7 @@ const TableGabinete = ({
     },
     {
       status: "Enviado a siguiente Revisor",
-      check: row => row.sentByDesigner || row.sentBySupervisor || (row.sentByDesigner && (row.approvedByContractAdmin || row.approvedBySupervisor))
+      check: row => row.attentive !== 4 && (row.sentByDesigner || row.sentBySupervisor || (row.sentByDesigner && (row.approvedByContractAdmin || row.approvedBySupervisor)))
     },
     {
       status: "Enviado a Cliente",
@@ -233,6 +233,10 @@ const TableGabinete = ({
                     !row.sentByDesigner &&
                     row.revision === 'A' &&
                     row.remarks
+    },
+    {
+      status: "Generar Transmittal",
+      check: row => row.attentive === 4 && row.approvedByDocumentaryControl
     },
     {
       status: "Rechazado por Cliente",
