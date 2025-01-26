@@ -618,11 +618,11 @@ const blockDayInDatabase = async (date, cause = '') => {
 const getBlueprintPercent = (blueprint) => {
 
   // Desestructuración de blueprint.
-  const { revision, approvedByDocumentaryControl, lastTransmittal, approvedByClient } = blueprint
+  const { revision, isRevision, newRevision, approvedByDocumentaryControl, lastTransmittal, approvedByClient } = blueprint
 
-  const isInitialRevision = revision === "Iniciado"
-  const isRevA = revision === "A"
-  const isNumeric = !isNaN(revision)
+  const isInitialRevision = revision === "Iniciado" || (isRevision && newRevision === "Iniciado")
+  const isRevA = revision === "A" || (isRevision && newRevision === "A")
+  const isNumeric = !isNaN(revision) || (isRevision && !isNaN(newRevision))
 
   const blueprintPercents = [
     {

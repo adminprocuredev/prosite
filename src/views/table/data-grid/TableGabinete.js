@@ -639,6 +639,8 @@ const TableGabinete = ({
       renderCell: params => {
         const { row } = params
 
+        console.log(row)
+
         localStorage.setItem('percentGabineteWidthColumn', params.colDef.computedWidth)
 
         let percentContent
