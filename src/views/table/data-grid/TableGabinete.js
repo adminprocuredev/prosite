@@ -260,6 +260,25 @@ const TableGabinete = ({
 
   }
 
+  const blueprintPercents = [
+    {
+      condition: row => !row.sentTime,
+      percent: 5
+    },
+    {
+      condition: row => row.revision === "A",
+      percent: 20
+    },
+  ]
+
+  const renderBlueprintPercent = row => {
+
+    const result = blueprintPercents.find(({ condition }) => condition(row))
+
+    return result.percent
+
+  }
+
   const renderButton = (row, approve, color, IconComponent, disabled, resume = false) => {
     const handleClick = () => handleClickOpenAlert(row, approve)
 
@@ -623,15 +642,7 @@ const TableGabinete = ({
     {
       field: 'percent',
       headerName: 'PORCENTAJE',
-      width: percentLocalWidth
-        ? percentLocalWidth
-        : role === 9 && !lg
-        ? 95
-        : role !== 9 && !lg
-        ? 95
-        : role !== 9
-        ? 80
-        : 80,
+      width: percentLocalWidth ? percentLocalWidth : role === 9 && !lg ? 95 : role !== 9 && !lg ? 95 : role !== 9 ? 80 : 80,
       renderCell: params => {
         const { row } = params
 
@@ -641,7 +652,7 @@ const TableGabinete = ({
 
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
           // Para las filas de revisión, muestra el registro de la revisión a modo de historial
-          percentContent = row.newBlueprintPercent
+          percentContent = renderBlueprintPercent(row)
 
           return (
             <Box sx={{ overflow: 'hidden' }}>
@@ -652,7 +663,7 @@ const TableGabinete = ({
           )
         } else if (!row.isRevision && !expandedRows.has(params.row.parentId)) {
           // Para las filas principales, muestra la el estado de la revisión actual
-          percentContent = row.blueprintPercent
+          percentContent = renderBlueprintPercent(row)
 
           return (
             <Box sx={{ overflow: 'hidden' }}>
