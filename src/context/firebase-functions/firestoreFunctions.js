@@ -1152,6 +1152,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         sentBySupervisor: approves,
         approvedBySupervisor: approves,
         approvedByDocumentaryControl: false,
+        approvedByClient: false,
         attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 6 : 9) : (approvedByContractAdmin ? 9 : 6)
       }
     } else {
@@ -1174,6 +1175,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
       checkedByClient: false,
       sentByDesigner: approves,
       approvedByDocumentaryControl: false,
+      approvedByClient: false,
       attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 7 : 9) : (approvedBySupervisor ? 9 : 7)
     }
   }
