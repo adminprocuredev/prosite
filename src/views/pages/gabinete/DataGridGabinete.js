@@ -560,7 +560,7 @@ const DataGridGabinete = () => {
         </Box>
 
         <DialogActions>
-          <Button onClick={() => setOpenTransmittalDialog(false)} color='primary'>
+          <Button onClick={() => setOpenTransmittalDialog(false)} color='primary' disabled={isLoading}>
             Cancelar
           </Button>
           <Button
