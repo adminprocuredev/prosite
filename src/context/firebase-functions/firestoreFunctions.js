@@ -1695,7 +1695,6 @@ const generateBlueprintCodes = async (mappedCodes, docData, quantity, userParam)
         userId: userParam.userId,
         userName: userData.name,
         revision: 'Iniciado',
-        otFinished: false,
         userEmail: userData.email,
         sentByDesigner: false,
         sentBySupervisor: false,
