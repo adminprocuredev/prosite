@@ -225,14 +225,11 @@ const TableGabinete = ({
     },
     {
       status: "Aprobado por Control Documental",
-      check: row => row.approvedByDocumentaryControl && !row.sentByDesigner && row.revision === 'A'
+      check: row => row.approvedByDocumentaryControl && !row.sentByDesigner && row.revision === 'A' && !row.remarks
     },
     {
       status: "Aprobado con comentarios por Control Documental",
-      check: row => row.approvedByDocumentaryControl &&
-                    !row.sentByDesigner &&
-                    row.revision === 'A' &&
-                    row.remarks
+      check: row => row.approvedByDocumentaryControl && !row.sentByDesigner && row.revision === 'A' && row.remarks
     },
     {
       status: "Generar Transmittal",
@@ -306,31 +303,42 @@ const TableGabinete = ({
 
   }
 
-  const checkRoleAndGenerateTransmittal = (role, row) => {
-    if (row.revisions && row.revisions.length > 0) {
-      const sortedRevisions = [...row.revisions].sort((a, b) => new Date(b.date) - new Date(a.date))
+
+  /**
+   * Función para ¿?
+   * @param {number} role - Rol del usuario conectado que realiza la acción.
+   * @param {Object} blueprint - Información del Entregable.
+   * @returns {boolean}
+   */
+  const checkRoleAndGenerateTransmittal = (role, blueprint) => {
+
+    // Desestructuración de blueprint.
+    const { revisions, revision, lastTransmittal, approvedByDocumentaryControl, sentByDesigner, sentBySupervisor, blueprintCompleted } = blueprint
+
+    // Booleanos
+    const isRole9 = role === 9
+    const sentByAuthor = sentByDesigner || sentBySupervisor
+    const isInitialRevision = revision === "Iniciado"
+    const isRevA = revision === "A"
+    const isRevisionAtLeastB = !isInitialRevision && !isRevA
+
+    if (revisions && revisions.length > 0) {
+
+      const sortedRevisions = [...revisions].sort((a, b) => new Date(b.date) - new Date(a.date))
       const lastRevision = sortedRevisions[0]
 
       // Caso 1: 'row' no tiene 'lastTransmittal' y se cumplen las demás condiciones
       if (
-        !row.lastTransmittal &&
-        role === 9 &&
-        row.approvedByDocumentaryControl &&
-        (row.sentByDesigner === true || row.sentBySupervisor === true) &&
-        (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48) &&
-        !row.blueprintCompleted
+        !lastTransmittal && isRole9 && approvedByDocumentaryControl && sentByAuthor &&
+        isRevisionAtLeastB && !blueprintCompleted
       ) {
         return true
       }
 
       // Caso 2: 'lastRevision' no tiene 'lastTransmittal' y se cumplen las demás condiciones
       if (
-        !('lastTransmittal' in lastRevision) &&
-        role === 9 &&
-        row.approvedByDocumentaryControl &&
-        (row.sentByDesigner === true || row.sentBySupervisor === true) &&
-        (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48) &&
-        !row.blueprintCompleted
+        !('lastTransmittal' in lastRevision) && isRole9 && approvedByDocumentaryControl && sentByAuthor &&
+        isRevisionAtLeastB && !blueprintCompleted
       ) {
         return true
       }
