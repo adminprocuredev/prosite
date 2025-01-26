@@ -618,7 +618,7 @@ const blockDayInDatabase = async (date, cause = '') => {
 const getBlueprintPercent = (blueprint) => {
 
   // Desestructuración de blueprint.
-  const { revision, isRevision, newRevision, approvedByDocumentaryControl, lastTransmittal, approvedByClient } = blueprint
+  const { revision, isRevision, newRevision, approvedByDocumentaryControl, lastTransmittal, approvedByClient, blueprintCompleted } = blueprint
 
   const isInitialRevision = revision === "Iniciado" || (isRevision && newRevision === "Iniciado")
   const isRevA = revision === "A" || (isRevision && newRevision === "A")
@@ -650,7 +650,12 @@ const getBlueprintPercent = (blueprint) => {
       percent: 80,
     },
     {
-      condition: () => isNumeric && lastTransmittal && approvedByClient,
+      // Aprobado con Comentarios del Cliente
+      condition: () => isNumeric && lastTransmittal && approvedByClient && !blueprintCompleted,
+      percent: 80,
+    },
+    {
+      condition: () => isNumeric && lastTransmittal && approvedByClient && blueprintCompleted,
       percent: 100,
     },
   ];
@@ -1196,9 +1201,9 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         storageBlueprints: approves && ((!blueprintCompleted && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? storageBlueprints : null,
         storageHlcDocuments: null,
         resumeBlueprint: (isApprovedByClient && blueprintCompleted) || (resumeBlueprint && !approvedByDocumentaryControl) ? true : false,
-        blueprintCompleted: approves && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? true : false,
-        attentive: approves && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? 10 : authorRole,
-        remarks: remarks ? true : false
+        blueprintCompleted: approves && !remarks && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? true : false,
+        attentive: approves && !remarks && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? 10 : authorRole,
+        remarks: remarks ? remarks : false
       }
 
     // Este debería ser el Caso cuando el Cliente reabre un Entregable.

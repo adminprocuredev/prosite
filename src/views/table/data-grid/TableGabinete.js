@@ -198,10 +198,13 @@ const TableGabinete = ({
 
 
   const statusChecks = [
-    // OK.
     {
       status: "Iniciado",
       check: row => !row.sentTime
+    },
+    {
+      status: "Entregable Terminado",
+      check: row => row.blueprintCompleted
     },
     {
       status: "Enviado a siguiente Revisor",
@@ -221,7 +224,7 @@ const TableGabinete = ({
     },
     {
       status: "Aprobado sin comentarios por Cliente ",
-      check: row => row.approvedByClient && !row.remarks
+      check: row => row.approvedByClient && !row.remarks && !row.blueprintCompleted
     },
     {
       status: "Aprobado por Control Documental",
@@ -241,15 +244,11 @@ const TableGabinete = ({
     },
     {
       status: "Con Observaciones y Comentarios",
-      check: row =>
+      check: row => !row.blueprintCompleted && (
         (!row.sentByDesigner && (!row.approvedByDocumentaryControl || row.approvedByContractAdmin || row.approvedBySupervisor)) ||
         (!row.sentByDesigner && row.approvedByDocumentaryControl && !row.approvedByClient && row.remarks) ||
         (row.approvedByDocumentaryControl &&
-        !row.sentByDesigner && (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48))
-    },
-    {
-      status: "Entregable Terminado",
-      check: row => row.blueprintCompleted
+        !row.sentByDesigner && (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48)))
     }
   ]
 
