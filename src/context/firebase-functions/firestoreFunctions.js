@@ -610,6 +610,56 @@ const blockDayInDatabase = async (date, cause = '') => {
   }
 }
 
+/**
+ * Función para calcular el % de Avance de un Entregable según condiciones.
+ * @param {Object} blueprint - Objeto con datos del Entregable.
+ * @returns {Number} - Valor del porcentaje de avance del entregable (0 a 100).
+ */
+const getBlueprintPercent = (blueprint) => {
+
+  // Desestructuración de row
+  const { revision, sentTime, approvedByDocumentaryControl, lastTransmittal, approvedByClient } = blueprint
+
+  const isInitialRevision = revision === "Iniciado"
+  const isRevA = revision === "A"
+  const isNumeric = !isNaN(revision)
+
+  const blueprintPercents = [
+    {
+      condition: () => !sentTime,
+      percent: 5,
+    },
+    {
+      condition: () => isRevA && !approvedByDocumentaryControl,
+      percent: 20,
+    },
+    {
+      condition: () => isRevA && approvedByDocumentaryControl,
+      percent: 50,
+    },
+    {
+      condition: () => !isInitialRevision && !isRevA && !lastTransmittal,
+      percent: 60,
+    },
+    {
+      condition: () => isInitialRevision && !isRevA && lastTransmittal,
+      percent: 80,
+    },
+    {
+      condition: () => isNumeric && !approvedByClient,
+      percent: 80,
+    },
+    {
+      condition: () => isNumeric && lastTransmittal && approvedByClient,
+      percent: 100,
+    },
+  ];
+
+  const result = blueprintPercents.find(({ condition }) => condition())
+
+  return result ? result.percent : 0
+}
+
 // Maneja la obtención de datos de planos asociados a una solicitud y devuelve un array de datos y una función para actualizarlos.
 const useBlueprints = id => {
   const [data, setData] = useState([]) // Estado que guarda los documentos de blueprints y sus revisiones
@@ -639,12 +689,12 @@ const useBlueprints = id => {
 
       docSnapshot.docs.forEach(doc => {
         const docData = doc.data()
-        const { userName, id, blueprintPercent, deleted } = docData
+        const { userName, id, deleted } = docData
 
         // Actualización de agrupación de datos
         if (!deleted) {
           totalDocuments++ // Aumenta el contador de documentos válidos
-          totalPercent += blueprintPercent || 0 // Suma el valor de 'blueprintPercent', o 0 si no existe
+          totalPercent += getBlueprintPercent(docData) || 0 // Suma el valor de 'blueprintPercent', o 0 si no existe
 
           // Agrupación de datos por usuario y tipo de documento
           if (userName && id) {
@@ -687,9 +737,7 @@ const useBlueprints = id => {
 
       // Calcular 'otPercent' solo si hay documentos válidos
       /* Después de procesar todos los documentos, se calcula el promedio de los valores de blueprintPercent (sumatoria de los porcentajes dividida por la cantidad de documentos). */
-      const calculatedOtPercent =
-        totalDocuments > 0
-          ? Number.isInteger(totalPercent / totalDocuments)
+      const calculatedOtPercent = totalDocuments > 0 ? Number.isInteger(totalPercent / totalDocuments)
             ? totalPercent / totalDocuments
             : (totalPercent / totalDocuments).toFixed(1)
           : null
@@ -802,13 +850,11 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
     resumeBlueprint,
     userId,
     storageHlcDocuments,
-    blueprintPercent,
     attentive
   } = blueprint
 
   // Inicializa la nueva revisión con el valor actual de la revisión
   let newRevision = revision
-  let newBlueprintPercent = blueprintPercent
 
   // Calcula el código de carácter de la próxima letra en el alfabeto
   const nextChar = getNextChar(revision)
@@ -854,10 +900,6 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
         condition: () => revision === 'A',
         action: () => (newRevision = approvedByDocumentaryControl ? nextChar : revision)
       },
-      incrementBlueprintPercent: {
-        condition: () => revision === 'A' && approvedByDocumentaryControl,
-        action: () => (newBlueprintPercent = 60)
-      },
       dotCloud: {
         condition: () => isInitialRevision && isM3D,
         action: () => {
@@ -902,7 +944,7 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
       },
       incrementRevisionInA: {
         condition: () => revision === 'A',
-        action: () => ((newRevision = approvedByDocumentaryControl ? nextChar : revision), (newBlueprintPercent = approvedByDocumentaryControl ? 60 : blueprintPercent))
+        action: () => ((newRevision = approvedByDocumentaryControl ? nextChar : revision))
       },
       dotCloud: {
         condition: () => isInitialRevision && isM3D,
@@ -936,7 +978,6 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
     userId: uid,
     date: Timestamp.fromDate(new Date()),
     remarks: remarks || 'sin observaciones',
-    newBlueprintPercent,
     attentive: attentive
   }
 
@@ -1077,8 +1118,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
     approvedByContractAdmin: approvedByContractAdmin || false,
     approvedBySupervisor: approvedBySupervisor || false,
     approvedByDocumentaryControl: approvedByDocumentaryControl || false,
-    sentTime: Timestamp.fromDate(new Date()),
-    blueprintPercent: nextRevision.newBlueprintPercent
+    sentTime: Timestamp.fromDate(new Date())
   }
 
   const authorData = await getData(userId)
@@ -1106,8 +1146,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         checkedByClient: false,
         sentBySupervisor: approves,
         approvedBySupervisor: approves,
-        attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 6 : 9) : (approvedByContractAdmin ? 9 : 6),
-        blueprintPercent: isInitialRevision && !isM3D ? 20 : isInitialRevision && isM3D ? 60 : updateData.blueprintPercent
+        attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 6 : 9) : (approvedByContractAdmin ? 9 : 6)
       }
     } else {
 
@@ -1128,8 +1167,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
       ...updateData,
       checkedByClient: false,
       sentByDesigner: approves,
-      attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 7 : 9) : (approvedBySupervisor ? 9 : 7),
-      blueprintPercent : (isInitialRevision && !isM3D) ? 20 : (isInitialRevision && isM3D) ? 60 : updateData.blueprintPercent
+      attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 7 : 9) : (approvedBySupervisor ? 9 : 7)
     }
   }
 
@@ -1158,8 +1196,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         resumeBlueprint: (isApprovedByClient && blueprintCompleted) || (resumeBlueprint && !approvedByDocumentaryControl) ? true : false,
         blueprintCompleted: approves && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? true : false,
         attentive: approves && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? 10 : authorRole,
-        remarks: remarks ? true : false,
-        blueprintPercent: isRevisionAtLeast0 && approves ? 100 : updateData.blueprintPercent,
+        remarks: remarks ? true : false
       }
 
     // Este debería ser el Caso cuando el Cliente reabre un Entregable.
@@ -1189,7 +1226,6 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         attentive: !approves ? authorRole : isRevisionAtLeastB ? 4 : authorRole,
         sentByDesigner: approves && isRevisionAtLeastB && sentByDesigner,
         sentBySupervisor: approves && isRevisionAtLeastB && sentBySupervisor,
-        blueprintPercent: approves && isRevA ? 50 : updateData.blueprintPercent,
         remarks: remarks ? true : false,
         storageBlueprints: approves && isRevisionAtLeastB ? [storageBlueprints[0]] : null,
       }
@@ -1209,9 +1245,6 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
   // Actualiza el plano en la base de datos
   await updateDoc(blueprintRef, updateData)
-
-  // Añade la nueva revisión a la subcolección de revisiones del entregable (blueprint)
-  nextRevision.newBlueprintPercent = updateData.blueprintPercent
 
   // Se registra la nueva acción tomada por el usuario dentro de la colecction 'revisions' del Entregable.
   await addDoc(collection(db, 'solicitudes', petitionID, 'blueprints', id, 'revisions'), nextRevision)
@@ -1280,7 +1313,6 @@ const updateSelectedDocuments = async (newCode, selected, currentPetition, authU
         attentive: 4,
         sentToClient: true,
         lastTransmittal: newCode,
-        blueprintPercent: id[1].revision === 'B' || id[1].revision === '0' ? 80 : id[1].blueprintPercent,
         ...(isM3D && { approvedByClient: true })
       })
 
@@ -1288,7 +1320,6 @@ const updateSelectedDocuments = async (newCode, selected, currentPetition, authU
         prevRevision: id[1].revision,
         newRevision: id[1].revision,
         description: id[1].description,
-        newBlueprintPercent: id[1].revision === 'B' || id[1].revision === '0' ? 80 : id[1].blueprintPercent,
         storageBlueprints: id[1].storageBlueprints[0],
         userEmail: authUser.email,
         userName: authUser.displayName,
@@ -1669,7 +1700,6 @@ const generateBlueprintCodes = async (mappedCodes, docData, quantity, userParam)
         sentByDesigner: false,
         sentBySupervisor: false,
         date: Timestamp.fromDate(new Date()),
-        blueprintPercent: 5,
         attentive: userData.role
       })
     }
@@ -1993,5 +2023,6 @@ export {
   modifyCostCenter,
   deleteCostCenter,
   setDefaultCostCenter,
-  getNextChar
+  getNextChar,
+  getBlueprintPercent
 }

@@ -60,7 +60,7 @@ const TableGabinete = ({
   const [buttonClicked, setButtonClicked] = useState(false)
 
   // Hooks.
-  const { authUser, getUserData } = useFirebase()
+  const { authUser, getUserData, getBlueprintPercent } = useFirebase()
   const { getNextRevisionFolderName, checkRoleAndApproval } = useGoogleDriveFolder()
 
   const defaultSortingModel = [{ field: 'date', sort: 'desc' }]
@@ -257,25 +257,6 @@ const TableGabinete = ({
     const result = statusChecks.find(({ check }) => check(row))
 
     return result ? result.status : 'Aprobado1'
-
-  }
-
-  const blueprintPercents = [
-    {
-      condition: row => !row.sentTime,
-      percent: 5
-    },
-    {
-      condition: row => row.revision === "A",
-      percent: 20
-    },
-  ]
-
-  const renderBlueprintPercent = row => {
-
-    const result = blueprintPercents.find(({ condition }) => condition(row))
-
-    return result.percent
 
   }
 
@@ -652,7 +633,7 @@ const TableGabinete = ({
 
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
           // Para las filas de revisión, muestra el registro de la revisión a modo de historial
-          percentContent = renderBlueprintPercent(row)
+          percentContent = getBlueprintPercent(row)
 
           return (
             <Box sx={{ overflow: 'hidden' }}>
@@ -663,7 +644,7 @@ const TableGabinete = ({
           )
         } else if (!row.isRevision && !expandedRows.has(params.row.parentId)) {
           // Para las filas principales, muestra la el estado de la revisión actual
-          percentContent = renderBlueprintPercent(row)
+          percentContent = getBlueprintPercent(row)
 
           return (
             <Box sx={{ overflow: 'hidden' }}>
