@@ -60,8 +60,8 @@ const TableGabinete = ({
   const [buttonClicked, setButtonClicked] = useState(false)
 
   // Hooks.
-  const { authUser, getUserData, getBlueprintPercent } = useFirebase()
-  const { getNextRevisionFolderName, checkRoleAndApproval } = useGoogleDriveFolder()
+  const { authUser, getUserData, getBlueprintPercent, getNextRevisionFolderName } = useFirebase()
+  const { checkRoleAndApproval } = useGoogleDriveFolder()
 
   const defaultSortingModel = [{ field: 'date', sort: 'desc' }]
 

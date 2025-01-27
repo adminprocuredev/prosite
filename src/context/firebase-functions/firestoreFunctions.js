@@ -2060,5 +2060,6 @@ export {
   deleteCostCenter,
   setDefaultCostCenter,
   getNextChar,
-  getBlueprintPercent
+  getBlueprintPercent,
+  getNextRevisionFolderName
 }
