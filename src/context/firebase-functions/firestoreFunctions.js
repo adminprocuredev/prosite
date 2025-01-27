@@ -646,14 +646,14 @@ const getBlueprintPercent = (blueprint) => {
       percent: 80,
     },
     {
-      condition: () => isNumeric,
+      condition: () => isNumeric && !lastTransmittal,
       percent: 80,
     },
     {
-      condition: () => isNumeric && lastTransmittal && sentToClient,
+      condition: () => isNumeric && lastTransmittal,
       percent: 100,
     },
-  ];
+  ]
 
   const result = blueprintPercents.find(({ condition }) => condition())
 
