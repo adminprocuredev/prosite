@@ -1126,20 +1126,15 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
   // Obtiene la última revisión del plano
   const latestRevision = await getLatestRevision(petitionID, id)
-  console.log(latestRevision)
 
   // Calcula la próxima revisión del plano
   const nextRevision = await getNextRevision(approves, latestRevision, authUser, blueprint, remarks)
 
   // Comprueba varias condiciones sobre el plano
-  const isM3D = id.split('-')[2] === 'M3D'
   const isInitialRevision = revision === 'Iniciado'
   const isRevA = revision === 'A'
   const isRevisionAtLeastB = !isInitialRevision && !isRevA
   const isRevisionAtLeast0 = isNumeric
-  const isRevisionAtLeast1 = isNumeric && revision !== '0'
-  const isApprovedByClient = approvedByClient
-  const isOverResumable = isRevisionAtLeast1 && resumeBlueprint && blueprintCompleted
 
   // Inicializa los datos que se van a actualizar
   let updateData = {
@@ -1150,8 +1145,6 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
     approvedByDocumentaryControl: approvedByDocumentaryControl || false,
     sentTime: Timestamp.fromDate(new Date())
   }
-
-  console.log(updateData)
 
   const authorData = await getData(userId)
   const authorRole = authorData.role
@@ -1216,7 +1209,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
     console.log(attentive)
 
     // Este debería ser el Caso cuando el Cliente responde (No para reabrir un Entregable).
-    if (sentToClient && attentive === 4 && !isOverResumable) {
+    if (sentToClient && attentive === 4) {
 
       console.log("CASO 1")
 
@@ -1227,16 +1220,15 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         sentBySupervisor: false,
         checkedByClient: true,
         sentToClient: false,
-        storageBlueprints: approves && ((!blueprintCompleted && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? storageBlueprints : null,
+        storageBlueprints: isRevisionAtLeast0 && approves && !remarks ? storageBlueprints : null,
         storageHlcDocuments: null,
-        resumeBlueprint: (isApprovedByClient && blueprintCompleted) || (resumeBlueprint && !approvedByDocumentaryControl) ? true : false,
         blueprintCompleted: approves && !remarks ? true : false,
-        attentive: approves && !remarks && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? 10 : authorRole,
+        attentive: isRevisionAtLeast0 && approves && !remarks ? 10 : authorRole,
         remarks: remarks ? remarks : false
       }
 
     // Este debería ser el Caso cuando el Cliente reabre un Entregable.
-    } else if (isOverResumable) {
+    } else if (attentive === 10) {
 
       console.log("CASO 2")
 
@@ -1248,7 +1240,8 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         approvedByContractAdmin: false,
         storageBlueprints: null,
         sentByDesigner: false,
-        remarks: remarks ? true : false,
+        remarks: remarks ? remarks : false,
+        resumeBlueprint: true
       }
 
     // Este debería ser el caso por defecto (Ni respuesta de cliente ni reabrir Entregable).
@@ -1278,10 +1271,6 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
   // Aplica la acción correspondiente al rol del usuario
   updateData = roleActions[role] ? await roleActions[role]() : updateData
-
-  console.log(updateData)
-
-  return
 
   // Actualiza el plano en la base de datos
   await updateDoc(blueprintRef, updateData)
