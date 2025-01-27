@@ -29,7 +29,6 @@ import { solicitudValidator } from '../form-validation/helperSolicitudValidator'
 import { getData, getPlantInitals } from './firestoreQuerys'
 import { sendEmailDeliverableNextRevision } from './mailing/sendEmailDeliverableNextRevision'
 import { sendEmailWhenReviewDocs } from './mailing/sendEmailWhenReviewDocs'
-import { useGoogleDriveFolder } from '../google-drive-functions/useGoogleDriveFolder'
 
 const moment = require('moment')
 
@@ -993,9 +992,6 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
   const letterToNumber = approves && !isNumeric && approvedByClient && lastTransmittal
   const newRevision = letterToNumber ? "0" : getNextRevisionFolderName(blueprint)
 
-  // 1: Aprobado, 2: Aprobado con Comentarios, 3: Rechazado
-  const decision = !approves ? 3 : (approves && remarks ? 2 : 1)
-
   // Crea el objeto de la próxima revisión con los datos proporcionados y la nueva revisión calculada
   const nextRevision = {
     prevRevision: latestRevision && Object.keys(latestRevision).length === 0 ? latestRevision.newRevision : revision,
@@ -1012,8 +1008,7 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
     userId: uid,
     date: Timestamp.fromDate(new Date()),
     remarks: remarks || 'sin observaciones',
-    attentive: attentive,
-    decision
+    attentive: attentive
   }
 
   return nextRevision
