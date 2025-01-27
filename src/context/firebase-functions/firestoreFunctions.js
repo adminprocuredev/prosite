@@ -29,6 +29,7 @@ import { solicitudValidator } from '../form-validation/helperSolicitudValidator'
 import { getData, getPlantInitals } from './firestoreQuerys'
 import { sendEmailDeliverableNextRevision } from './mailing/sendEmailDeliverableNextRevision'
 import { sendEmailWhenReviewDocs } from './mailing/sendEmailWhenReviewDocs'
+import { useGoogleDriveFolder } from '../google-drive-functions/useGoogleDriveFolder'
 
 const moment = require('moment')
 
@@ -646,16 +647,11 @@ const getBlueprintPercent = (blueprint) => {
       percent: 80,
     },
     {
-      condition: () => isNumeric && !approvedByClient,
+      condition: () => isNumeric && !lastTransmittal,
       percent: 80,
     },
     {
-      // Aprobado con Comentarios del Cliente
-      condition: () => isNumeric && lastTransmittal && approvedByClient && !blueprintCompleted,
-      percent: 80,
-    },
-    {
-      condition: () => isNumeric && lastTransmittal && approvedByClient && blueprintCompleted,
+      condition: () => isNumeric && lastTransmittal,
       percent: 100,
     },
   ];
@@ -836,136 +832,166 @@ function getNextChar(revision) {
   }
 }
 
-// getNextRevision calcula la próxima revisión basándose en una serie de condiciones
-const getNextRevision = async (approves, latestRevision, authUser, blueprint, remarks) => {
+/**
+ * Función para obtener la letra con la que debe ser creada la carpeta de la revisión en Google Drive.
+ * @param {Object} blueprint - Objeto con los datos del entregable/plano.
+ * @returns {string} - Retorna la letra de la siguiente revisión con la que debe ser creada una carpeta.
+ */
+const getNextRevisionFolderName = (blueprint) => {
 
-  // Desestructuración de authUser
-  const { role, email, displayName, uid } = authUser
+  // Desestructuración de blueprint.
+  const { revision, id, approvedByClient, approvedByDocumentaryControl, attentive, sentByDesigner, sentBySupervisor, blueprintCompleted } = blueprint
 
-  // Desestructuración de blueprint
-  const {
-    id,
-    revision,
-    description,
-    storageBlueprints,
-    approvedByClient,
-    approvedByContractAdmin,
-    approvedBySupervisor,
-    approvedByDocumentaryControl,
-    resumeBlueprint,
-    userId,
-    storageHlcDocuments,
-    attentive
-  } = blueprint
-
-  // Inicializa la nueva revisión con el valor actual de la revisión
-  let newRevision = revision
-
-  // Calcula el código de carácter de la próxima letra en el alfabeto
+  // Se obtiene la letra o número de la siguiente revisión.
   const nextChar = getNextChar(revision)
 
   // Se define si la revisión actual es numérica.
   const isNumeric = !isNaN(revision)
 
-  // Se define se la revisión actual es "Iniciado"
-  const isInitialRevision = revision === "Iniciado"
-  const isRevisionAtLeastB = revision.charCodeAt(0) >= 66 && !isNumeric
+  // Se define si está siendo revisado por el Cliente.
+  const beingReviewedByClient = attentive === 4
 
-  // Verifica si el id contiene "M3D" antes del último guion
+  // Se define si la revisión actual es "Iniciado".
+  const isInitialRevision = revision === "Iniciado"
+
+  // Se define si la revisión actual es "A".
+  const isRevA = revision === "A"
+
+  // Se define Booleano para cuando se encuentra en Rev >= B.
+  const isRevisionAtLeastB = !isRevA && !isInitialRevision
+
+  // Booleano que define si el código Procure del entregable es un M3D (Memoria de Cálculo).
   const isM3D = id.split('-')[2] === 'M3D'
 
-  // Si el rol es 8 y se aprueba, se ejecutan una serie de acciones
-  if (role === 8 && approves) {
-    // Define las acciones posibles
-    const actions = {
-      // * Si la revisión es mayor o igual a '0' y no ha sido aprobada por el cliente, se mantiene la revisión actual
-      keepRevision: {
-        condition: () => isNumeric && approvedByClient && !approvedByDocumentaryControl,
-        action: () => (newRevision = revision)
+  const sentByAuthor = sentByDesigner || sentBySupervisor
+
+  // Se define Patrón de reglas con condiciones y acciones para definir la siguiente revisión de la carpeta.
+  const actions = [
+    {
+      // Si la revisión es "Iniciado" y el entregable es un M3D (Memoria de Cálculo).
+      condition: () => {
+          const result = isInitialRevision && isM3D
+          if (result) console.log("Condición 1.")
+
+          return result
       },
-      incrementResume: {
-        condition: () => isNumeric && resumeBlueprint,
-        action: () => (newRevision = nextChar)
+      action: () => '0'
+    },
+    {
+      // Si la revisión es "Iniciado" y el entregable no es un M3D (Memoria de Cálculo).
+      condition: () => {
+          const result = isInitialRevision && !isM3D
+          if (result) console.log("Condición 2.")
+
+          return result
       },
-      // * Si la revisión es mayor o igual a 'B' y menor a '0' y ha sido aprobada por el cliente, se resetea la revisión a '0'
-      resetRevision: {
-        condition: () => isRevisionAtLeastB && !isNumeric && approvedByClient,
-        action: () => (newRevision = '0')
+      action: () => 'A'
+    },
+    {
+      // Si la revisión es Rev. A y ha sido Aprobada por Control Documental.
+      condition: () => {
+          const result = isRevA && approvedByDocumentaryControl
+          if (result) console.log("Condición 3.")
+
+          return result
       },
-      // * Si la revisión es 'B', 'C' o 'D', no ha sido aprobada por el cliente y ha sido aprobada por el administrador de contrato o el supervisor, se incrementa la revisión a la siguiente letra
-      incrementRevision: {
-        condition: () => isRevisionAtLeastB && !isNumeric && !approvedByClient && approvedByDocumentaryControl,
-        action: () => (newRevision = nextChar)
+      action: () => nextChar
+    },
+    {
+      // Si la revisión es Rev. A y no ha sido Aprobada por Control Documental.
+      condition: () => {
+          const result = isRevA && !approvedByDocumentaryControl
+          if (result) console.log("Condición 4.")
+
+          return result
       },
-      startRevision: {
-        condition: () => isInitialRevision && !isM3D,
-        action: () => (newRevision = 'A')
+      action: () => revision
+    },
+    {
+      // Si la revisión está en manos del Cliente.
+      condition: () => {
+          const result = beingReviewedByClient
+          if (result) console.log("Condición 5.")
+
+          return result
       },
-      incrementRevisionInA: {
-        condition: () => revision === 'A',
-        action: () => (newRevision = approvedByDocumentaryControl ? nextChar : revision)
+      action: () => revision
+    },
+    {
+      condition: () => {
+          const result = !beingReviewedByClient && isRevisionAtLeastB && !isNumeric && approvedByClient
+          if (result) console.log("Condición 6.")
+
+          return result
       },
-      dotCloud: {
-        condition: () => isInitialRevision && isM3D,
-        action: () => {
-          newRevision = '0'
-        }
-      }
+      action: () => '0'
+    },
+    {
+      condition: () => {
+          const result = !beingReviewedByClient && isRevisionAtLeastB && approvedByDocumentaryControl && !approvedByClient && !sentByAuthor
+          if (result) console.log("Condición 7.")
+
+          return result
+      },
+      action: () => nextChar
+    },
+    {
+      condition: () => {
+          const result = !beingReviewedByClient && isRevisionAtLeastB && approvedByDocumentaryControl && !approvedByClient && !sentByAuthor
+          if (result) console.log("Condición 8")
+
+          return result
+      },
+      action: () => nextChar
+    },
+    {
+      condition: () => {
+          const result = isRevisionAtLeastB && isNumeric && approvedByClient && !blueprintCompleted
+          if (result) console.log("Condición 9.")
+
+          return result
+      },
+      action: () => nextChar
+    },
+    {
+      condition: () => {
+          const result = !beingReviewedByClient && isRevisionAtLeastB && isNumeric && approvedByClient
+          if (result) console.log("Condición 10.")
+
+          return result
+      },
+      action: () => revision
     }
+  ]
 
-    // Ejecuta la acción correspondiente para cada condición que se cumple
-    Object.values(actions).forEach(({ condition, action }) => {
-      if (condition()) {
-        action()
-      }
-    })
+  // Se ejecuta la definición de la siguiente revisión.
+  const matchedAction = actions.find(({ condition }) => condition())
 
-  } else if (role === 7 && approves && userId === uid) {
-    // Define las acciones posibles
-    const actions = {
-      // * Si la revisión es mayor o igual a '0' y no ha sido aprobada por el cliente, se mantiene la revisión actual
-      keepRevision: {
-        condition: () =>
-          isNumeric && approvedByClient && !approvedByDocumentaryControl,
-        action: () => (newRevision = revision)
-      },
-      incrementResume: {
-        condition: () => isNumeric && resumeBlueprint,
-        action: () => (newRevision = nextChar)
-      },
-      // * Si la revisión es mayor o igual a 'B', ha sido aprobada por el cliente, se resetea la revisión a '0'
-      resetRevision: {
-        condition: () => isRevisionAtLeastB && approvedByClient,
-        action: () => (newRevision = '0')
-      },
-      // * Si la revisión es 'B', 'C' o 'D', no ha sido aprobada por el cliente y ha sido aprobada por el administrador de contrato o el supervisor, se incrementa la revisión a la siguiente letra
-      incrementRevision: {
-        condition: () => isRevisionAtLeastB && !isNumeric && !approvedByClient && approvedByDocumentaryControl,
-        action: () => (newRevision = nextChar)
-      },
-      startRevision: {
-        condition: () => isInitialRevision && !isM3D,
-        action: () => (newRevision = 'A')
-      },
-      incrementRevisionInA: {
-        condition: () => revision === 'A',
-        action: () => ((newRevision = approvedByDocumentaryControl ? nextChar : revision))
-      },
-      dotCloud: {
-        condition: () => isInitialRevision && isM3D,
-        action: () => {
-          newRevision = '0'
-        }
-      }
-    }
+  // Se retorna la siguiente revisión en caso de que concuerde con alguna de las condiciones definidas.
+  // Si no, se retorna la revisión actual.
+  return matchedAction ? matchedAction.action() : revision
+}
 
-    // Ejecuta la acción correspondiente para cada condición que se cumple
-    Object.values(actions).forEach(({ condition, action }) => {
-      if (condition()) {
-        action()
-      }
-    })
-  }
+// getNextRevision calcula la próxima revisión basándose en una serie de condiciones
+const getNextRevision = async (approves, latestRevision, authUser, blueprint, remarks) => {
+
+  // Desestructuración de authUser
+  const { email, displayName, uid } = authUser
+
+  // Desestructuración de blueprint
+  const {
+    revision,
+    description,
+    storageBlueprints,
+    approvedByClient,
+    attentive,
+    lastTransmittal
+  } = blueprint
+
+  // Se define si la revisión actual es numérica.
+  const isNumeric = !isNaN(revision)
+  const letterToNumber = approves && !isNumeric && approvedByClient && lastTransmittal
+  const newRevision = letterToNumber ? "0" : getNextRevisionFolderName(blueprint)
 
   // Crea el objeto de la próxima revisión con los datos proporcionados y la nueva revisión calculada
   const nextRevision = {
@@ -1125,6 +1151,8 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
     approvedByDocumentaryControl: approvedByDocumentaryControl || false,
     sentTime: Timestamp.fromDate(new Date())
   }
+
+  console.log(updateData)
 
   const authorData = await getData(userId)
   const authorRole = authorData.role
