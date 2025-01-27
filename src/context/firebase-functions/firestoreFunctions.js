@@ -1207,7 +1207,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
       approvedByContractAdmin: false,
       approvedByDocumentaryControl: false,
       approvedByClient: false,
-      attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 7 : 9) : (approvedBySupervisor ? 9 : 7)
+      attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 7 : 9) : 7
     }
   }
 
