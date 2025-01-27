@@ -197,64 +197,89 @@ const TableGabinete = ({
   }
 
 
-  const statusChecks = [
-    {
-      status: "Iniciado",
-      check: row => !row.sentTime
-    },
-    {
-      status: "Entregable Terminado",
-      check: row => row.blueprintCompleted
-    },
-    {
-      status: "Enviado a siguiente Revisor",
-      check: row => row.attentive !== 4 && (row.sentByDesigner || row.sentBySupervisor || (row.sentByDesigner && (row.approvedByContractAdmin || row.approvedBySupervisor)))
-    },
-    {
-      status: "Enviado a Cliente",
-      check: row => row.sentToClient
-    },
-    {
-      status: "Reanudado",
-      check: row => row.resumeBlueprint && !row.approvedByClient && !row.sentByDesigner
-    },
-    {
-      status: "Aprobado con comentarios por Cliente ",
-      check: row => row.approvedByClient && row.remarks
-    },
-    {
-      status: "Aprobado sin comentarios por Cliente ",
-      check: row => row.approvedByClient && !row.remarks && !row.blueprintCompleted
-    },
-    {
-      status: "Aprobado por Control Documental",
-      check: row => row.approvedByDocumentaryControl && !row.sentByDesigner && row.revision === 'A' && !row.remarks
-    },
-    {
-      status: "Aprobado con comentarios por Control Documental",
-      check: row => row.approvedByDocumentaryControl && !row.sentByDesigner && row.revision === 'A' && row.remarks
-    },
-    {
-      status: "Generar Transmittal",
-      check: row => row.attentive === 4 && row.approvedByDocumentaryControl
-    },
-    {
-      status: "Rechazado por Cliente",
-      check: row => row.checkedByClient && !row.approvedByClient
-    },
-    {
-      status: "Con Observaciones y Comentarios",
-      check: row => !row.blueprintCompleted && (
-        (!row.sentByDesigner && (!row.approvedByDocumentaryControl || row.approvedByContractAdmin || row.approvedBySupervisor)) ||
-        (!row.sentByDesigner && row.approvedByDocumentaryControl && !row.approvedByClient && row.remarks) ||
-        (row.approvedByDocumentaryControl &&
-        !row.sentByDesigner && (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48)))
-    }
-  ]
-
   const renderStatus = row => {
 
-    const result = statusChecks.find(({ check }) => check(row))
+    // Desestructuración de blueprint(row)
+    const {
+      revision,
+      sentTime,
+      blueprintCompleted,
+      attentive,
+      sentByDesigner,
+      sentBySupervisor,
+      approvedBySupervisor,
+      approvedByContractAdmin,
+      approvedByDocumentaryControl,
+      sentToClient,
+      checkedByClient,
+      resumeBlueprint,
+      approvedByClient,
+      remarks
+    } = row
+
+    // Booleanos
+    const isInitialRevision = revision === "Iniciado"
+    const isRevA = revision === "A"
+    const isRevisionAtLeastB = !isInitialRevision && !isRevA
+    const beingReviewedByClient = attentive === 4
+    const sentByAuthor = sentByDesigner || sentBySupervisor
+
+    const statusChecks = [
+      {
+        status: "Iniciado",
+        check: !sentTime
+      },
+      {
+        status: "Entregable Terminado",
+        check: blueprintCompleted
+      },
+      {
+        status: "Enviado a siguiente Revisor",
+        check: !beingReviewedByClient && (sentByAuthor || (sentByDesigner && (approvedByContractAdmin || approvedBySupervisor)))
+      },
+      {
+        status: "Enviado a Cliente",
+        check: sentToClient
+      },
+      {
+        status: "Reanudado",
+        check: resumeBlueprint && !approvedByClient && !sentByDesigner
+      },
+      {
+        status: "Aprobado con comentarios por Cliente ",
+        check: approvedByClient && remarks
+      },
+      {
+        status: "Aprobado sin comentarios por Cliente ",
+        check: approvedByClient && !remarks && !blueprintCompleted
+      },
+      {
+        status: "Aprobado por Control Documental",
+        check: approvedByDocumentaryControl && !sentByDesigner && isRevA && !remarks
+      },
+      {
+        status: "Aprobado con comentarios por Control Documental",
+        check: approvedByDocumentaryControl && !sentByDesigner && isRevA && remarks
+      },
+      {
+        status: "Generar Transmittal",
+        check: beingReviewedByClient && approvedByDocumentaryControl
+      },
+      {
+        status: "Rechazado por Cliente",
+        check: checkedByClient && !approvedByClient
+      },
+      {
+        status: "Con Observaciones y Comentarios",
+        check: !blueprintCompleted && (
+          (!sentByDesigner && (!approvedByDocumentaryControl || approvedByContractAdmin || approvedBySupervisor)) ||
+          (!sentByDesigner && approvedByDocumentaryControl && !approvedByClient && remarks) ||
+          (approvedByDocumentaryControl &&
+          !sentByDesigner && isRevisionAtLeastB))
+      }
+    ]
+
+    const result = statusChecks.find(({ check }) => check)
 
     return result ? result.status : 'Aprobado1'
 
