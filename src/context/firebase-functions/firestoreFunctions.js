@@ -1230,7 +1230,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         storageBlueprints: approves && ((!blueprintCompleted && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? storageBlueprints : null,
         storageHlcDocuments: null,
         resumeBlueprint: (isApprovedByClient && blueprintCompleted) || (resumeBlueprint && !approvedByDocumentaryControl) ? true : false,
-        blueprintCompleted: approves && !remarks && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? true : false,
+        blueprintCompleted: approves && !remarks ? true : false,
         attentive: approves && !remarks && (((!blueprintCompleted || resumeBlueprint) && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1)) ? 10 : authorRole,
         remarks: remarks ? remarks : false
       }
@@ -1278,6 +1278,10 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
   // Aplica la acción correspondiente al rol del usuario
   updateData = roleActions[role] ? await roleActions[role]() : updateData
+
+  console.log(updateData)
+
+  return
 
   // Actualiza el plano en la base de datos
   await updateDoc(blueprintRef, updateData)
