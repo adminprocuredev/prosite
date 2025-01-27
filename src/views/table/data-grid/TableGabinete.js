@@ -197,6 +197,11 @@ const TableGabinete = ({
   }
 
 
+  /**
+   * Función para renderizar el string del Estado que aparecerá en la columna "Observaciones".
+   * @param {Object} row - Datos del Entregable (blueprint).
+   * @returns {string} - Estado que aparecerá en la columna "Observaciones"
+   */
   const renderStatus = row => {
 
     // Desestructuración de blueprint(row)
