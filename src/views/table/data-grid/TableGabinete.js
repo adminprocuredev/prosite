@@ -346,13 +346,16 @@ const TableGabinete = ({
     return false
   }
 
-  const checkRoleAndResume = (role, row) => {
+  const checkRoleAndResume = (role, blueprint) => {
+
+    // Desestructuración de bluepint
+    const { revision, approvedByClient, blueprintCompleted } = blueprint
+
+    // Booleanos
+    const isNumeric = !isNaN(revision)
+
     return (
-      role === 9 &&
-      row.approvedByDocumentaryControl &&
-      row.approvedByClient &&
-      row.revision.charCodeAt(0) >= 48 &&
-      row.blueprintCompleted === true
+      role === 9 && approvedByClient && isNumeric && blueprintCompleted
     )
   }
 
@@ -1294,15 +1297,7 @@ const TableGabinete = ({
     {
       field: 'clientApprove',
       headerName: 'Cliente',
-      width: clientLocalWidth
-        ? clientLocalWidth
-        : role === 9 && !lg
-        ? 160
-        : role !== 9 && !lg
-        ? 70
-        : role !== 9
-        ? 120
-        : 120,
+      width: clientLocalWidth ? clientLocalWidth : role === 9 && !lg ? 160 : role !== 9 && !lg ? 70 : role !== 9 ? 120 : 120,
       renderCell: params => {
         const { row, currentPetition } = params
 
