@@ -1007,7 +1007,7 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
     userName: displayName,
     userId: uid,
     date: Timestamp.fromDate(new Date()),
-    remarks: remarks || 'sin observaciones',
+    remarks: remarks || 'Sin observaciones',
     attentive: attentive
   }
 

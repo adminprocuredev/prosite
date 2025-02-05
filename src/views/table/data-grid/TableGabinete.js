@@ -1278,7 +1278,7 @@ const TableGabinete = ({
                   noWrap
                   sx={{ overflow: 'hidden', my: 'auto', textOverflow: 'clip', fontSize: lg ? '0.8rem' : '1rem' }}
                 >
-                  {row.remarks || 'Sin Observasión'}
+                  {row.remarks || 'Sin observaciones'}
                 </Typography>
               </Box>
             </Box>
