@@ -1139,10 +1139,10 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
   // Inicializa los datos que se van a actualizar
   let updateData = {
     revision: nextRevision.newRevision,
-    sentByDesigner: false,
-    approvedByContractAdmin: approvedByContractAdmin || false,
-    approvedBySupervisor: approvedBySupervisor || false,
-    approvedByDocumentaryControl: approvedByDocumentaryControl || false,
+    // sentByDesigner: false,
+    // approvedByContractAdmin: approvedByContractAdmin || false,
+    // approvedBySupervisor: approvedBySupervisor || false,
+    // approvedByDocumentaryControl: approvedByDocumentaryControl || false,
     sentTime: Timestamp.fromDate(new Date())
   }
 
@@ -1626,126 +1626,110 @@ const updateWeekHoursWithPlant = async (userId, dayDocIds, plant, costCenter) =>
 const generateBlueprintCodes = async (mappedCodes, docData, quantity, userParam) => {
 
   const { melDiscipline, melDeliverable, procureDiscipline, procureDeliverable } = mappedCodes
-
-  // Parámetros adicionales
-  const idProject = '21286'
   const { ot, plant, area } = docData
 
-  // Crea la referencia al campo específico del contador de Procure
+  const idProject = '21286'
+
   const procureCounterField = `${procureDiscipline}-${procureDeliverable}-counter`
   const procureCounterRef = doc(db, 'counters', 'blueprintsProcureCodeCounter')
 
-  // Crea la referencia al documento específico del contador MEL
   const melCounterDocId = `${melDiscipline}-${melDeliverable}-counter`
   const melCounterRef = doc(db, 'solicitudes', docData.id, 'clientCodeGeneratorCount', melCounterDocId)
 
-  // Crea la referencia al documento de la solicitud
   const petitionRef = doc(db, 'solicitudes', docData.id)
 
-  // Función para formatear el contador MEL
   function formatCountMEL(count) {
     return String(count).padStart(5, '0')
   }
 
-  // Función para formatear el contador Procure
   function formatCountProcure(count) {
     return String(count).padStart(3, '0')
   }
 
-  // Función para obtener el Número de Área a partir del nombre completo del área.
   function extractAreaNumber(areaFullname) {
-    const nameArray = areaFullname.split(" - ")
-
-    return nameArray[0]
+    return areaFullname.split(" - ")[0]
   }
 
   const plantInitials = await getPlantInitals(plant)
   const areaNumber = extractAreaNumber(area)
   const otNumber = `OT${ot}`
 
-  // Función tipo transtaction (FIFO) para obtener la lista de códigos.
   const codes = await runTransaction(db, async transaction => {
     const procureCounterDoc = await transaction.get(procureCounterRef)
     const melCounterDoc = await transaction.get(melCounterRef)
     const solicitudDoc = await transaction.get(petitionRef)
 
-    // Manejo de la situación cuando el documento de MEL no existe
-    let melCounter
-
+    let melCounter = melCounterDoc.exists() ? Number(melCounterDoc.data().count) : 0
     if (!melCounterDoc.exists()) {
-      melCounter = formatCountMEL(0)
-      transaction.set(melCounterRef, { count: melCounter })
-    } else {
-      melCounter = melCounterDoc.data().count
+      transaction.set(melCounterRef, { count: formatCountMEL(0) })
     }
 
-    // Obtiene el valor actual del contador específico
     let procureCounterData = procureCounterDoc.data()[procureCounterField]
     if (!procureCounterData) {
-      procureCounterData = {
-        count: "000"
-      }
-      // Se crea el contador si no existe.
-      transaction.update(procureCounterRef, {
-        [procureCounterField]: procureCounterData
-      })
+      procureCounterData = { count: "000" }
+      transaction.update(procureCounterRef, { [procureCounterField]: procureCounterData })
     }
 
     let procureCounter = Number(procureCounterData.count)
-    melCounter = Number(melCounter)
 
-    // Verificar y actualizar el campo otReadyToFinish en la solicitud
     if (solicitudDoc.exists()) {
       const solicitudData = solicitudDoc.data()
-      if (solicitudData.otReadyToFinish === true) {
-        transaction.update(petitionRef, { otReadyToFinish: false })
-      } else if (solicitudData.otReadyToFinish === undefined) {
+      if (solicitudData.otReadyToFinish !== false) {
         transaction.update(petitionRef, { otReadyToFinish: false })
       }
     }
 
     const newDocs = []
+    const blueprintCollectionRef = collection(db, 'solicitudes', docData.id, 'blueprints')
 
     for (let i = 0; i < quantity; i++) {
-      const procureCode = `${idProject}-${procureDiscipline}-${procureDeliverable}-${formatCountProcure(
-        procureCounter + i + 1
-      )}`
 
-      const melCode = `${idProject}-${otNumber}-${plantInitials}-${areaNumber}-${melDiscipline}-${melDeliverable}-${formatCountMEL(
-        melCounter + i + 1
-      )}`
+      const procureCode = `${idProject}-${procureDiscipline}-${procureDeliverable}-${formatCountProcure(procureCounter + i + 1)}`
+      const melCode = `${idProject}-${otNumber}-${plantInitials}-${areaNumber}-${melDiscipline}-${melDeliverable}-${formatCountMEL(melCounter + i + 1)}`
 
-      // Se buscan los datos del usuario selccionado.
       const userData = await getData(userParam.userId)
 
-      newDocs.push({
+      const newDoc = {
         id: procureCode,
         clientCode: melCode,
         userId: userParam.userId,
         userName: userData.name,
-        revision: 'Iniciado',
+        revision: "Iniciado",
+        milestone: "Iniciado",
         userEmail: userData.email,
         sentByDesigner: false,
         sentBySupervisor: false,
         date: Timestamp.fromDate(new Date()),
         attentive: userData.role
-      })
-    }
+      };
 
-    const newProcureCounter = Number(procureCounter) + Number(quantity)
-    const newMelCounter = Number(melCounter) + Number(quantity)
-
-    // Actualiza el contador específico en el documento
-    transaction.update(procureCounterRef, {
-      [`${procureCounterField}.count`]: formatCountProcure(newProcureCounter)
-    })
-    transaction.update(melCounterRef, { count: formatCountMEL(newMelCounter) })
-
-    const blueprintCollectionRef = collection(db, 'solicitudes', docData.id, 'blueprints')
-    newDocs.forEach(newDoc => {
+      // Se agrega el nuevo Blueprint a la collection "blueprints".
       const newDocRef = doc(blueprintCollectionRef, newDoc.id)
       transaction.set(newDocRef, newDoc)
-    })
+
+      // Crear referencia para la subcolección "revisions"
+      const revisionsCollectionRef = collection(db, 'solicitudes', docData.id, 'blueprints', newDoc.id, 'revisions')
+
+      const newRevision = {
+        milestone: "Iniciado",
+        date: Timestamp.fromDate(new Date()),
+        prevRevision: null,
+        newRevision: "Iniciado",
+        storageBlueprints: {
+          name: null,
+          url: null
+        }
+      }
+
+      // Genera un documento con un ID aleatorio
+      const newRevisionRef = doc(revisionsCollectionRef)
+      transaction.set(newRevisionRef, newRevision)
+
+      newDocs.push(newDoc)
+    }
+
+    transaction.update(procureCounterRef, { [`${procureCounterField}.count`]: formatCountProcure(procureCounter + quantity) })
+    transaction.update(melCounterRef, { count: formatCountMEL(melCounter + quantity) })
 
     return newDocs
   })
