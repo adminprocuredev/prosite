@@ -963,7 +963,7 @@ const getNextRevisionFolderName = (blueprint) => {
   return matchedAction ? matchedAction.action() : revision
 }
 
-const getMilestone = (newRevision, blueprint, approves) => {
+const getMilestone = (newRevision, blueprint, approves, isRevisionAtLeast0) => {
 
   // Desestructuración de blueprint.
   const { lastTransmittal, milestone, attentive, remarks } = blueprint
@@ -978,7 +978,7 @@ const getMilestone = (newRevision, blueprint, approves) => {
     newMilestone = 3
   } else if (milestone === 3 && lastTransmittal) {
     newMilestone = 4
-  } else if (milestone === 4 && attentive === 4 && approves && !remarks) {
+  } else if (milestone === 4 && attentive === 4 && isRevisionAtLeast0 && approves && !remarks) {
     newMilestone = 5
   }
 
@@ -1150,7 +1150,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
   const isRevisionAtLeastB = !isInitialRevision && !isRevA
   const isRevisionAtLeast0 = isNumeric
 
-  const newMilestone = getMilestone(nextRevision.newRevision, blueprint, approves)
+  const newMilestone = getMilestone(nextRevision.newRevision, blueprint, approves, isRevisionAtLeast0)
 
   // Se actualiza el hito en los datos que se almacenan en "revisions".
   nextRevision.milestone = newMilestone
@@ -1242,7 +1242,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         sentToClient: false,
         storageBlueprints: isRevisionAtLeast0 && approves && !remarks ? storageBlueprints : null,
         storageHlcDocuments: null,
-        blueprintCompleted: approves && !remarks ? true : false,
+        blueprintCompleted: isRevisionAtLeast0 && approves && !remarks ? true : false,
         attentive: isRevisionAtLeast0 && approves && !remarks ? 10 : authorRole,
         remarks: remarks ? remarks : false
       }
