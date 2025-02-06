@@ -618,39 +618,31 @@ const blockDayInDatabase = async (date, cause = '') => {
 const getBlueprintPercent = (blueprint) => {
 
   // Desestructuración de blueprint.
-  const { revision, isRevision, newRevision, approvedByDocumentaryControl, lastTransmittal, approvedByClient, blueprintCompleted, sentToClient } = blueprint
-
-  const isInitialRevision = revision === "Iniciado" || (isRevision && newRevision === "Iniciado")
-  const isRevA = revision === "A" || (isRevision && newRevision === "A")
-  const isNumeric = !isNaN(revision) || (isRevision && !isNaN(newRevision))
+  const { milestone } = blueprint
 
   const blueprintPercents = [
     {
-      condition: () => isInitialRevision,
+      condition: () => milestone === 0,
       percent: 5,
     },
     {
-      condition: () => isRevA && !approvedByDocumentaryControl,
+      condition: () => milestone === 1,
       percent: 20,
     },
     {
-      condition: () => isRevA && approvedByDocumentaryControl,
+      condition: () => milestone === 2,
       percent: 50,
     },
     {
-      condition: () => !isInitialRevision && !isRevA && !isNumeric && !lastTransmittal,
+      condition: () => milestone === 3,
       percent: 60,
     },
     {
-      condition: () => !isInitialRevision && !isRevA && !isNumeric && lastTransmittal,
+      condition: () => milestone === 4,
       percent: 80,
     },
     {
-      condition: () => isNumeric && !lastTransmittal,
-      percent: 80,
-    },
-    {
-      condition: () => isNumeric && lastTransmittal,
+      condition: () => milestone === 5,
       percent: 100,
     },
   ]
@@ -971,6 +963,29 @@ const getNextRevisionFolderName = (blueprint) => {
   return matchedAction ? matchedAction.action() : revision
 }
 
+const getMilestone = (newRevision, blueprint, approves) => {
+
+  // Desestructuración de blueprint.
+  const { lastTransmittal, milestone, attentive, remarks } = blueprint
+
+  let newMilestone = milestone
+
+  if (milestone === 0 && newRevision === "A") {
+    newMilestone = 1
+  } else if (milestone === 1 && attentive === 9 && approves) {
+    newMilestone = 2
+  } else if (milestone === 2 && newRevision === "B") {
+    newMilestone = 3
+  } else if (milestone === 3 && lastTransmittal) {
+    newMilestone = 4
+  } else if (milestone === 4 && attentive === 4 && approves && !remarks) {
+    newMilestone = 5
+  }
+
+  return newMilestone
+
+}
+
 // getNextRevision calcula la próxima revisión basándose en una serie de condiciones
 const getNextRevision = async (approves, latestRevision, authUser, blueprint, remarks) => {
 
@@ -1114,7 +1129,6 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
   console.log(blueprint)
   console.log(authUser)
 
-
   // Desestructuración de authUser.
   const { uid, role } = authUser
 
@@ -1136,9 +1150,15 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
   const isRevisionAtLeastB = !isInitialRevision && !isRevA
   const isRevisionAtLeast0 = isNumeric
 
+  const newMilestone = getMilestone(nextRevision.newRevision, blueprint, approves)
+
+  // Se actualiza el hito en los datos que se almacenan en "revisions".
+  nextRevision.milestone = newMilestone
+
   // Inicializa los datos que se van a actualizar
   let updateData = {
     revision: nextRevision.newRevision,
+    milestone: newMilestone,
     // sentByDesigner: false,
     // approvedByContractAdmin: approvedByContractAdmin || false,
     // approvedBySupervisor: approvedBySupervisor || false,
@@ -1340,6 +1360,7 @@ const updateSelectedDocuments = async (newCode, selected, currentPetition, authU
 
       await updateDoc(docRef, {
         attentive: 4,
+        milestone: id[1].milestone === 5 ? 5 : 4,
         sentToClient: true,
         lastTransmittal: newCode,
         ...(isM3D && { approvedByClient: true })
@@ -1348,6 +1369,7 @@ const updateSelectedDocuments = async (newCode, selected, currentPetition, authU
       const nextRevision = {
         prevRevision: id[1].revision,
         newRevision: id[1].revision,
+        milestone: id[1].milestone === 5 ? 5 : 4,
         description: id[1].description,
         storageBlueprints: id[1].storageBlueprints[0],
         userEmail: authUser.email,
@@ -1695,7 +1717,7 @@ const generateBlueprintCodes = async (mappedCodes, docData, quantity, userParam)
         userId: userParam.userId,
         userName: userData.name,
         revision: "Iniciado",
-        milestone: "Iniciado",
+        milestone: 0,
         userEmail: userData.email,
         sentByDesigner: false,
         sentBySupervisor: false,
@@ -1710,8 +1732,9 @@ const generateBlueprintCodes = async (mappedCodes, docData, quantity, userParam)
       // Crear referencia para la subcolección "revisions"
       const revisionsCollectionRef = collection(db, 'solicitudes', docData.id, 'blueprints', newDoc.id, 'revisions')
 
+      // milestone = 0 significa Entregable "Iniciado".
       const newRevision = {
-        milestone: "Iniciado",
+        milestone: 0,
         date: Timestamp.fromDate(new Date()),
         prevRevision: null,
         newRevision: "Iniciado",
