@@ -966,20 +966,30 @@ const getNextRevisionFolderName = (blueprint) => {
 const getMilestone = (newRevision, blueprint, approves, isRevisionAtLeast0) => {
 
   // Desestructuración de blueprint.
-  const { lastTransmittal, milestone, attentive, remarks } = blueprint
+  const { id, lastTransmittal, milestone, attentive } = blueprint
+
+  const isM3D = id.split('-')[2] === 'M3D'
 
   let newMilestone = milestone
 
-  if (milestone === 0 && newRevision === "A") {
-    newMilestone = 1
-  } else if (milestone === 1 && attentive === 9 && approves) {
-    newMilestone = 2
-  } else if (milestone === 2 && newRevision === "B") {
-    newMilestone = 3
-  } else if (milestone === 3 && lastTransmittal) {
-    newMilestone = 4
-  } else if (milestone === 4 && attentive === 4 && isRevisionAtLeast0 && approves && !remarks) {
-    newMilestone = 5
+  if (!isM3D) {
+    if (milestone === 0 && newRevision === "A") {
+      newMilestone = 1
+    } else if (milestone === 1 && attentive === 9 && approves) {
+      newMilestone = 2
+    } else if (milestone === 2 && newRevision === "B") {
+      newMilestone = 3
+    } else if (milestone === 3 && lastTransmittal) {
+      newMilestone = 4
+    } else if (milestone === 4 && attentive === 4 && isRevisionAtLeast0) {
+      newMilestone = 5
+    }
+  } else {
+    if (milestone === 0 && newRevision === "0") {
+      newMilestone = 4
+    } else if (milestone === 4 && attentive === 4 && isRevisionAtLeast0) {
+      newMilestone = 5
+    }
   }
 
   return newMilestone
