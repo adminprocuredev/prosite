@@ -118,6 +118,11 @@ export const getDialogText = (props) => {
   const { blueprint, authUser, approves } = props
 
   const textTypes = {
+    // Caso 0: Reanudar Entregable
+    resumeBlueprint: {
+      condition: blueprint.blueprintCompleted,
+      text: 'Reanudar'
+    },
     // Caso 1: Usuario propietario
     userOwner: {
         condition: blueprint.userId === authUser.uid, // El usuario conectado es el Autor del plano
@@ -141,7 +146,7 @@ export const getDialogText = (props) => {
   }
 
   // Busca la primera condición que se cumpla
-  const { text } = Object.values(textTypes).find(({ condition }) => condition);
+  const { text } = Object.values(textTypes).find(({ condition }) => condition)
 
   // Devuelve el texto asociado a esa condición
   return text
