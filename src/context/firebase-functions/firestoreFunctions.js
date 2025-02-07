@@ -1264,6 +1264,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
       return {
         ...updateData,
+        blueprintCompleted: false,
         approvedByClient: false,
         approvedByDocumentaryControl: false,
         approvedBySupervisor: false,
