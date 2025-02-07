@@ -1363,28 +1363,34 @@ const updateSelectedDocuments = async (newCode, selected, currentPetition, authU
 // Finaliza una solicitud, actualizando su estado y detalles relacionados con la OT. Se basa en la información de la solicitud actual y el usuario autenticado.
 const finishPetition = async (currentPetition, authUser) => {
   try {
-    // console.log('currentPetition:', currentPetition)
-    const petitionRef = doc(db, 'solicitudes', currentPetition.id)
-    const petitionDoc = await getDoc(petitionRef)
+    console.log('currentPetition:', currentPetition)
 
-    // console.log('petitionDoc:', petitionDoc.data())
+    // Desestructuración de currentPetition
+    const { id, state } = currentPetition
 
-    const otFinished = petitionDoc.data().otFinished
-    const otReadyToFinish = petitionDoc.data().otReadyToFinish
+    const petitionRef = doc(db, 'solicitudes', id)
+    const eventsCollection = collection(db, 'solicitudes', id, 'events')
 
-    if (!otFinished && otReadyToFinish) {
-      await updateDoc(petitionRef, {
-        otFinished: true,
-        otFinishedBy: { userName: authUser.displayName, userId: authUser.uid, userEmail: authUser.email },
-        otFinishedDate: new Date(),
-        state: 9
+    const newEvent = {
+      date: Timestamp.fromDate(new Date()),
+      user: authUser.email,
+      userId: authUser.uid,
+      userName: authUser.displayName,
+      userRole: authUser.role,
+
+    }
+
+    if (state !== 9) {
+      newEvent.newState = 9
+      newEvent.prevState = 8
+      await updateDoc(petitionRef, {state: 9}).then(() => {
+        addDoc(eventsCollection, newEvent)
       })
     } else {
-      await updateDoc(petitionRef, {
-        otFinished: false,
-        otFinishedBy: { userName: authUser.displayName, userId: authUser.uid, userEmail: authUser.email },
-        otFinishedDate: new Date(),
-        state: 8
+      newEvent.newState = 8
+      newEvent.prevState = 9
+      await updateDoc(petitionRef, {state: 8}).then(() => {
+        addDoc(eventsCollection, newEvent)
       })
     }
   } catch (error) {

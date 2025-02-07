@@ -97,9 +97,9 @@ const DataGridGabinete = () => {
     setOpenCodeGenerator(true)
   }
 
-  const finishOtCallback = () => {
+  const finishOtCallback = async () => {
     setIsLoading(true)
-    finishPetition(currentPetition, authUser)
+    await finishPetition(currentPetition, authUser)
       .then(() => {
         setIsLoading(false)
         setOpenFinishOt(false)
@@ -218,8 +218,6 @@ const DataGridGabinete = () => {
       throw new Error('Error al generar Transmittal')
     }
   }
-
-  const petitionFinished = currentPetition?.otFinished
 
   useEffect(() => {
     if (currentPetition && currentPetition.id) {
@@ -424,11 +422,11 @@ const DataGridGabinete = () => {
         />
 
         {authUser.role === 5 || authUser.role === 6 ? (
-          currentPetition?.otFinished ? (
+          currentPetition?.state === 9 ? (
             <Button
               sx={{ width: '50%', m: 2.5, fontSize: xlDown ? '0.7rem' : '0.8rem' }}
               variant='contained'
-              disabled={!currentPetition?.otReadyToFinish}
+              disabled={currentPetition?.state !== 9}
               onClick={() => currentPetition && handleClickOpenFinishOt(currentPetition)}
               color='info'
             >
@@ -438,7 +436,7 @@ const DataGridGabinete = () => {
             <Button
               sx={{ width: '50%', m: 2.5, fontSize: xlDown ? '0.7rem' : '0.8rem' }}
               variant='contained'
-              disabled={!otReadyToFinish}
+              disabled={!otReadyToFinish && currentPetition?.state !== 9}
               onClick={() => currentPetition && handleClickOpenFinishOt(currentPetition)}
             >
               Finalizar OT
@@ -589,7 +587,7 @@ const DataGridGabinete = () => {
           handleClose={handleCloseFinishOt}
           callback={finishOtCallback}
           isLoading={isLoading}
-          petitionFinished={petitionFinished}
+          state={currentPetition.state}
         />
       )}
       <ReasignarDialog
