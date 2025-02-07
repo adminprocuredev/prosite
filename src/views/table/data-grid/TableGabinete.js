@@ -320,15 +320,17 @@ const TableGabinete = ({
 
   const renderButtons = (row, flexDirection, canApprove, canReject, disabled, canResume = false) => {
 
-    return (
-      <Container
-        sx={{ display: 'flex', flexDirection: { flexDirection }, padding: '0rem!important', margin: '0rem!important' }}
-      >
-        {canApprove && renderButton(row, true, 'success', CheckCircleOutline)}
-        {canReject && renderButton(row, false, 'error', CancelOutlined)}
-        {canResume && renderButton(row, true, 'info', SyncIcon, disabled, true)}
-      </Container>
-    )
+    if (petition.state !== 9) {
+      return (
+        <Container
+          sx={{ display: 'flex', flexDirection: { flexDirection }, padding: '0rem!important', margin: '0rem!important' }}
+        >
+          {canApprove && renderButton(row, true, 'success', CheckCircleOutline)}
+          {canReject && renderButton(row, false, 'error', CancelOutlined)}
+          {canResume && renderButton(row, true, 'info', SyncIcon, disabled, true)}
+        </Container>
+      )
+    }
 
   }
 

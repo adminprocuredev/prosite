@@ -447,7 +447,7 @@ const DataGridGabinete = () => {
             <Button
               sx={{ width: '50%', m: 2.5, fontSize: xlDown ? '0.7rem' : '0.8rem' }}
               variant='contained'
-              disabled={currentPetition?.otFinished}
+              disabled={currentPetition?.state === 9}
               onClick={() => currentPetition && handleClickOpen(currentPetition)}
             >
               Modificar proyectista
@@ -457,7 +457,7 @@ const DataGridGabinete = () => {
           <Button
             sx={{ width: '50%', m: 2.5, fontSize: xlDown ? '0.7rem' : '0.8rem' }}
             variant='contained'
-            disabled={currentPetition?.otFinished || !currentPetition || isLoading}
+            disabled={currentPetition?.state === 9 || !currentPetition || isLoading}
             onClick={handleOpenTransmittalDialog}
           >
             Generar Transmittal
@@ -470,7 +470,7 @@ const DataGridGabinete = () => {
           <Button
             sx={{ width: '50%', m: 2.5, fontSize: xlDown ? '0.7rem' : '0.8rem' }}
             variant='contained'
-            disabled={currentPetition?.otFinished}
+            disabled={currentPetition?.state === 9}
             onClick={() => currentPetition && handleClickOpenCodeGenerator(currentPetition)}
           >
             Generar nuevo documento
