@@ -831,7 +831,17 @@ function getNextChar(revision) {
 const getNextRevisionFolderName = (blueprint) => {
 
   // Desestructuración de blueprint.
-  const { revision, id, approvedByClient, approvedByDocumentaryControl, attentive, sentByDesigner, sentBySupervisor, blueprintCompleted } = blueprint
+  const {
+    revision,
+    id,
+    approvedByClient,
+    approvedByDocumentaryControl,
+    attentive,
+    sentByDesigner,
+    sentBySupervisor,
+    blueprintCompleted,
+    resumeBlueprint
+  } = blueprint
 
   // Se obtiene la letra o número de la siguiente revisión.
   const nextChar = getNextChar(revision)
@@ -858,6 +868,16 @@ const getNextRevisionFolderName = (blueprint) => {
 
   // Se define Patrón de reglas con condiciones y acciones para definir la siguiente revisión de la carpeta.
   const actions = [
+    {
+      // Caso cuando se Reanuda un Entregable
+      condition: () => {
+          const result = resumeBlueprint
+          if (result) console.log("Condición 0.")
+
+          return result
+      },
+      action: () => nextChar
+    },
     {
       // Si la revisión es "Iniciado" y el entregable es un M3D (Memoria de Cálculo).
       condition: () => {
@@ -1198,6 +1218,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
       return {
         ...updateData,
+        resumeBlueprint: false,
         checkedByClient: false,
         sentBySupervisor: approves,
         approvedBySupervisor: approves,
@@ -1223,6 +1244,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
     return {
       ...updateData,
+      resumeBlueprint: false,
       checkedByClient: false,
       sentByDesigner: approves,
       approvedBySupervisor: false,
