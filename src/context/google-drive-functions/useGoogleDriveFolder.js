@@ -281,7 +281,7 @@ export const useGoogleDriveFolder = () => {
 
     // Desustructuración de objetos.
     const { uid, role, displayName } = authUser
-    const { id, userId, clientCode, revision, approvedByDocumentaryControl, approvedBySupervisor, approvedByContractAdmin } = blueprint
+    const { id, userId, clientCode, revision, approvedByDocumentaryControl, approvedBySupervisor, approvedByContractAdmin, blueprintCompleted } = blueprint
 
     // Booleano para definir si el Entregable es M3D.
     const isM3D = id.split('-')[2] === 'M3D'
@@ -290,7 +290,7 @@ export const useGoogleDriveFolder = () => {
     const canBeCheckedByClient = checkRoleAndApproval(role, blueprint)
 
     // Si es Rol 9, está aprobado por control documental y puede ser revisado por el Cliente, se puede subir un documento con cualquier nombre.
-    if (role === 9 && approvedByDocumentaryControl === true && canBeCheckedByClient) {
+    if (blueprintCompleted || (role === 9 && approvedByDocumentaryControl === true && canBeCheckedByClient)) {
       return acceptedFiles.map(file => ({
         name: file.name,
         isValid: true,
