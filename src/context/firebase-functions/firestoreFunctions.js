@@ -1669,13 +1669,6 @@ const generateBlueprintCodes = async (mappedCodes, docData, quantity, userParam)
 
     let procureCounter = Number(procureCounterData.count)
 
-    if (solicitudDoc.exists()) {
-      const solicitudData = solicitudDoc.data()
-      if (solicitudData.otReadyToFinish !== false) {
-        transaction.update(petitionRef, { otReadyToFinish: false })
-      }
-    }
-
     const newDocs = []
     const blueprintCollectionRef = collection(db, 'solicitudes', docData.id, 'blueprints')
 
