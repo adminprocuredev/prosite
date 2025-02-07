@@ -85,7 +85,7 @@ const DataGridGabinete = () => {
     )
   }
 
-  const [blueprints, projectistData, otPercent, setBlueprints] = useBlueprints(currentPetition?.id)
+  const [blueprints, projectistData, otPercent, otReadyToFinish, setBlueprints] = useBlueprints(currentPetition?.id)
 
   const theme = useTheme()
   const smDown = useMediaQuery(theme.breakpoints.down('sm'))
@@ -438,7 +438,7 @@ const DataGridGabinete = () => {
             <Button
               sx={{ width: '50%', m: 2.5, fontSize: xlDown ? '0.7rem' : '0.8rem' }}
               variant='contained'
-              disabled={!currentPetition?.otReadyToFinish}
+              disabled={!otReadyToFinish}
               onClick={() => currentPetition && handleClickOpenFinishOt(currentPetition)}
             >
               Finalizar OT
