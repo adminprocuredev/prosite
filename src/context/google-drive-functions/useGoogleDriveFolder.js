@@ -194,6 +194,35 @@ export const useGoogleDriveFolder = () => {
   }
 
   /**
+   * Función para Buscar y/o Crear una nueva carpeta de Área.
+   * Se crea esta función particular para compensar posible error de string de OT incluido en carpeta pre-existente.
+   * @param {string} parentFolderId - ID de la carpeta donde se debe buscar y/o crear la nueva carpeta.
+   * @param {string} folderName - Nombre de la carpeta a crear.
+   * @param {string} findBy - String para hacer el match de búsqueda mediante includes().
+   * @returns
+   */
+  const findOrCreateOTFolder = async (parentFolderId, folderName, findBy) => {
+
+    try {
+       // Busca las carpetas dentro del directorio especificado.
+      const folders = await fetchFolders(parentFolderId)
+      let folder = folders.files.find(f => f.name.slice(0, 10).includes(findBy))
+
+      // Si no existe, la crea.
+      if (!folder) {
+        folder = await createFolder(folderName, parentFolderId)
+      }
+
+      return folder
+    } catch (error) {
+      console.error('Error en la ejecución de findOrCreateFolder():', error)
+      throw error
+    }
+
+  }
+
+
+  /**
    * Función para extraer el número de área desde el string que contiene el nombre completo del área.
    * @param {string} name - String con el nombre completo del área. Ej: "0100 - Planta Desaladora".
    * @returns {string} - areaNumber que es un string con él número. Ek: "0100".
@@ -215,7 +244,7 @@ export const useGoogleDriveFolder = () => {
     const plantInitials = await getPlantInitals(petition.plant)
     const plantFolder = await findOrCreateFolder(rootFolder, plantInitials, plantInitials)
     const areaFolder = await findOrCreateFolder(plantFolder.id, petition.area, extractAreaNumber(petition.area))
-    const projectFolder = await findOrCreateFolder(areaFolder.id, `OT N°${petition.ot} - ${petition.title}`, petition.ot)
+    const projectFolder = await findOrCreateOTFolder(areaFolder.id, `OT N°${petition.ot} - ${petition.title}`, petition.ot)
 
     // Crear subcarpetas si se especifican.
     for (const subfolder of newFolder) {
