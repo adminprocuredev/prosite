@@ -62,10 +62,11 @@ export default function AlertDialogGabinete({
   const isRole7 = authUser.role === 7 // Suervisor
   const isRole6 = authUser.role === 6 // Contract Owner
   const isRevisor = isRole6 || isRole7 || isRole9
-  const isRevisionAtLeastB = revision?.charCodeAt(0) >= 66
-  const isRevisionAtLeast0 = revision?.charCodeAt(0) >= 48 && revision?.charCodeAt(0) <= 57
-  const storageInEmitidos = (isRevisionAtLeastB || isRevisionAtLeast0) && isRole9 && approves && !approvedByDocumentaryControl
-  const storageInComentByCLient = (isRevisionAtLeastB || isRevisionAtLeast0) && isRole9 && (approves || !approves) && approvedByDocumentaryControl
+  const isInitialRevision = revision === "Iniciado"
+  const isRevA = revision === "A"
+  const isRevisionAtLeastB = !isInitialRevision && !isRevA
+  const storageInEmitidos = isRevisionAtLeastB && isRole9 && approves && !approvedByDocumentaryControl
+  const storageInComentByCLient = isRevisionAtLeastB && isRole9 && (approves || !approves) && approvedByDocumentaryControl
   const showOptionsInRejected = !approves && !approvedByDocumentaryControl
   const showUploadFile = storageInEmitidos || showOptionsInRejected
 
@@ -107,7 +108,7 @@ export default function AlertDialogGabinete({
 
 
   const canApprove = getApprovalStatus({storageInEmitidos, storageBlueprints, toggleRemarks, toggleAttach, approves, remarksState})
-  const canRejectedByClient = (isRevisionAtLeastB || isRevisionAtLeast0) && isRole9 && !approves && approvedByDocumentaryControl
+  const canRejectedByClient = isRevisionAtLeastB && isRole9 && !approves && approvedByDocumentaryControl
   // Condición para habilitar el botón de rechazo si hay más de un blueprint y el campo de observaciones está lleno
   const canReject = storageBlueprints?.length > 1 && remarksState.length > 0
 
@@ -286,12 +287,13 @@ export default function AlertDialogGabinete({
         condition: storageBlueprints?.length === 2,
         component: (
           <Box sx={{ mt: 6 }}>
+            {console.log("Holi")}
             <Typography variant='body2'>
               Documento de corrección cargado: <br />
             </Typography>
             <List dense sx={{ py: 4 }}>
-              <ListItem key={storageBlueprints[1]?.name}>
-                <ListItemText primary={storageBlueprints[1]?.name} />
+              <ListItem key={storageBlueprints?.[1]?.name}>
+                <ListItemText primary={storageBlueprints?.[1]?.name} />
                 <ListItemSecondaryAction sx={{ right: 0, my: 'auto' }}>
                   <IconButton
                     size='small'
