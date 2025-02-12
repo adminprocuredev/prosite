@@ -8,7 +8,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  increment,
   limit,
   onSnapshot,
   orderBy,
@@ -1728,18 +1727,33 @@ const generateBlueprintCodes = async (mappedCodes, docData, quantity, userParam)
   return codes
 }
 
-const updateBlueprintAssignment = async (petitionId, blueprintId, newUser) => {
+const updateBlueprintAssignment = async (petitionId, blueprint, newUser) => {
+
+  // Desestructuración de blueprint
+  const { id, attentive } = blueprint
+
   const batch = writeBatch(db)
 
   try {
     // Crea una referencia al documento en la subcolección `blueprints`
-    const blueprintDocRef = doc(db, 'solicitudes', petitionId, 'blueprints', blueprintId)
+    const blueprintDocRef = doc(db, 'solicitudes', petitionId, 'blueprints', id)
+
+    // Se busca la información del nuevo Proyectista a asignar.
+    const newUserData = await getData(newUser.userId)
+
+    // Variables booleanas
+    const isNewUserSupervisor = newUserData.role === 7
+    const isNewUserDraftman = newUserData.role === 8
+
+    // Se corrige el attentive en caso de ser necesario.
+    const newAttentive = (attentive === 7 && isNewUserDraftman) ? 8 : (attentive === 8 && isNewUserSupervisor) ? 7 : attentive
 
     // Actualiza el documento con los nuevos valores
     batch.update(blueprintDocRef, {
       userId: newUser.userId,
-      userName: newUser.name,
-      userEmail: newUser.email
+      userName: newUserData.name,
+      userEmail: newUserData.email,
+      attentive: newAttentive
     })
 
     // Ejecuta el batch

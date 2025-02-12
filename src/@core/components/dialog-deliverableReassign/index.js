@@ -1,17 +1,17 @@
-import React, { useState } from 'react'
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
+  InputLabel,
   MenuItem,
   Select,
-  InputLabel,
-  Box,
   Typography
 } from '@mui/material'
+import { useState } from 'react'
 // ** Hooks
 import { useFirebase } from 'src/context/useFirebase'
 
@@ -35,7 +35,7 @@ const ReasignarDialog = ({ open, onClose, selectedRows, doc }) => {
     try {
       const promises = selectedRows.map(row => {
         // Actualiza cada documento de `selectedRows` con el nuevo objeto `selectedUser`
-        return updateBlueprintAssignment(doc.id, row.id, selectedUser)
+        return updateBlueprintAssignment(doc.id, row, selectedUser)
       })
 
       // Esperamos a que todas las actualizaciones se completen
