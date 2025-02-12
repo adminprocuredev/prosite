@@ -1,6 +1,7 @@
 import {
   Box,
   Button,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -18,6 +19,7 @@ import { useFirebase } from 'src/context/useFirebase'
 const ReasignarDialog = ({ open, onClose, selectedRows, doc }) => {
   //const [selectedUserId, setSelectedUserId] = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
+  const [loading, setLoading] = useState(false)
 
   const { updateBlueprintAssignment } = useFirebase()
 
@@ -32,6 +34,9 @@ const ReasignarDialog = ({ open, onClose, selectedRows, doc }) => {
   }
 
   const handleConfirm = async () => {
+
+    setLoading(true)
+
     try {
       const promises = selectedRows.map(row => {
         // Actualiza cada documento de `selectedRows` con el nuevo objeto `selectedUser`
@@ -45,6 +50,8 @@ const ReasignarDialog = ({ open, onClose, selectedRows, doc }) => {
     } catch (error) {
       console.error('Error reassigning blueprints:', error)
     }
+
+    setLoading(false)
   }
 
   const handleCloseDialog = () => {
@@ -78,6 +85,11 @@ const ReasignarDialog = ({ open, onClose, selectedRows, doc }) => {
             ))}
           </Box>
         </DialogContent>
+        {loading && (
+          <DialogContent sx={{ textAlign: 'center' }}>
+            <CircularProgress size={40} />
+          </DialogContent>
+        )}
         <DialogActions>
           <Button onClick={handleCloseDialog} color='primary'>
             Cancelar
