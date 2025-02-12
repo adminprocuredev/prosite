@@ -1,33 +1,33 @@
 // ** React Imports
-import { forwardRef, useState } from 'react'
+import { forwardRef, useState } from 'react';
 
-import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder' // Import the new hook
+import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'; // Import the new hook
 
 // ** MUI Imports
-import EngineeringIcon from '@mui/icons-material/Engineering'
-import Autocomplete from '@mui/material/Autocomplete'
-import Avatar from '@mui/material/Avatar'
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import Dialog from '@mui/material/Dialog'
-import DialogContent from '@mui/material/DialogContent'
-import Fade from '@mui/material/Fade'
-import IconButton from '@mui/material/IconButton'
-import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
-import ListItemAvatar from '@mui/material/ListItemAvatar'
-import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction'
-import ListItemText from '@mui/material/ListItemText'
-import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
-import CustomAvatar from 'src/@core/components/mui/avatar'
+import EngineeringIcon from '@mui/icons-material/Engineering';
+import Autocomplete from '@mui/material/Autocomplete';
+import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import Fade from '@mui/material/Fade';
+import IconButton from '@mui/material/IconButton';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemAvatar from '@mui/material/ListItemAvatar';
+import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction';
+import ListItemText from '@mui/material/ListItemText';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import CustomAvatar from 'src/@core/components/mui/avatar';
 
 // ** Icon Imports
-import Icon from 'src/@core/components/icon'
+import Icon from 'src/@core/components/icon';
 
 // ** Hooks Imports
-import { CircularProgress } from '@mui/material'
-import { useFirebase } from 'src/context/useFirebase'
+import { CircularProgress } from '@mui/material';
+import { useFirebase } from 'src/context/useFirebase';
 
 const Transition = forwardRef(function Transition(props, ref) {
   return <Fade ref={ref} {...props} />
@@ -219,7 +219,7 @@ export const DialogAssignProject = ({ open, doc, proyectistas, handleClose }) =>
           </Box>
         )}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
-          <Button sx={{ lineHeight: '1.5rem', '& svg': { mr: 2 } }} disabled={loading} onClick={() => onSubmit(doc.id)}>
+          <Button sx={{ lineHeight: '1.5rem', '& svg': { mr: 2 } }} disabled={draftmen.length <= 0 || loading} onClick={() => onSubmit(doc.id)}>
             <EngineeringIcon sx={{ fontSize: 18 }} />
             Asignar Proyectistas
           </Button>
