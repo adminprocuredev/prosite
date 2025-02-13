@@ -161,7 +161,9 @@ const TableGabinete = ({
       approvedByDocumentaryControl,
       approvedBySupervisor,
       blueprintCompleted,
-      attentive
+      attentive,
+      sentByDesigner,
+      sentBySupervisor
     } = row
 
     const { uid, role } = authUser
@@ -172,6 +174,7 @@ const TableGabinete = ({
     const isRole8Turn = attentive === 8
     const isRole9Turn = attentive === 9
     const isMyBlueprint = userId === uid
+    const sentByAuthor = sentByDesigner || sentBySupervisor
     const hasRequiredFields = description && clientCode && storageBlueprints && storageBlueprints.length >= 1
 
     const dictionary = {
@@ -180,8 +183,8 @@ const TableGabinete = ({
         reject: isRole6Turn && !approvedByContractAdmin
       },
       7: {
-        approve: (isRole7Turn && !isMyBlueprint && !approvedBySupervisor) || (isRole7Turn && isMyBlueprint && hasRequiredFields && !blueprintCompleted),
-        reject: isRole7Turn  && !isMyBlueprint && !approvedBySupervisor
+        approve: (isRole7Turn && sentByAuthor && !isMyBlueprint && !approvedBySupervisor) || (isRole7Turn && isMyBlueprint && hasRequiredFields && !blueprintCompleted),
+        reject: isRole7Turn  && sentByAuthor && !isMyBlueprint && !approvedBySupervisor
       },
       8: {
         approve: isRole8Turn && isMyBlueprint && hasRequiredFields && !blueprintCompleted,
