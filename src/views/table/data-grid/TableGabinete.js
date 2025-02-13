@@ -993,7 +993,7 @@ const TableGabinete = ({
                   </Typography>
                 )}
 
-                {authUser.uid === row.userId && !row.sentByDesigner && (
+                {authUser.uid === row.userId &&  authUser.role === row.attentive && !row.sentByDesigner && (
                   <IconButton
                     sx={{
                       my: 'auto',
@@ -1010,7 +1010,7 @@ const TableGabinete = ({
                         (row.approvedBySupervisor ||
                           row.approvedByContractAdmin ||
                           (row.approvedByDocumentaryControl && row.sentByDesigner)))
-                        ? //row.userId === authUser.uid || authUser.role === 7 || authUser.role === 9
+                        ?
                           () => handleOpenUploadDialog(row)
                         : null
                     }
