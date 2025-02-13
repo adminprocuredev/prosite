@@ -440,7 +440,7 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
                           <Link href={doc.storageBlueprints[0].url} target='_blank' rel='noreferrer'>
                             <ListItemText primary={doc.storageBlueprints[0].name} sx={{ mr: 10 }} />
                           </Link>
-                          {authUser.uid === doc.userId &&
+                          {authUser.uid === doc.userId && !doc.blueprintCompleted &&
                             ((authUser.role === 8 && !doc.sentByDesigner) ||
                               (authUser.role === 7 && !doc.sentBySupervisor)) && (
                               <ListItemSecondaryAction sx={{ right: 0 }}>
