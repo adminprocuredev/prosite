@@ -33,6 +33,9 @@ const GoogleContextProvider = props => {
             // Inicia el proceso de autenticación con Google
             await signInToGoogle()
           } else {
+            // Si los tokens existen, verifica su validez al recargar la página.
+            await refreshTokens(googleTokens)
+
             // Si existen los tokens, revisa su validez periódicamente
             tokensValidity.current = setInterval(async () => {
               await refreshTokens(googleTokens)
