@@ -1,3 +1,6 @@
+// ** React Imports
+import { useEffect } from 'react'
+
 import googleAuthConfig from '../../configs/googleDrive'
 
 /**
@@ -137,7 +140,8 @@ export const useGoogleAuth = () => {
         // TODO: EVALUAR ESTO.
         //throw new Error('Error al refrescar el Token de Acceso.')
         console.log('Error al refrescar el Token de Acceso.')
-        signInToGoogle()
+        await signInToGoogle()
+
         return
       }
 
@@ -181,11 +185,21 @@ export const useGoogleAuth = () => {
   const signInToGoogle = async () => {
     try {
       await oauth2SignIn()
-      await getTokens()
+      // await getTokens()
     } catch (error) {
       throw new Error (error)
     }
   }
+
+  // Detectar si la URL contiene el parámetro "code" al cargar la página
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const code = urlParams.get('code')
+
+    if (code) {
+      getTokens()
+    }
+  }, [])
 
   return {
     oauth2SignIn,
