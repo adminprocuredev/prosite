@@ -1,5 +1,6 @@
-import { LicenseInfo } from '@mui/x-license-pro';
-import FirebaseContextProvider from 'src/context/useFirebase';
+import FirebaseContextProvider from 'src/context/useFirebase'
+import { LicenseInfo } from '@mui/x-license-pro'
+import GoogleContextProvider from 'src/context/useGoogle'
 
 // ** Next Imports
 import Head from 'next/head';
@@ -112,35 +113,37 @@ const App = props => {
 
   return (
     <FirebaseContextProvider>
-      <CacheProvider value={emotionCache}>
-        <Head>
-          <title>{`${themeConfig.templateName} `}</title>
-          <meta name='description' content={`${themeConfig.templateName}]`} />
-          <meta name='keywords' content='Material Design, MUI, Admin Template, React Admin Template' />
-          <meta name='viewport' content='initial-scale=1, width=device-width' />
-        </Head>
+      <GoogleContextProvider>
+        <CacheProvider value={emotionCache}>
+          <Head>
+            <title>{`${themeConfig.templateName} `}</title>
+            <meta name='description' content={`${themeConfig.templateName}]`} />
+            <meta name='keywords' content='Material Design, MUI, Admin Template, React Admin Template' />
+            <meta name='viewport' content='initial-scale=1, width=device-width' />
+          </Head>
 
-        <SettingsProvider {...(setConfig ? { pageSettings: setConfig() } : {})}>
-          <SettingsConsumer>
-            {({ settings }) => {
-              return (
-                <ThemeComponent settings={settings}>
-                  <WindowWrapper>
-                    <Guard authGuard={authGuard} guestGuard={guestGuard} isUnderMaintenance={maintenanceMode}>
-                      <AclGuard aclAbilities={aclAbilities} guestGuard={guestGuard}>
-                        {getLayout(<Component {...pageProps} />)}
-                      </AclGuard>
-                    </Guard>
-                  </WindowWrapper>
-                  <ReactHotToast>
-                    <Toaster position={settings.toastPosition} toastOptions={{ className: 'react-hot-toast' }} />
-                  </ReactHotToast>
-                </ThemeComponent>
-              )
-            }}
-          </SettingsConsumer>
-        </SettingsProvider>
-      </CacheProvider>
+          <SettingsProvider {...(setConfig ? { pageSettings: setConfig() } : {})}>
+            <SettingsConsumer>
+              {({ settings }) => {
+                return (
+                  <ThemeComponent settings={settings}>
+                    <WindowWrapper>
+                      <Guard authGuard={authGuard} guestGuard={guestGuard} isUnderMaintenance={maintenanceMode}>
+                        <AclGuard aclAbilities={aclAbilities} guestGuard={guestGuard}>
+                          {getLayout(<Component {...pageProps} />)}
+                        </AclGuard>
+                      </Guard>
+                    </WindowWrapper>
+                    <ReactHotToast>
+                      <Toaster position={settings.toastPosition} toastOptions={{ className: 'react-hot-toast' }} />
+                    </ReactHotToast>
+                  </ThemeComponent>
+                )
+              }}
+            </SettingsConsumer>
+          </SettingsProvider>
+        </CacheProvider>
+      </GoogleContextProvider>
     </FirebaseContextProvider>
   )
 }

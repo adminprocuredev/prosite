@@ -1,10 +1,10 @@
 // ** MUI Imports
 import Grid from '@mui/material/Grid'
-import DataGridLevantamientos from 'src/views/pages/solicitudes/DataGridLevantamientos'
 
 // ** Styled Component
 
 // ** Demo Components Imports
+import DataGridLevantamientos from 'src/views/pages/solicitudes/DataGridLevantamientos'
 
 const Levantamientos = () => {
   return (

@@ -1,31 +1,33 @@
 // ** React Imports
-import { forwardRef, useState } from 'react'
+import { forwardRef, useState } from 'react';
+
+import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'; // Import the new hook
 
 // ** MUI Imports
-import EngineeringIcon from '@mui/icons-material/Engineering'
-import Autocomplete from '@mui/material/Autocomplete'
-import Avatar from '@mui/material/Avatar'
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import Dialog from '@mui/material/Dialog'
-import DialogContent from '@mui/material/DialogContent'
-import Fade from '@mui/material/Fade'
-import IconButton from '@mui/material/IconButton'
-import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
-import ListItemAvatar from '@mui/material/ListItemAvatar'
-import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction'
-import ListItemText from '@mui/material/ListItemText'
-import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
-import CustomAvatar from 'src/@core/components/mui/avatar'
+import EngineeringIcon from '@mui/icons-material/Engineering';
+import Autocomplete from '@mui/material/Autocomplete';
+import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import Fade from '@mui/material/Fade';
+import IconButton from '@mui/material/IconButton';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemAvatar from '@mui/material/ListItemAvatar';
+import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction';
+import ListItemText from '@mui/material/ListItemText';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import CustomAvatar from 'src/@core/components/mui/avatar';
 
 // ** Icon Imports
-import Icon from 'src/@core/components/icon'
+import Icon from 'src/@core/components/icon';
 
 // ** Hooks Imports
-import { CircularProgress } from '@mui/material'
-import { useFirebase } from 'src/context/useFirebase'
+import { CircularProgress } from '@mui/material';
+import { useFirebase } from 'src/context/useFirebase';
 
 const Transition = forwardRef(function Transition(props, ref) {
   return <Fade ref={ref} {...props} />
@@ -42,6 +44,8 @@ export const DialogAssignProject = ({ open, doc, proyectistas, handleClose }) =>
   // ** Hooks
   const { updateDocs, authUser } = useFirebase()
 
+  const { isLoading: folderLoading } = useGoogleDriveFolder() // Use the new hook
+
   const handleClickDelete = name => {
     // Filtramos el array draftmen para mantener todos los elementos excepto aquel con el nombre proporcionado
     const updatedDraftmen = draftmen.filter(draftman => draftman.name !== name)
@@ -50,33 +54,27 @@ export const DialogAssignProject = ({ open, doc, proyectistas, handleClose }) =>
     setDraftmen(updatedDraftmen)
   }
 
-  /*   const handleClose = () => {
-    setAnchorEl(null)
-  } */
-
   const handleListItemClick = option => {
     // Verificamos si el option ya existe en el array draftmen
     if (!draftmen.some(draftman => draftman.name === option.name)) {
       // Si no existe, actualizamos el estado añadiendo el nuevo valor al array
-      setDraftmen(prevDraftmen => [...prevDraftmen, {name: option.name, userId: option.userId}])
+      setDraftmen(prevDraftmen => [...prevDraftmen, { name: option.name, userId: option.userId }])
       document.getElementById('add-members').blur() // Oculta el componente al hacer clic en el ListItem
     }
   }
 
-  const onSubmit = id => {
+  const onSubmit = async id => {
     setLoading(true)
     if (draftmen.length > 0) {
-      updateDocs(id, {draftmen, pendingReschedule: false}, authUser)
-        .then(() => {
-          setDraftmen([])
-          handleClose()
-          setLoading(false)
-        })
-        .catch(error => {
-          handleClose()
-          console.error(error)
-          setLoading(false)
-        })
+      try {
+        await updateDocs(id, { draftmen, pendingReschedule: false }, authUser)
+        setDraftmen([])
+        handleClose()
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
@@ -120,7 +118,7 @@ export const DialogAssignProject = ({ open, doc, proyectistas, handleClose }) =>
           </Typography>
           <Typography variant='body2'>{doc.title}</Typography>
         </Box>
-        {loading ? (
+        {loading || folderLoading ? (
           <CircularProgress sx={{ mb: 5 }} />
         ) : (
           <Box>
@@ -221,7 +219,7 @@ export const DialogAssignProject = ({ open, doc, proyectistas, handleClose }) =>
           </Box>
         )}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
-          <Button sx={{ lineHeight: '1.5rem', '& svg': { mr: 2 } }} onClick={() => onSubmit(doc.id)}>
+          <Button sx={{ lineHeight: '1.5rem', '& svg': { mr: 2 } }} disabled={draftmen.length <= 0 || loading} onClick={() => onSubmit(doc.id)}>
             <EngineeringIcon sx={{ fontSize: 18 }} />
             Asignar Proyectistas
           </Button>
@@ -230,5 +228,3 @@ export const DialogAssignProject = ({ open, doc, proyectistas, handleClose }) =>
     </Dialog>
   )
 }
-
-//export default DialogAssignProject

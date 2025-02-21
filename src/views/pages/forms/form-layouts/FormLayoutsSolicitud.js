@@ -303,42 +303,6 @@ const FormLayoutsSolicitud = () => {
     }
   }
 
-  //* Se comenta esta función debido a que la OT dejará de agregarse manualmente, ahora se generará a de forma automática.
-  /* const handleBlurOt = async e => {
-    const otValue = e.target.value.trim() // .trim() devuelve el valor sin espacios extra
-
-    // Verifica si el campo OT tiene algún valor antes de hacer la consulta
-    if (otValue.length > 0) {
-      const resultOt = await consultOT(parseInt(otValue))
-
-      if (resultOt.exist) {
-        setAlertMessage(resultOt.msj) // Muestra en Dialog el mensaje de error específico para el campo OT
-        // Si existe un OT, establece el mensaje de error específicamente para el campo OT
-        setErrors(prevErrors => ({
-          ...prevErrors,
-          ot: 'Existe una solicitud con ese número de OT.'
-        }))
-      } else {
-        // Si OT no existe, limpia el mensaje de error para OT para asegurar que antiguos mensajes de error no permanezcan después de corregir el valor
-        setErrors(prevErrors => {
-          const newErrors = { ...prevErrors }
-          delete newErrors.ot // Elimina el mensaje de error para OT
-
-          return newErrors
-        })
-      }
-    } else {
-      const resultOt = await consultOT(parseInt(otValue))
-      // Si el campo OT está vacío, podrías querer manejar este caso también
-      // Por ejemplo, estableciendo un mensaje de error indicando que el campo no puede estar vacío
-      setErrors(prevErrors => ({
-        ...prevErrors,
-        ot: 'El campo OT no puede estar vacío.'
-      }))
-      setAlertMessage('El campo OT no puede estar vacío.')
-    }
-  } */
-
   const validationRegex = {
     //title: /[^A-Za-záéíóúÁÉÍÓÚñÑ\s0-9- !@#$%^&*()-_-~.+,/\"]/, // /[^A-Za-záéíóúÁÉÍÓÚñÑ\s0-9-]/,
     //description: /[^A-Za-záéíóúÁÉÍÓÚñÑ\s0-9- !@#$%^&*()-_-~.+,/\"]/, // /[^A-Za-záéíóúÁÉÍÓÚñÑ\s0-9-]/g,
@@ -426,27 +390,6 @@ const FormLayoutsSolicitud = () => {
           newErrors[key] = 'El campo Fecha de Término no puede estar vacío.'
         }
       }
-      //* Se comenta esta función debido a que la OT dejará de agregarse manualmente, ahora se generará a de forma automática.
-      /* if (key === 'ot' && shouldValidateOT) {
-        if (!values[key]) {
-          newErrors[key] = 'El campo OT no puede estar vacío.'
-        } else if (values[key] === 0) {
-          newErrors[key] = 'El campo OT no puede ser cero.'
-        } else if (typeof values[key] !== 'number') {
-          newErrors[key] = 'El campo OT debe ser un número.'
-        } else if (errors.ot) {
-          newErrors[key] = errors.ot
-        }
-      } else if (textFieldValues.includes(values[key])) {
-        // Validaciones solo para claves de tipo string
-        // Saca espacios en los values
-        trimmedValues[key] = values[key].replace(/\s+$/, '')
-
-        // Validación regex para otras claves de tipo string
-        if (validationRegex[key] && !validationRegex[key].test(trimmedValues[key])) {
-          newErrors[key] = `Por favor, introduce una opción válida`
-        }
-      } */
     }
 
     return newErrors
@@ -1015,27 +958,6 @@ const FormLayoutsSolicitud = () => {
       <CardContent>
         <form onSubmit={onSubmit}>
           <Grid container spacing={5}>
-            {/* Número de OT Procure*/}
-            {/* (authUser.role === 5 || authUser.role === 7) && (
-              <>
-                <CustomTextField
-                  inputRef={otRef}
-                  type='text'
-                  required
-                  label='OT'
-                  value={values.ot}
-                  onChange={handleChange('ot')}
-                  error={errors.ot}
-                  inputProps={{ maxLength: 5 }}
-                  autoComplete='off'
-                  onInput={e => {
-                    e.target.value = e.target.value.replace(/[^0-9]/g, '')
-                  }}
-                  helper='Ingresa el número de OT.'
-                  onBlur={handleBlurOt}
-                />
-              </>
-            ) */}
 
             {/* Tipo de Urgencia */}
             {authUser.role === 7 && (

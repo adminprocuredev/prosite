@@ -15,9 +15,7 @@ import Select from '@mui/material/Select'
 import Tooltip from '@mui/material/Tooltip'
 import { Container } from '@mui/system'
 import { esES } from '@mui/x-data-grid'
-import {
-  DataGridPremium
-} from '@mui/x-data-grid-premium'
+import { DataGridPremium } from '@mui/x-data-grid-premium'
 import { DialogDoneProject } from 'src/@core/components/dialog-doneProject'
 import { FullScreenDialog } from 'src/@core/components/dialog-fullsize'
 import AlertDialog from 'src/@core/components/dialog-warning'
@@ -43,7 +41,7 @@ const TableLevantamiento = ({ rows, role, roleData }) => {
   const [proyectistas, setProyectistas] = useState([])
   const [loadingProyectistas, setLoadingProyectistas] = useState(true)
   const [approve, setApprove] = useState(true)
-  const { updateDocs, authUser, getUserData, domainDictionary } = useFirebase()
+  const { updateDocs, authUser, getUserData, domainDictionary, getDomainData } = useFirebase()
   const [isLoading, setIsLoading] = useState(false)
   const [today, setToday] = useState(Timestamp.fromDate(moment().startOf('day').toDate()))
   const [domainData, setDomainData] = useState({})
@@ -135,8 +133,6 @@ const TableLevantamiento = ({ rows, role, roleData }) => {
   const md = useMediaQuery(theme.breakpoints.up('md'))
   const xl = useMediaQuery(theme.breakpoints.up('xl'))
 
-  //const resultProyectistas = getUserProyectistas(authUser.shift)
-
   useEffect(() => {
     // Busca el documento actualizado en rows
     const updatedDoc = rows.find(row => row.id === doc.id)
@@ -150,8 +146,23 @@ const TableLevantamiento = ({ rows, role, roleData }) => {
   useEffect(() => {
     const fetchProyectistas = async () => {
       const resProyectistas = await getUserData('getUserProyectistas', null, authUser)
-      const filteredProyectistas = resProyectistas.filter((user) => user.enabled === true && user.shift.includes(authUser.shift[0]))
+      const resSupervisor = await getUserData('getUserSupervisor', null, authUser)
+
+      const filteredProyectistas = resProyectistas.filter(
+        user =>
+          user.enabled === true &&
+          user.role === 8 &&
+          (user.shift.includes(authUser.shift[0]) || user.shift.includes(authUser.shift[1]))
+      )
+
+      const filteredSupervisor = resSupervisor.filter(
+        user =>
+          user.enabled === true &&
+          user.role === 7 &&
+          (user.shift.includes(authUser.shift[0]) || user.shift.includes(authUser.shift[1]))
+      )
       setProyectistas(filteredProyectistas)
+      setProyectistas([...filteredProyectistas, ...filteredSupervisor])
       setLoadingProyectistas(false)
     }
 
@@ -187,7 +198,6 @@ const TableLevantamiento = ({ rows, role, roleData }) => {
             placement='bottom-end'
             key={row.title}
             leaveTouchDelay={0}
-            //TransitionComponent={Fade}
             TransitionProps={{ timeout: 0 }}
           >
             <Box sx={{ overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
@@ -323,7 +333,13 @@ const TableLevantamiento = ({ rows, role, roleData }) => {
         const { row } = params
         localStorage.setItem('daysToDeadLineLevantamientosWidthColumn', params.colDef.computedWidth)
 
-        return <div>{row.deadline ? Math.round((row.deadline.toDate().getTime()-today.toDate().getTime())/(1000*24*60*60)) : 'Pendiente'}</div>
+        return (
+          <div>
+            {row.deadline
+              ? Math.round((row.deadline.toDate().getTime() - today.toDate().getTime()) / (1000 * 24 * 60 * 60))
+              : 'Pendiente'}
+          </div>
+        )
       }
     },
     {
@@ -518,7 +534,14 @@ const TableLevantamiento = ({ rows, role, roleData }) => {
             canComment={authUser.role === 7}
           />
         )}
-        {openDone && <DialogDoneProject open={openDone} handleClose={handleCloseDone} doc={doc} roleData={roleData} proyectistas={proyectistas} />}
+        {openDone && (
+          <DialogDoneProject
+            open={openDone}
+            petition={doc}
+            handleClose={handleCloseDone}
+            proyectistas={proyectistas}
+          />
+        )}
       </Box>
     </Card>
   )

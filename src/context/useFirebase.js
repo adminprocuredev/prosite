@@ -32,8 +32,6 @@ import {
   fetchUserList,
   fetchWeekHoursByType,
   finishPetition,
-  generateBlueprint,
-  generateBlueprintCodeClient,
   generateTransmittalCounter,
   modifyCostCenter,
   newDoc,
@@ -45,7 +43,17 @@ import {
   updateUserPhone,
   updateWeekHoursByType,
   updateWeekHoursWithPlant,
-  useBlueprints
+  generateBlueprintCodes,
+  updateBlueprintAssignment,
+  getProcureCounter,
+  markBlueprintAsDeleted,
+  deleteBlueprintAndDecrementCounters,
+  updateBlueprintsWithStorageOrHlc,
+  deleteReferenceOfLastDocumentAttached,
+  useBlueprints,
+  getNextChar,
+  getBlueprintPercent,
+  getNextRevisionFolderName
 } from 'src/context/firebase-functions/firestoreFunctions'
 
 import {
@@ -56,10 +64,7 @@ import {
   consultObjetives,
   consultSAP,
   consultUserEmailInDB,
-  fetchMelDeliverableType,
-  fetchMelDisciplines,
   fetchPetitionById,
-  fetchPlaneProperties,
   getAllUsersData,
   getData,
   getDomainData,
@@ -69,7 +74,10 @@ import {
   subscribeToPetition,
   subscribeToUserProfileChanges,
   useEvents,
-  useSnapshot
+  useSnapshot,
+  fetchDisciplineProperties,
+  fetchDeliverablesByDiscipline,
+  getPlantInitals
 } from 'src/context/firebase-functions/firestoreQuerys'
 
 import { updateUserProfile, uploadFilesToFirebaseStorage } from 'src/context/firebase-functions/storageFunctions'
@@ -95,7 +103,6 @@ const FirebaseContextProvider = props => {
 
   // Este useEffect manejará los datos del usuario conectado
   useEffect(() => {
-    const auth = getAuth(app)
 
     const unsubscribe = onAuthStateChanged(auth, async authState => {
       if (!authState) {
@@ -106,11 +113,15 @@ const FirebaseContextProvider = props => {
         const databaseUserData = await formatAuthUser(authState)
         setAuthUser(databaseUserData)
         localStorage.setItem('user', JSON.stringify(databaseUserData))
+
         const dictionary = await getDomainData('dictionary')
         setDomainDictionary(dictionary)
+
         const roles = await getDomainData('roles')
         setDomainRoles(roles)
+
         setLoading(false)
+
       }
     })
 
@@ -151,15 +162,10 @@ const FirebaseContextProvider = props => {
     consultObjetives,
     getUsersWithSolicitudes,
     signGoogle,
-    generateBlueprint,
     useBlueprints,
     fetchPetitionById,
-    fetchPlaneProperties,
     updateBlueprint,
     addDescription,
-    fetchMelDisciplines,
-    fetchMelDeliverableType,
-    generateBlueprintCodeClient,
     generateTransmittalCounter,
     updateSelectedDocuments,
     consultBluePrints,
@@ -179,10 +185,23 @@ const FirebaseContextProvider = props => {
     fetchSolicitudes,
     fetchUserList,
     updateWeekHoursWithPlant,
+    fetchDisciplineProperties,
+    fetchDeliverablesByDiscipline,
+    generateBlueprintCodes,
+    updateBlueprintAssignment,
+    getProcureCounter,
+    markBlueprintAsDeleted,
+    deleteBlueprintAndDecrementCounters,
+    updateBlueprintsWithStorageOrHlc,
+    deleteReferenceOfLastDocumentAttached,
     createCostCenter,
     modifyCostCenter,
     deleteCostCenter,
-    setDefaultCostCenter
+    setDefaultCostCenter,
+    getPlantInitals,
+    getNextChar,
+    getBlueprintPercent,
+    getNextRevisionFolderName
   }
 
   return <FirebaseContext.Provider value={value}>{props.children}</FirebaseContext.Provider>
