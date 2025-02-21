@@ -6,86 +6,93 @@ import { db } from 'src/configs/firebase'
 const uploadFilesToFirebaseStorage = async (files, idSolicitud, destination = 'solicitudes', petitionId = null) => {
   const storage = getStorage()
 
-  if (files && files.length > 0) {
-    try {
-      const arrayURL = []
+  try {
+    const arrayURL = []
 
-      for (const file of files) {
+    if (destination === 'blueprints' || destination === 'hlcDocuments') {
+      // Si el destination es "blueprints" o "hlcDocuments", solo hay un archivo en 'files'
+      const file = files
+
+      if (file) {
         const storageRef =
           destination === 'blueprints'
             ? ref(storage, `uploadedBlueprints/${idSolicitud}/blueprints/${file.name}`)
-            : destination === 'hlcDocuments'
-            ? ref(storage, `uploadedHlcDocuments/${idSolicitud}/hlcDocuments/${file.name}`)
-            : ref(storage, `fotosSolicitud/${idSolicitud}/fotos/${file.name}`)
+            : ref(storage, `uploadedHlcDocuments/${idSolicitud}/hlcDocuments/${file.name}`)
 
+        // Sube el archivo al storage de Firebase
+        const snapshot = await uploadBytes(storageRef, file)
+        console.log(snapshot, 'Uploaded a data_url string!')
+
+        // Obtén la URL de descarga
+        const downloadURL = await getDownloadURL(storageRef)
+        arrayURL.push(downloadURL)
+      } else {
+        console.error('El archivo no es válido o no existe.')
+      }
+    } else if (destination === 'solicitudes') {
+      // Si el destination es "solicitudes", files es un array de archivos
+      for (const file of files) {
         if (file) {
-          // El formato de la cadena de datos es válido, puedes llamar a uploadString
+          const storageRef = ref(storage, `fotosSolicitud/${idSolicitud}/fotos/${file.name}`)
+
+          // Sube cada archivo al storage de Firebase
           const snapshot = await uploadBytes(storageRef, file)
           console.log(snapshot, 'Uploaded a data_url string!')
 
+          // Obtén la URL de descarga
           const downloadURL = await getDownloadURL(storageRef)
-
           arrayURL.push(downloadURL)
         } else {
-          // El formato de la cadena de datos no es válido, muestra un mensaje de error o maneja la situación según sea necesario
-          console.log('El objeto no tiene un formato de URL de datos válido.')
+          console.error('Uno de los archivos no es válido o no existe.')
         }
       }
-
-      const solicitudRef =
-        destination === 'blueprints'
-          ? doc(db, 'solicitudes', petitionId, 'blueprints', idSolicitud)
-          : destination === 'hlcDocuments'
-          ? doc(db, 'solicitudes', petitionId, 'blueprints', idSolicitud)
-          : doc(db, 'solicitudes', idSolicitud)
-
-      const solicitudDoc = await getDoc(solicitudRef)
-
-      if (solicitudDoc.exists()) {
-        const fotos = arrayURL || []
-
-        // Actualizar el documento de la solicitud con las nuevas URL de las fotos SIN SOBREESCRIBIR
-        // destination === 'blueprints'? await updateDoc(solicitudRef, { storageBlueprints: arrayUnion(...fotos) })
-        // : destination === 'hlcDocuments'? await updateDoc(solicitudRef, { storageHlcDocuments: arrayUnion(...fotos) })
-        // : await updateDoc(solicitudRef, { fotos })
-
-        let arrayActual
-        if (destination === 'blueprints') {
-          arrayActual = solicitudDoc.data().storageBlueprints
-        } else if (destination === 'hlcDocuments') {
-          arrayActual = solicitudDoc.data().storageHlcDocuments
-        } else if (destination === 'solicitudes') {
-          arrayActual = solicitudDoc.data().fotos
-        }
-
-        // Si el array actual no existe, inicialízalo como un array vacío
-        if (!arrayActual) {
-          arrayActual = []
-        }
-
-        // Si hay fotos para subir, reemplaza el array actual con las nuevas fotos
-        if (fotos && fotos.length > 0) {
-          arrayActual = fotos
-        }
-
-        // Escribe el array modificado de vuelta en el documento
-        if (destination === 'blueprints') {
-          await updateDoc(solicitudRef, { storageBlueprints: arrayActual })
-        } else if (destination === 'hlcDocuments') {
-          await updateDoc(solicitudRef, { storageHlcDocuments: arrayActual })
-        } else if (destination === 'solicitudes') {
-          await updateDoc(solicitudRef, { fotos: arrayActual })
-        }
-        console.log('URL de la foto actualizada exitosamente')
-
-        return fotos
-
-      } else {
-        console.error('El documento de la solicitud no existe')
-      }
-    } catch (error) {
-      console.error('Error al subir la imagen:', error)
     }
+
+    const solicitudRef =
+      destination === 'blueprints'
+        ? doc(db, 'solicitudes', petitionId, 'blueprints', idSolicitud)
+        : destination === 'hlcDocuments'
+        ? doc(db, 'solicitudes', petitionId, 'blueprints', idSolicitud)
+        : doc(db, 'solicitudes', idSolicitud)
+
+    const solicitudDoc = await getDoc(solicitudRef)
+
+    if (solicitudDoc.exists()) {
+      // Actualizar el documento de la solicitud con las nuevas URL de las fotos SIN SOBREESCRIBIR
+      // destination === 'blueprints'? await updateDoc(solicitudRef, { storageBlueprints: arrayUnion(...fotos) })
+      // : destination === 'hlcDocuments'? await updateDoc(solicitudRef, { storageHlcDocuments: arrayUnion(...fotos) })
+      // : await updateDoc(solicitudRef, { fotos })
+
+      let arrayActual
+      if (destination === 'blueprints') {
+        arrayActual = solicitudDoc.data().storageBlueprints || []
+      } else if (destination === 'hlcDocuments') {
+        arrayActual = solicitudDoc.data().storageHlcDocuments || []
+      } else if (destination === 'solicitudes') {
+        arrayActual = solicitudDoc.data().fotos || []
+      }
+
+      // Reemplaza el array actual con las nuevas fotos (si hay fotos para subir)
+      if (arrayURL.length > 0) {
+        arrayActual = arrayURL
+      }
+
+      // Escribe el array modificado de vuelta en el documento
+      if (destination === 'blueprints') {
+        await updateDoc(solicitudRef, { storageBlueprints: arrayActual })
+      } else if (destination === 'hlcDocuments') {
+        await updateDoc(solicitudRef, { storageHlcDocuments: arrayActual })
+      } else if (destination === 'solicitudes') {
+        await updateDoc(solicitudRef, { fotos: arrayActual })
+      }
+      console.log('URL de la foto actualizada exitosamente')
+
+      return arrayActual
+    } else {
+      console.error('El documento de la solicitud no existe')
+    }
+  } catch (error) {
+    console.error('Error al subir la imagen:', error)
   }
 }
 

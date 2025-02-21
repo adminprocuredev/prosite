@@ -108,7 +108,8 @@ const TableBasic = ({ rows, role, roleData }) => {
       canceled = true
     }
 
-    const objectToUpload = (typeof(approve) === "boolean" && canceled) ? {...approve, cancelReason: cancelReason} : approve
+    const objectToUpload =
+      typeof approve === 'boolean' && canceled ? { ...approve, cancelReason: cancelReason } : approve
 
     await updateDocs(doc.id, objectToUpload, authUser)
       .then(() => {
@@ -138,8 +139,8 @@ const TableBasic = ({ rows, role, roleData }) => {
     })
   }
 
-  const handleCancelReasonChange = (event) => {
-    const {id, value} = event.target
+  const handleCancelReasonChange = event => {
+    const { id, value } = event.target
 
     if (id === 'cancel-reason-option') {
       setCancelReason(prevState => ({
@@ -228,20 +229,29 @@ const TableBasic = ({ rows, role, roleData }) => {
         reject: false // row.state <= 6 && !createdBySupervisor
       },
       5: {
-        approve: hasOTEnd && [1, 3, 4].includes(row.state) && createdByPlanner && !createdBySupervisor && row.state !== 0,
+        approve:
+          hasOTEnd && [1, 3, 4].includes(row.state) && createdByPlanner && !createdBySupervisor && row.state !== 0,
         edit:
           !createdBySupervisor &&
           (createdByPlanner ||
             (createdByPetitioner && [3, 4].includes(row.state)) ||
-            (createdByContOp && [3, 4].includes(row.state))) && row.state !== 0,
+            (createdByContOp && [3, 4].includes(row.state))) &&
+          row.state !== 0,
         reject:
           !createdBySupervisor &&
           (createdByPlanner ||
             (createdByPetitioner && [3, 4].includes(row.state)) ||
-            (createdByContOp && [3, 4].includes(row.state))) && row.state !== 0
+            (createdByContOp && [3, 4].includes(row.state))) &&
+          row.state !== 0
       },
       6: {
-        approve: !createdBySupervisor && isPetitionMadeByMelPetitioner && row.state !== 3 && row.state !== 6 && row.state <= 7 && row.state !== 0,
+        approve:
+          !createdBySupervisor &&
+          isPetitionMadeByMelPetitioner &&
+          row.state !== 3 &&
+          row.state !== 6 &&
+          row.state <= 7 &&
+          row.state !== 0,
         edit: !createdBySupervisor && isPetitionMadeByMelPetitioner && row.state <= 7 && row.state !== 0,
         reject: [2, 3, 4, 5, 6].includes(row.state) && !createdBySupervisor && row.state <= 7 && row.state !== 0
       },
@@ -663,7 +673,7 @@ const TableBasic = ({ rows, role, roleData }) => {
 
   return (
     <Card>
-      <Box sx={{ height: 500 }}>
+      <Box sx={{ height: 600 }}>
         <DataGridPremium
           initialState={{
             sorting: {

@@ -26,10 +26,10 @@ function CustomListItem({
               placeholder={placeholder}
               InputLabelProps={InputLabelProps}
               id={`${id}-input`}
-              defaultValue={initialValue || ''}
+              // defaultValue={initialValue || ''}
               disabled={disabled}
               required={required}
-              value={value}
+              value={value || ''}
               size='small'
               variant='standard'
               fullWidth={true}

@@ -215,6 +215,11 @@ const getDomainData = async (document = null, field = null) => {
   }
 }
 
+/**
+ * Función que busca la información del usuario buscando por ID.
+ * @param {string} id - ID del usuario.
+ * @returns {Promise<object|undefined>} - Objeto con campos del usuario en Firestore.
+ */
 const getData = async id => {
   const docRef = doc(db, 'users', id)
   const docSnap = await getDoc(docRef)
@@ -228,7 +233,6 @@ const getData = async id => {
 
 // Función para llamar a todos los usuarios dentro de la colección 'users'
 const getAllUsersData = async () => {
-
   try {
     // Referencia a la colección
     const usersRef = collection(db, 'users')
@@ -246,13 +250,9 @@ const getAllUsersData = async () => {
 
     // Retornar los documentos
     return usersData
-
   } catch (error) {
-
-    console.error("Error al obtener los datos de los usuarios: ", error)
-
+    console.error('Error al obtener los datos de los usuarios: ', error)
   }
-
 }
 
 // getUserData agrupa funciones relacionadas con la colección 'users'
@@ -276,7 +276,9 @@ const getUserData = async (type, plant, userParam = { shift: '', name: '', email
         : query(coll, where('plant', 'array-contains', plant), where('role', '==', 3), where('enabled', '==', true)),
     getAllPlantUsers: () => query(coll, where('plant', 'array-contains', plant)),
     getAllProcureUsers: () => query(coll, where('company', '==', 'Procure')),
-    getUserProyectistas: () => query(coll, where('shift', 'array-contains', userParam.shift[0])),
+    getUserProyectistas: () =>
+      query(coll, where('shift', 'array-contains', userParam.shift[0]), where('role', '==', 8)),
+    getUserSupervisor: () => query(coll, where('shift', 'array-contains', userParam.shift[0]), where('role', '==', 7)),
     getPetitioner: () => query(coll, where('plant', 'array-contains', plant)),
     getReceiverUsers: () => query(coll, where('plant', 'array-contains', plant), where('role', '==', 2)),
     getUsersByRole: () => query(coll, where('role', '==', userParam.role))
@@ -303,13 +305,36 @@ const getUserData = async (type, plant, userParam = { shift: '', name: '', email
                 name: doc.data().name,
                 avatar: doc.data().urlFoto,
                 enabled: doc.data().enabled,
-                shift: doc.data().shift
+                shift: doc.data().shift,
+                email: doc.data().email,
+                role: doc.data().role
               }
             : {
                 userId: doc.id,
                 name: doc.data().name,
                 enabled: doc.data().enabled,
-                shift: doc.data().shift
+                shift: doc.data().shift,
+                email: doc.data().email,
+                role: doc.data().role
+              }
+          : type === 'getUserSupervisor'
+          ? doc.data().urlFoto
+            ? {
+                userId: doc.id,
+                name: doc.data().name,
+                avatar: doc.data().urlFoto,
+                enabled: doc.data().enabled,
+                shift: doc.data().shift,
+                email: doc.data().email,
+                role: doc.data().role
+              }
+            : {
+                userId: doc.id,
+                name: doc.data().name,
+                enabled: doc.data().enabled,
+                shift: doc.data().shift,
+                email: doc.data().email,
+                role: doc.data().role
               }
           : type === 'getReceiverUsers'
           ? {
@@ -656,71 +681,44 @@ const consultDocs = async (type, options = {}) => {
   }
 }
 
-const fetchPlaneProperties = async () => {
-  const docRef = doc(db, 'domain', 'blueprintProcureProperties')
-  const docSnap = await getDoc(docRef)
+/**
+ * Función para obtener las disciplinas desde la Tabla de Dominio.
+ * @returns {Object} - Objeto con las disciplinas y sus características.
+ */
+const fetchDisciplineProperties = async () => {
+  const propsRef = doc(db, 'domain', 'blueprintCodeProperties')
+  const docSnapshot = await getDoc(propsRef)
 
-  if (docSnap.exists()) {
-    const resDeliverables = await docSnap.data().deliverables
-    const resDisciplines = await docSnap.data().disciplines
+  if (docSnapshot.exists()) {
 
-    return { resDeliverables, resDisciplines }
+    return docSnapshot.data()
+
   } else {
-    console.log('El documento no existe')
+
+    throw new Error('No matching document found in the database.')
+
   }
 }
 
-const fetchMelDisciplines = async () => {
-  const docRef = doc(db, 'domain', 'blueprintMelProperties')
-  const docSnap = await getDoc(docRef)
+/**
+ * Función para obtener los tipos de entregables por disciplina desde la Tabla de Dominio.
+ * @param {string} discipline - Disciplina para la cual se buscan sus tipos de entregables.
+ * @returns {Object} - Objeto con los tipos de entregables y sus características.
+ */
+const fetchDeliverablesByDiscipline = async discipline => {
+  const propsRef = doc(db, 'domain', 'blueprintCodeProperties')
+  const docSnapshot = await getDoc(propsRef)
 
-  if (docSnap.exists()) {
-    const resDisciplines = await docSnap.data().disciplines
+  if (docSnapshot.exists()) {
 
-    return resDisciplines
+    const data = docSnapshot.data()
+
+    return data[discipline]
+
   } else {
-    console.log('El documento no existe')
-  }
-}
 
-const fetchMelDeliverableType = async discipline => {
-  const shortDeliverableType = ['AR', 'BS', 'CL', 'EL', 'GN', 'IC', 'ME', 'PP', 'PR', 'ST', 'TC', 'VE']
+    throw new Error('No matching discipline found in the database.')
 
-  const longDeliverableType = [
-    'arquitectura',
-    'hvca',
-    'civil',
-    'electrica',
-    'multi-disciplina',
-    'instrumentacion y control',
-    'mecanica',
-    'cañeria',
-    'proceso',
-    'estructura',
-    'comunicaciones',
-    'vendor'
-  ]
-
-  function getLongDefinition(item) {
-    const index = shortDeliverableType.indexOf(item)
-    if (index !== -1) {
-      return longDeliverableType[index]
-    } else {
-      return 'No se encontró definición corta para este tipo'
-    }
-  }
-
-  const deliverableType = getLongDefinition(discipline)
-
-  const docRef = doc(db, 'domain', 'blueprintMelProperties')
-  const docSnap = await getDoc(docRef)
-
-  if (docSnap.exists() && discipline) {
-    const resDeliverableType = await docSnap.data()[deliverableType]
-
-    return resDeliverableType
-  } else {
-    console.log('El documento no existe')
   }
 }
 
@@ -744,19 +742,73 @@ const consultBluePrints = async (type, options = {}) => {
       queryFunc = async () => {
         const solicitudesRef = collection(db, 'solicitudes')
         const solicitudesQuery = query(solicitudesRef, where('state', '>=', 8))
-        let count = 0
 
         const solicitudesSnapshot = await getDocs(solicitudesQuery)
 
-        solicitudesSnapshot.forEach(doc => {
-          if (doc.data().counterBlueprintCompleted > 0) {
-            count += doc.data().counterBlueprintCompleted
-          }
-        })
+        const totalBlueprintsCompleted = solicitudesSnapshot.docs.reduce((acc, doc) => {
+          const data = doc.data()
 
-        return count
+          return acc + (data.counterBlueprintCompleted || 0) // Sumamos solo si existe
+        }, 0)
+
+        return totalBlueprintsCompleted
       }
       break
+    case 'last30daysRevisions':
+      const thirtyDaysAgo = Timestamp.fromDate(moment().subtract(30, 'days').toDate())
+      const solicitudesRef = collection(db, 'solicitudes')
+
+      const solicitudesQuery = query(solicitudesRef, where('state', '>=', 8), where('date', '>=', thirtyDaysAgo))
+
+      const solicitudesSnapshot = await getDocs(solicitudesQuery)
+
+      // array de Promises para obtener los blueprints de cada solicitud simultáneamente
+      const blueprintsPromises = solicitudesSnapshot.docs.map(async solicitudDoc => {
+        const blueprintsRef = collection(db, `solicitudes/${solicitudDoc.id}/blueprints`)
+        const blueprintsSnapshot = await getDocs(blueprintsRef)
+
+        return blueprintsSnapshot.docs.map(blueprintDoc => blueprintDoc.data())
+      })
+
+      // Se espera a que todas las promesas se resuelvan y "aplanamos" el resultado
+      const blueprintsData = (await Promise.all(blueprintsPromises)).flat()
+
+      return blueprintsData
+
+      break
+
+    // Case para contar los blueprints existentes, excluyendo los que tienen "deleted: true"
+    case 'existingBlueprints':
+      queryFunc = async () => {
+        const solicitudesRef = collection(db, 'solicitudes')
+        const solicitudesQuery = query(solicitudesRef, where('state', '>=', 8))
+
+        const solicitudesSnapshot = await getDocs(solicitudesQuery)
+
+        // Promesas para obtener y contar los blueprints, excluyendo los que están eliminados (deleted: true)
+        const blueprintCountPromises = solicitudesSnapshot.docs.map(async solicitudDoc => {
+          const blueprintsRef = collection(db, `solicitudes/${solicitudDoc.id}/blueprints`)
+
+          // Consultamos los documentos de la subcolección "blueprints"
+          const blueprintsSnapshot = await getDocs(blueprintsRef)
+
+          // Filtramos y contamos solo los que no tienen "deleted: true"
+          const validBlueprints = blueprintsSnapshot.docs.filter(blueprintDoc => {
+            const data = blueprintDoc.data()
+
+            return !data.deleted // Excluimos los que tienen "deleted" como true
+          })
+
+          return validBlueprints.length // Retornamos la cantidad de blueprints válidos
+        })
+
+        // Sumamos todos los conteos de blueprints
+        const totalBlueprintCount = (await Promise.all(blueprintCountPromises)).reduce((acc, count) => acc + count, 0)
+
+        return totalBlueprintCount
+      }
+      break
+
     default:
       // Lanzar un error si el tipo no es válido
       throw new Error(`Invalid type: ${type}`)
@@ -970,6 +1022,28 @@ const subscribeToBlockDayChanges = setBlockResult => {
   return unsubscribe
 }
 
+/**
+ * Función para obtener las iniciales de la planta a partir de la información disponible en la Tabla de Dominio.
+ * @param {string} plantName - Nombre completo de la Planta.
+ * @returns {Promise<string>} - Iniciales de la planta.
+ * @throws {Error} - Si ocurre un error al obtener los datos o las iniciales no están disponibles.
+ */
+const getPlantInitals = async (plantName) => {
+  try {
+    const plantData = await getDomainData('plants', plantName)
+
+    if (!plantData || !plantData.initials) {
+      throw new Error(`No se encontraron iniciales para la planta '${plantName}'.`)
+    }
+
+    return plantData.initials
+  } catch (error) {
+    console.error('Error en getPlantInitals:', error.message)
+    throw error // Se vuelve a lanzar el error para que el llamador lo maneje
+  }
+}
+
+
 export {
   useEvents,
   useSnapshot,
@@ -984,12 +1058,12 @@ export {
   consultObjetives,
   getUsersWithSolicitudes,
   fetchPetitionById,
-  fetchPlaneProperties,
-  fetchMelDisciplines,
-  fetchMelDeliverableType,
   consultBluePrints,
   subscribeToPetition,
   consultOT,
   subscribeToUserProfileChanges,
-  subscribeToBlockDayChanges
+  subscribeToBlockDayChanges,
+  fetchDisciplineProperties,
+  fetchDeliverablesByDiscipline,
+  getPlantInitals
 }

@@ -4,11 +4,11 @@
 
 // ** MUI Imports
 import Grid from '@mui/material/Grid'
-import DataGridGabinete from 'src/views/pages/gabinete/DataGridGabinete'
 
 // ** Styled Component
 
 // ** Demo Components Imports
+import DataGridGabinete from 'src/views/pages/gabinete/DataGridGabinete'
 
 const Gabinete = () => {
   return (

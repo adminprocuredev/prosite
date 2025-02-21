@@ -322,7 +322,7 @@ exports.sendInfoToSupervisorAt5PM = functions.pubsub
           4: 'En revisión de Planificador',
           5: 'En revisión de Administrador de Contrato',
           6: 'Aprobada para inicio de Levantamiento',
-          7: 'Levantamiento iniciado',
+          7: 'Levantamiento Iniciado',
           8: 'Levantamiento finalizado'
         }
 
