@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from 'react'
 
 // ** Hooks
-import { useGoogleAuth } from 'src/context/google-drive-functions/useGoogleDriveAuth'
 import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
 import { useFirebase } from 'src/context/useFirebase'
 
@@ -252,7 +251,12 @@ const DataGridGabinete = () => {
           // Carga los proyectistas
           const resProyectistas = await getUserData('getUserProyectistas', null, authUser)
           const resSupervisor = await getUserData('getUserSupervisor', null, authUser)
-          setProyectistas([...resProyectistas, ...resSupervisor])
+
+          // Filtramos solo los que tienen enabled = true
+          const filteredProyectistas = resProyectistas.filter(user => user.enabled)
+          const filteredSupervisores = resSupervisor.filter(user => user.enabled)
+
+          setProyectistas([...filteredProyectistas, ...filteredSupervisores])
         }
       }
 
