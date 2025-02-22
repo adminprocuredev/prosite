@@ -6,7 +6,18 @@ import base64MEL from 'src/views/pages/gabinete/base64MEL'
 const callAddRegular = require('public/fonts/calibri-normal.js')
 const callAddBold = require('public/fonts/calibri-bold.js')
 
-export const generateTransmittal = (tableElement, selected, setTransmittalGenerated, newCode) => {
+export const generateTransmittal = async (
+  tableElement,
+  selected,
+  setTransmittalGenerated,
+  newCode,
+  petition,
+  uploadFile,
+  findOrCreateFolder,
+  createFolderStructure,
+  setIsLoading,
+  setOpenTransmittalDialog
+) => {
   const doc = new jsPDF('p', 'mm', 'letter', true, true)
 
   callAddRegular.call(doc)
@@ -40,17 +51,19 @@ export const generateTransmittal = (tableElement, selected, setTransmittalGenera
 
   const data = newSelected.map(([key, value], index) => {
     if (value.storageBlueprints) {
+      console.log('value.storageBlueprints', value.storageBlueprints)
       // Divide la URL en segmentos separados por '%2F'
-      const urlSegments = value.storageBlueprints[0].split('%2F')
+      //*const urlSegments = value.storageBlueprints[0].split('%2F')
 
       // Obtiene el último segmento, que debería ser el nombre del archivo
-      const encodedFileName = urlSegments[urlSegments.length - 1]
+      //*const encodedFileName = urlSegments[urlSegments.length - 1]
 
       // Divide el nombre del archivo en segmentos separados por '?'
-      const fileNameSegments = encodedFileName.split('?')
+      //*const fileNameSegments = encodedFileName.split('?')
 
       // Obtiene el primer segmento, que debería ser el nombre del archivo
-      const fileName = decodeURIComponent(fileNameSegments[0])
+      //*const fileName = decodeURIComponent(fileNameSegments[0])
+      const fileName = value.storageBlueprints[0].name
 
       rows = [index + 1, value.clientCode, value.description, value.revision]
     } else {
@@ -113,7 +126,7 @@ export const generateTransmittal = (tableElement, selected, setTransmittalGenera
 
   doc.setFont('Calibri', 'bold')
   doc.text(
-    '1. Como acuso de su recepción, devuelva una copia de esta firmada a Procure – Administrador de Contrato',
+    '1. Como acuso de su recepción, devuelva una copia de esta firmada a Procure - Administrador de Contrato',
     15,
     pageBreak ? 20 : doc.lastAutoTable.finalY + 10
   )
@@ -152,5 +165,25 @@ export const generateTransmittal = (tableElement, selected, setTransmittalGenera
 
   // Descarga el documento
   doc.save(`${newCode}.pdf`)
+
+  const pdfBlob = doc.output('blob') // Genera el blob del documento PDF
+
+  // Crear Estructura de Carpetas en caso de que no exista previamente.
+  const projectFolder = await createFolderStructure(petition, ["EMITIDOS"])
+
+  // Ubica la carpeta "EMITIDOS"
+  const targetFolder = await findOrCreateFolder(projectFolder.id, "EMITIDOS", "EMITIDOS")
+
+  if (targetFolder) {
+    const fileData = await uploadFile(`${newCode}.pdf`, pdfBlob, targetFolder.id)
+
+    if (fileData && fileData.id) {
+      const fileLink = `https://drive.google.com/file/d/${fileData.id}/view`
+
+      console.log('Transmittal almacenado en Google Drive con éxito:', fileLink)
+    }
+  }
   setTransmittalGenerated(true)
+  setOpenTransmittalDialog(false)
+  setIsLoading(false)
 }

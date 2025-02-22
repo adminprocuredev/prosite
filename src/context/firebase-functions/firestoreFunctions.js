@@ -8,7 +8,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  increment,
   limit,
   onSnapshot,
   orderBy,
@@ -21,10 +20,13 @@ import {
 } from 'firebase/firestore'
 import { db } from 'src/configs/firebase'
 
+
 // ** Imports Propios
 import { getUnixTime } from 'date-fns'
 import { useEffect, useState } from 'react'
 import { solicitudValidator } from '../form-validation/helperSolicitudValidator'
+import { getData, getPlantInitals } from './firestoreQuerys'
+import { sendEmailDeliverableNextRevision } from './mailing/sendEmailDeliverableNextRevision'
 import { sendEmailWhenReviewDocs } from './mailing/sendEmailWhenReviewDocs'
 
 const moment = require('moment')
@@ -275,7 +277,6 @@ const addComment = async (id, comment, userParam) => {
 }
 
 function getNextState(role, approves, latestEvent, userRole) {
-
   const state = {
     returned: 1,
     petitioner: 2,
@@ -299,7 +300,9 @@ function getNextState(role, approves, latestEvent, userRole) {
   const modifiedBySameRole = userRole === role
   const requestMadeByPlanner = userRole === 5
   const requestMadeByMelPetitioner = userRole === 2 && (!latestEvent || (latestEvent && latestEvent.newState === 2))
-  const requestMadeByMelPetitionerAndApprovedByContractAdmin = userRole === 2 && latestEvent.newState === 3 && latestEvent.userRole === 6
+
+  const requestMadeByMelPetitionerAndApprovedByContractAdmin =
+    userRole === 2 && latestEvent.newState === 3 && latestEvent.userRole === 6
 
   const rules = new Map([
     [
@@ -379,7 +382,7 @@ function getNextState(role, approves, latestEvent, userRole) {
           condition: approves && !state === 2 && state < 7,
           newState: state.contOperator,
           log: 'Modificado por Contract Operator'
-        },
+        }
       ]
     ],
     [
@@ -430,8 +433,9 @@ function getNextState(role, approves, latestEvent, userRole) {
         {
           condition: approves && approveWithChanges && requestMadeByMelPetitionerAndApprovedByContractAdmin,
           newState: state.contAdmin,
-          log: 'Aprobado por Planificación: Solicitud Ingresada por MEL y aprobada por Administrador de Contrato en nombre de Contract Operator'
-        },
+          log:
+            'Aprobado por Planificación: Solicitud Ingresada por MEL y aprobada por Administrador de Contrato en nombre de Contract Operator'
+        }
       ]
     ],
     [
@@ -489,7 +493,7 @@ function getNextState(role, approves, latestEvent, userRole) {
           log: 'fecha modificada por Supervisor'
         },
         {
-          condition: approves && approves.hasOwnProperty('designerReview'),
+          condition: approves && approves.hasOwnProperty('gabineteDraftmen'),
           newState: state.draftsman,
           log: 'Proyectistas agregados por Supervisor'
         },
@@ -525,7 +529,6 @@ function getNextState(role, approves, latestEvent, userRole) {
 }
 
 const updateDocs = async (id, approves, userParam) => {
-
   let canceled = approves.cancelReason ? true : false
   const hasFieldModifications = typeof approves === 'object' && !Array.isArray(approves)
   const { ref, docSnapshot } = await getDocumentAndUser(id)
@@ -606,9 +609,54 @@ const blockDayInDatabase = async (date, cause = '') => {
   }
 }
 
+/**
+ * Función para calcular el % de Avance de un Entregable según condiciones.
+ * @param {Object} blueprint - Objeto con datos del Entregable.
+ * @returns {Number} - Valor del porcentaje de avance del entregable (0 a 100).
+ */
+const getBlueprintPercent = (blueprint) => {
+
+  // Desestructuración de blueprint.
+  const { milestone } = blueprint
+
+  const blueprintPercents = [
+    {
+      condition: () => milestone === 0,
+      percent: 5,
+    },
+    {
+      condition: () => milestone === 1,
+      percent: 20,
+    },
+    {
+      condition: () => milestone === 2,
+      percent: 50,
+    },
+    {
+      condition: () => milestone === 3,
+      percent: 60,
+    },
+    {
+      condition: () => milestone === 4,
+      percent: 80,
+    },
+    {
+      condition: () => milestone === 5,
+      percent: 100,
+    },
+  ]
+
+  const result = blueprintPercents.find(({ condition }) => condition())
+
+  return result ? result.percent : 0
+}
+
 // Maneja la obtención de datos de planos asociados a una solicitud y devuelve un array de datos y una función para actualizarlos.
 const useBlueprints = id => {
-  const [data, setData] = useState([])
+  const [data, setData] = useState([]) // Estado que guarda los documentos de blueprints y sus revisiones
+  const [projectistData, setProjectistData] = useState({}) // Estado para la agrupación de datos por usuario y tipo de documento
+  const [otPercent, setOtPercent] = useState(null) // Estado para el porcentaje calculado
+  const [otReadyToFinish, setOtReadyToFinish] = useState(null) // Estado que evalúa si la OT se puede finalizar o no.
 
   useEffect(() => {
     if (!id) return undefined
@@ -617,17 +665,44 @@ const useBlueprints = id => {
 
     const blueprintsRef = collection(db, `solicitudes/${id}/blueprints`)
 
+    // Suscribirse a cambios en la subcolección 'blueprints'
     const unsubscribeBlueprints = onSnapshot(blueprintsRef, docSnapshot => {
       if (docSnapshot.docs.length === 0) {
         setData([])
+        setProjectistData({})
+        setOtPercent(null) // Si no hay documentos, el porcentaje es nulo
 
         return
       }
 
       let allDocs = []
+      let projectistDataTemp = {}
+      let totalPercent = 0 // Acumulador de porcentajes
+      let totalDocuments = 0 // Contador de documentos válidos (sin eliminar)
+      let totalBlueprintsCompleted = 0
 
       docSnapshot.docs.forEach(doc => {
         const docData = doc.data()
+        const { userName, id, deleted, blueprintCompleted } = docData
+
+        // Actualización de agrupación de datos
+        if (!deleted) {
+          totalDocuments++ // Aumenta el contador de documentos válidos
+          totalPercent += getBlueprintPercent(docData) || 0 // Suma el valor de 'blueprintPercent', o 0 si no existe
+          totalBlueprintsCompleted = blueprintCompleted ? totalBlueprintsCompleted + 1 : totalBlueprintsCompleted
+
+          // Agrupación de datos por usuario y tipo de documento
+          if (userName && id) {
+            const documentType = `${id.split('-')[1]}-${id.split('-')[2]}` // Ej: "500-PL"
+            if (!projectistDataTemp[userName]) {
+              projectistDataTemp[userName] = {}
+            }
+            if (!projectistDataTemp[userName][documentType]) {
+              projectistDataTemp[userName][documentType] = 0
+            }
+            projectistDataTemp[userName][documentType] += 1
+          }
+        }
         const revisionsRef = collection(doc.ref, 'revisions')
 
         // Suscribirse a cambios en 'revisions'
@@ -648,11 +723,23 @@ const useBlueprints = id => {
           // Actualizar el estado solo cuando se han procesado todos los documentos.
           if (allDocs.length === docSnapshot.docs.length) {
             setData([...allDocs])
+            setProjectistData(projectistDataTemp)
           }
         })
 
         unsubscribeAll.push(unsubscribeRevisions)
       })
+
+      // Calcular 'otPercent' solo si hay documentos válidos
+      /* Después de procesar todos los documentos, se calcula el promedio de los valores de blueprintPercent (sumatoria de los porcentajes dividida por la cantidad de documentos). */
+      const calculatedOtPercent = totalDocuments > 0 ? Number.isInteger(totalPercent / totalDocuments)
+            ? totalPercent / totalDocuments
+            : (totalPercent / totalDocuments).toFixed(1)
+          : null
+      setOtPercent(calculatedOtPercent)
+
+      // Se define si la OT está lista para finalizar.
+      setOtReadyToFinish(totalBlueprintsCompleted === totalDocuments)
     })
 
     unsubscribeAll.push(unsubscribeBlueprints)
@@ -661,133 +748,16 @@ const useBlueprints = id => {
     return () => unsubscribeAll.forEach(unsubscribe => unsubscribe())
   }, [id])
 
-  return [data, setData]
+  return [data, projectistData, otPercent, otReadyToFinish, setData]
 }
 
 function formatCount(count) {
   return String(count).padStart(3, '0')
 }
 
-const generateBlueprintCodeClient = async (typeOfDiscipline, typeOfDocument, petition, blueprintId, userParam) => {
-  try {
-    const idProject = '21286'
-
-    const shortPlants = ['PCLC', 'LSL1', 'LSL2', 'CHCO', 'PCOL', 'ICAT']
-
-    const valPlant = [
-      'Planta Concentradora Los Colorados',
-      'Planta Concentradora Laguna Seca | Línea 1',
-      'Planta Concentradora Laguna Seca | Línea 2',
-      'Chancado y Correas',
-      'Puerto Coloso',
-      'Instalaciones Cátodo'
-    ]
-
-    function formatCount(count) {
-      // Convierte el conteo a un string y rellena con ceros a la izquierda hasta que la longitud sea 5
-      return String(count).padStart(5, '0')
-    }
-
-    function getShortDefinition(plantLongDef) {
-      const index = valPlant.indexOf(plantLongDef)
-      if (index !== -1) {
-        return shortPlants[index]
-      } else {
-        return 'No se encontró definición corta para esta planta'
-      }
-    }
-    const { ot, plant, area, id } = petition
-
-    const otNumber = `OT${ot}`
-    const instalacion = getShortDefinition(plant)
-    const areaNumber = area.slice(0, 4)
-
-    // Referencia al documento de contador para la combinación específica dentro de la subcolección blueprints
-    const counterDocID = `${typeOfDiscipline}-${typeOfDocument}-counter`
-    const counterRef = doc(db, 'solicitudes', id, 'clientCodeGeneratorCount', counterDocID)
-
-    // Incrementa el contador dentro de una transacción
-
-    const incrementedCount = await runTransaction(db, async transaction => {
-      const counterSnapshot = await transaction.get(counterRef)
-      let newCount
-      if (!counterSnapshot.exists()) {
-        newCount = formatCount(1)
-        transaction.set(counterRef, { count: newCount })
-      } else {
-        newCount = formatCount(Number(counterSnapshot.data().count) + 1)
-        transaction.update(counterRef, { count: newCount })
-      }
-
-      return newCount // Retorna el nuevo contador para usarlo fuera de la transacción
-    })
-
-    // Añade el contador al final de newCode
-    const newCode = `${idProject}-${otNumber}-${instalacion}-${areaNumber}-${typeOfDiscipline}-${typeOfDocument}-${incrementedCount}`
-
-    const ref = doc(db, 'solicitudes', id, 'blueprints', blueprintId)
-    updateDoc(ref, { clientCode: newCode })
-  } catch (error) {
-    console.error('Error al generar clientCode:', error)
-    throw new Error('Error al generar clientCode')
-  }
-}
-
-const generateBlueprint = async (typeOfDiscipline, typeOfDocument, petition, userParam) => {
-  try {
-    const solicitudRef = doc(db, 'solicitudes', petition.id)
-    const solicitudDoc = await getDoc(solicitudRef)
-
-    if (solicitudDoc.data().otReadyToFinish) {
-      await updateDoc(solicitudRef, { otReadyToFinish: false })
-    }
-
-    const idProject = '21286'
-
-    // Referencia al documento de contador para la combinación específica dentro de la subcolección blueprints
-    const counterDocID = `${typeOfDiscipline}-${typeOfDocument}-counter`
-    const counterRef = doc(db, 'counters', 'blueprints_InternalCode-Counter')
-
-    // Incrementa el contador dentro de una transacción
-    const incrementedCount = await runTransaction(db, async transaction => {
-      const counterSnapshot = await transaction.get(counterRef)
-
-      let currentCount
-      if (!counterSnapshot.exists() || !counterSnapshot.data()[counterDocID]) {
-        currentCount = formatCount(1)
-        transaction.set(counterRef, { [counterDocID]: { count: currentCount } }, { merge: true })
-      } else {
-        currentCount = formatCount(Number(counterSnapshot.data()[counterDocID].count) + 1)
-        transaction.update(counterRef, { [counterDocID]: { count: currentCount } })
-      }
-
-      return currentCount // Retorna el nuevo contador para usarlo fuera de la transacción
-    })
-
-    // Añade el contador al final de newCode
-    const newCode = `${idProject}-${typeOfDiscipline}-${typeOfDocument}-${incrementedCount}`
-
-    const docRef = doc(collection(db, 'solicitudes', petition.id, 'blueprints'), newCode)
-    await setDoc(docRef, {
-      userId: userParam.uid,
-      userName: userParam.displayName,
-      revision: 'iniciado',
-      userEmail: userParam.email,
-      sentByDesigner: false,
-      sentBySupervisor: false,
-      date: Timestamp.fromDate(new Date())
-    })
-
-    console.log('newCode:', newCode)
-  } catch (error) {
-    console.error('Error al generar Blueprint:', error)
-    throw new Error('Error al generar Blueprint')
-  }
-}
-
 const addDescription = async (petitionID, blueprint, description) => {
   const ref = doc(db, 'solicitudes', petitionID, 'blueprints', blueprint)
-  updateDoc(ref, { description })
+  await updateDoc(ref, { description })
 }
 
 // getLatestRevision() obtiene la última revisión de un plano en la base de datos
@@ -810,310 +780,520 @@ const getLatestRevision = async (petitionID, blueprintID) => {
   return latestRevision
 }
 
+/**
+ * Función para obtener la siguiente revisión letra o número de un entregable.
+ * Si es Iniciado, la siguiente revisión es A.
+ * Si es una letra, la siguiente revisión es la siguiente letra. En el caso de Z cambia a AA.
+ * Si es un número, la siguiente revisión es el siguiente número.
+ * @param {string} revision - Revisión en que se encuentra el entregable.
+ * @returns {string} - Retorna la siguiente revisión.
+ */
+function getNextChar(revision) {
+
+  if (revision === "Iniciado" || revision === "iniciado") {
+      return "A"
+  }
+
+  // Caso en que el string es un número
+  if (/^[0-9]+$/.test(revision)) {
+
+    return (parseInt(revision, 10) + 1).toString()
+
+  // Caso en que el string es una letra o secuencia de letras en mayúscula
+  } else if (/^[A-Z]+$/.test(revision)) {
+
+    let result = ""
+    let carry = 1 // Representa el incremento
+
+    for (let i = revision.length - 1; i >= 0; i--) {
+      const charCode = revision.charCodeAt(i) + carry
+
+      if (charCode > 90) { // 90 es el código ASCII de 'Z'
+        result = "A" + result
+        carry = 1 // Hay acarreo
+      } else {
+        result = String.fromCharCode(charCode) + result
+        carry = 0 // No hay acarreo
+      }
+    }
+
+    // Si hay un acarreo restante, añadimos 'A' al principio
+    if (carry > 0) {
+      result = "A" + result
+    }
+
+    return result
+
+  } else {
+    throw new Error("La Revisión debe ser un número, una letra mayúscula o la palabra 'Iniciado'.")
+  }
+}
+
+/**
+ * Función para obtener la letra con la que debe ser creada la carpeta de la revisión en Google Drive.
+ * @param {Object} blueprint - Objeto con los datos del entregable/plano.
+ * @returns {string} - Retorna la letra de la siguiente revisión con la que debe ser creada una carpeta.
+ */
+const getNextRevisionFolderName = (blueprint) => {
+
+  // Desestructuración de blueprint.
+  const {
+    revision,
+    id,
+    approvedByClient,
+    approvedByDocumentaryControl,
+    attentive,
+    sentByDesigner,
+    sentBySupervisor,
+    blueprintCompleted,
+    resumeBlueprint
+  } = blueprint
+
+  // Se obtiene la letra o número de la siguiente revisión.
+  const nextChar = getNextChar(revision)
+
+  // Se define si la revisión actual es numérica.
+  const isNumeric = !isNaN(revision)
+
+  // Se define si está siendo revisado por el Cliente.
+  const beingReviewedByClient = attentive === 4
+
+  // Se define si la revisión actual es "Iniciado".
+  const isInitialRevision = revision === "Iniciado"
+
+  // Se define si la revisión actual es "A".
+  const isRevA = revision === "A"
+
+  // Se define Booleano para cuando se encuentra en Rev >= B.
+  const isRevisionAtLeastB = !isRevA && !isInitialRevision
+
+  // Booleano que define si el código Procure del entregable es un M3D (Memoria de Cálculo).
+  const isM3D = id.split('-')[2] === 'M3D'
+
+  const sentByAuthor = sentByDesigner || sentBySupervisor
+
+  // Se define Patrón de reglas con condiciones y acciones para definir la siguiente revisión de la carpeta.
+  const actions = [
+    {
+      // Caso cuando se Reanuda un Entregable
+      condition: () => {
+          const result = resumeBlueprint
+          if (result) console.log("Condición 0.")
+
+          return result
+      },
+      action: () => nextChar
+    },
+    {
+      // Si la revisión es "Iniciado" y el entregable es un M3D (Memoria de Cálculo).
+      condition: () => {
+          const result = isInitialRevision && isM3D
+          if (result) console.log("Condición 1.")
+
+          return result
+      },
+      action: () => '0'
+    },
+    {
+      // Si la revisión es "Iniciado" y el entregable no es un M3D (Memoria de Cálculo).
+      condition: () => {
+          const result = isInitialRevision && !isM3D
+          if (result) console.log("Condición 2.")
+
+          return result
+      },
+      action: () => 'A'
+    },
+    {
+      // Si la revisión es Rev. A y ha sido Aprobada por Control Documental.
+      condition: () => {
+          const result = isRevA && approvedByDocumentaryControl
+          if (result) console.log("Condición 3.")
+
+          return result
+      },
+      action: () => nextChar
+    },
+    {
+      // Si la revisión es Rev. A y no ha sido Aprobada por Control Documental.
+      condition: () => {
+          const result = isRevA && !approvedByDocumentaryControl
+          if (result) console.log("Condición 4.")
+
+          return result
+      },
+      action: () => revision
+    },
+    {
+      // Si la revisión está en manos del Cliente.
+      condition: () => {
+          const result = beingReviewedByClient
+          if (result) console.log("Condición 5.")
+
+          return result
+      },
+      action: () => revision
+    },
+    {
+      condition: () => {
+          const result = !beingReviewedByClient && isRevisionAtLeastB && !isNumeric && approvedByClient
+          if (result) console.log("Condición 6.")
+
+          return result
+      },
+      action: () => '0'
+    },
+    {
+      condition: () => {
+          const result = !beingReviewedByClient && isRevisionAtLeastB && approvedByDocumentaryControl && !approvedByClient && !sentByAuthor
+          if (result) console.log("Condición 7.")
+
+          return result
+      },
+      action: () => nextChar
+    },
+    {
+      condition: () => {
+          const result = !beingReviewedByClient && isRevisionAtLeastB && approvedByDocumentaryControl && !approvedByClient && !sentByAuthor
+          if (result) console.log("Condición 8")
+
+          return result
+      },
+      action: () => nextChar
+    },
+    {
+      condition: () => {
+          const result = isRevisionAtLeastB && isNumeric && approvedByClient && !blueprintCompleted
+          if (result) console.log("Condición 9.")
+
+          return result
+      },
+      action: () => nextChar
+    },
+    {
+      condition: () => {
+          const result = !beingReviewedByClient && isRevisionAtLeastB && isNumeric && approvedByClient
+          if (result) console.log("Condición 10.")
+
+          return result
+      },
+      action: () => revision
+    }
+  ]
+
+  // Se ejecuta la definición de la siguiente revisión.
+  const matchedAction = actions.find(({ condition }) => condition())
+
+  // Se retorna la siguiente revisión en caso de que concuerde con alguna de las condiciones definidas.
+  // Si no, se retorna la revisión actual.
+  return matchedAction ? matchedAction.action() : revision
+}
+
+const getMilestone = (newRevision, blueprint, approves, isRevisionAtLeast0) => {
+
+  // Desestructuración de blueprint.
+  const { id, lastTransmittal, milestone, attentive } = blueprint
+
+  const isM3D = id.split('-')[2] === 'M3D'
+
+  let newMilestone = milestone
+
+  if (!isM3D) {
+    if (milestone === 0 && newRevision === "A") {
+      newMilestone = 1
+    } else if (milestone === 1 && attentive === 9 && approves) {
+      newMilestone = 2
+    } else if (milestone === 2 && newRevision === "B") {
+      newMilestone = 3
+    } else if (milestone === 3 && lastTransmittal) {
+      newMilestone = 4
+    } else if (milestone === 4 && attentive === 4 && isRevisionAtLeast0) {
+      newMilestone = 5
+    }
+  } else {
+    if (milestone === 0 && newRevision === "0") {
+      newMilestone = 4
+    } else if (milestone === 4 && attentive === 4 && isRevisionAtLeast0) {
+      newMilestone = 5
+    }
+  }
+
+  return newMilestone
+
+}
+
 // getNextRevision calcula la próxima revisión basándose en una serie de condiciones
-const getNextRevision = async (
-  approve,
-  latestRevision,
-  { role, email, displayName, uid },
-  {
+const getNextRevision = async (approves, latestRevision, authUser, blueprint, remarks) => {
+
+  // Desestructuración de authUser
+  const { email, displayName, uid } = authUser
+
+  // Desestructuración de blueprint
+  const {
     revision,
     description,
     storageBlueprints,
     approvedByClient,
-    approvedByContractAdmin,
-    approvedBySupervisor,
-    approvedByDocumentaryControl,
-    resumeBlueprint,
-    userId,
-    storageHlcDocuments
-  },
-  remarks,
-  hours,
-  investedHours
-) => {
-  // Inicializa la nueva revisión con el valor actual de la revisión
-  let newRevision = revision
+    attentive,
+    lastTransmittal
+  } = blueprint
 
-  // Calcula el código de carácter de la próxima letra en el alfabeto
-  const nextCharCode = revision.charCodeAt(0) + 1
-
-  const nextChar = String.fromCharCode(nextCharCode)
-
-  // Si el rol es 8 y se aprueba, se ejecutan una serie de acciones
-  if (role === 8 && approve) {
-    // Define las acciones posibles
-    const actions = {
-      // * Si la revisión es mayor o igual a 'B' y no ha sido aprobada por el cliente, se mantiene la revisión actual
-      keepRevision: {
-        condition: () =>
-          revision.charCodeAt(0) >= 48 && approvedByClient === true && approvedByDocumentaryControl === false,
-        action: () => (newRevision = revision)
-      },
-      incrementResume: {
-        condition: () => revision.charCodeAt(0) >= 48 && resumeBlueprint === true,
-        action: () => (newRevision = nextChar)
-      },
-      // * Si la revisión es mayor o igual a 'B', ha sido aprobada por el cliente, se resetea la revisión a '0'
-      resetRevision: {
-        condition: () => revision.charCodeAt(0) >= 66 && approvedByClient === true,
-        action: () => (newRevision = '0')
-      },
-      // * Si la revisión es 'B', 'C' o 'D', no ha sido aprobada por el cliente y ha sido aprobada por el administrador de contrato o el supervisor, se incrementa la revisión a la siguiente letra
-      incrementRevision: {
-        condition: () =>
-          (revision.charCodeAt(0) >= 66 || revision.charCodeAt(0) >= 48) &&
-          approvedByClient === false &&
-          approvedByDocumentaryControl === true,
-        action: () => (newRevision = nextChar)
-      },
-      startRevision: {
-        condition: () => revision === 'iniciado',
-        action: () => (newRevision = 'A')
-      },
-      incrementRevisionInA: {
-        condition: () => revision === 'A',
-        action: () => (newRevision = approvedByDocumentaryControl ? nextChar : revision)
-      }
-    }
-
-    // Ejecuta la acción correspondiente para cada condición que se cumple
-    Object.values(actions).forEach(({ condition, action }) => {
-      if (condition()) {
-        action()
-      }
-    })
-  } else if (role === 7 && approve && userId === uid) {
-    // Define las acciones posibles
-    const actions = {
-      // * Si la revisión es mayor o igual a 'B' y no ha sido aprobada por el cliente, se mantiene la revisión actual
-      keepRevision: {
-        condition: () =>
-          revision.charCodeAt(0) >= 48 && approvedByClient === true && approvedByDocumentaryControl === false,
-        action: () => (newRevision = revision)
-      },
-      incrementResume: {
-        condition: () => revision.charCodeAt(0) >= 48 && resumeBlueprint === true,
-        action: () => (newRevision = nextChar)
-      },
-      // * Si la revisión es mayor o igual a 'B', ha sido aprobada por el cliente, se resetea la revisión a '0'
-      resetRevision: {
-        condition: () => revision.charCodeAt(0) >= 66 && approvedByClient === true,
-        action: () => (newRevision = '0')
-      },
-      // * Si la revisión es 'B', 'C' o 'D', no ha sido aprobada por el cliente y ha sido aprobada por el administrador de contrato o el supervisor, se incrementa la revisión a la siguiente letra
-      incrementRevision: {
-        condition: () =>
-          (revision.charCodeAt(0) >= 66 || revision.charCodeAt(0) >= 48) &&
-          approvedByClient === false &&
-          approvedByDocumentaryControl === true,
-        action: () => (newRevision = nextChar)
-      },
-      startRevision: {
-        condition: () => revision === 'iniciado',
-        action: () => (newRevision = 'A')
-      },
-      incrementRevisionInA: {
-        condition: () => revision === 'A',
-        action: () => (newRevision = approvedByDocumentaryControl ? nextChar : revision)
-      }
-    }
-
-    // Ejecuta la acción correspondiente para cada condición que se cumple
-    Object.values(actions).forEach(({ condition, action }) => {
-      if (condition()) {
-        action()
-      }
-    })
-  }
+  // Se define si la revisión actual es numérica.
+  const isNumeric = !isNaN(revision)
+  const letterToNumber = approves && !isNumeric && approvedByClient && lastTransmittal
+  const newRevision = letterToNumber ? "0" : getNextRevisionFolderName(blueprint)
 
   // Crea el objeto de la próxima revisión con los datos proporcionados y la nueva revisión calculada
   const nextRevision = {
     prevRevision: latestRevision && Object.keys(latestRevision).length === 0 ? latestRevision.newRevision : revision,
     newRevision,
     description,
-    storageBlueprints: storageBlueprints[storageBlueprints.length - 1],
+    storageBlueprints:
+      approves && storageBlueprints.length === 2
+        ? storageBlueprints[storageBlueprints.length - 1]
+        : approves && (remarks === false || !remarks)
+        ? storageBlueprints[0]
+        : storageBlueprints[storageBlueprints.length - 1],
     userEmail: email,
     userName: displayName,
     userId: uid,
     date: Timestamp.fromDate(new Date()),
-    remarks: remarks || 'sin observaciones',
-    drawingHours: hours ? hours : null,
-    investedHours: investedHours || null
+    remarks: remarks || 'Sin observaciones',
+    attentive: attentive
   }
 
   return nextRevision
 }
 
-// updateBlueprint() actualiza el entregable en la base de datos
-const updateBlueprint = async (petitionID, blueprint, approves, userParam, remarks, hours, investedHours) => {
-  // Obtiene la referencia al documento del entregable (blueprint) en la base de datos
-  const blueprintRef = doc(db, 'solicitudes', petitionID, 'blueprints', blueprint.id)
-  const solicitudRef = doc(db, 'solicitudes', petitionID)
+/**
+ * Función que actualiza el entregable en la base de datos.
+ * @param {string} petitionID - ID de la OT.
+ * @param {Object} blueprint - Objeto con los datos del Entregable.
+ * @param {boolean} approves - Booleano que define si el usuario Aprobó o Rechazo el Entreagable.
+ * @param {Object} authUser - Objeto con los datos del usuario que realiza la acción.
+ * @param {string|boolean} remarks - String con texto que indica comentarios. Si no existen comentarios es Booleano.
+ */
+const updateBlueprint = async (petitionID, blueprint, approves, authUser, remarks) => {
+
+  // Desestructuración de blueprint.
+  const {
+    id, // ID del Entregable (Código Procure)
+    revision, // Revisión en que se encuentra el Entregable.
+    approvedByContractAdmin, // Booleano que define si se encuentra aprobado por el Administrador de Contrato o no.
+    approvedBySupervisor, // Booleano que define si se encuentra aprobado por el Supervisor o no.
+    approvedByDocumentaryControl, // Booleano que define si se encuentra aprobado por Control Documental o no.
+    approvedByClient, // Booleano que define si se encuentra aprobado por el Cliente o no.
+    resumeBlueprint, // Creo que es un Booleano que indica cuando hay que reabrir un entregable.
+    blueprintCompleted, // Booleano que define si se encuentra terminado o no.
+    userId, // ID del Autor del entregable.
+    storageBlueprints, // Array con Objeto que contiene Nombre y Link del Entregable en Google Drive.
+    sentByDesigner, // Entregable creado por un Proyectista.
+    sentBySupervisor, // Entregable creado por un Supervisor.
+    attentive, // Rol del usuario que tiene en su poder el Entregable. Caso especial: attentive = 4, cuando Control Documental toma acción por el Cliente.
+    sentToClient // Booleano que define si el Entregable fue enviado al Cliente mediante el Transmittal.
+  } = blueprint
+
+  console.log(petitionID)
+  console.log(blueprint)
+  console.log(authUser)
+
+  // Desestructuración de authUser.
+  const { uid, role } = authUser
+
+  // Referencia al documento del entregable (blueprint) en la base de datos.
+  const blueprintRef = doc(db, 'solicitudes', petitionID, 'blueprints', id)
+
+  // Se define si la revisión actual es numérica.
+  const isNumeric = !isNaN(revision)
 
   // Obtiene la última revisión del plano
-  const latestRevision = await getLatestRevision(petitionID, blueprint.id)
+  const latestRevision = await getLatestRevision(petitionID, id)
 
   // Calcula la próxima revisión del plano
-  const nextRevision = await getNextRevision(
-    approves,
-    latestRevision,
-    userParam,
-    blueprint,
-    remarks,
-    hours,
-    investedHours
-  )
+  const nextRevision = await getNextRevision(approves, latestRevision, authUser, blueprint, remarks)
 
   // Comprueba varias condiciones sobre el plano
-  const isRevisionAtLeastB = blueprint.revision.charCodeAt(0) >= 66
-  const isRevisionAtLeast0 = blueprint.revision.charCodeAt(0) >= 48 && blueprint.revision.charCodeAt(0) <= 57
-  const isRevisionAtLeast1 = blueprint.revision.charCodeAt(0) >= 49 && blueprint.revision.charCodeAt(0) <= 57
-  const isNotApprovedByAdminAndSupervisor = !blueprint.approvedByContractAdmin && !blueprint.approvedBySupervisor
-  const isApprovedByClient = blueprint.approvedByClient
-  const isOverResumable = isRevisionAtLeast1 && blueprint.resumeBlueprint && blueprint.blueprintCompleted
+  const isInitialRevision = revision === 'Iniciado'
+  const isRevA = revision === 'A'
+  const isRevisionAtLeastB = !isInitialRevision && !isRevA
+  const isRevisionAtLeast0 = isNumeric
+
+  const newMilestone = getMilestone(nextRevision.newRevision, blueprint, approves, isRevisionAtLeast0)
+
+  // Se actualiza el hito en los datos que se almacenan en "revisions".
+  nextRevision.milestone = newMilestone
 
   // Inicializa los datos que se van a actualizar
   let updateData = {
     revision: nextRevision.newRevision,
-    sentByDesigner: false,
-    approvedByContractAdmin: false,
-    approvedBySupervisor: false,
-    approvedByDocumentaryControl: false,
+    milestone: newMilestone,
+    // sentByDesigner: false,
+    // approvedByContractAdmin: approvedByContractAdmin || false,
+    // approvedBySupervisor: approvedBySupervisor || false,
+    // approvedByDocumentaryControl: approvedByDocumentaryControl || false,
     sentTime: Timestamp.fromDate(new Date())
   }
 
-  // Define las acciones a realizar en función del rol del usuario
-  const roleActions = {
-    6: () => ({
+  const authorData = await getData(userId)
+  const authorRole = authorData.role
+
+  // Define las acciones a realizar en función del rol del usuario.
+  const handleRole6 = () => {
+
+    return {
       ...updateData,
       sentByDesigner: approves,
+      attentive: approves ? 9 : 7,
       sentBySupervisor: approves,
       approvedByContractAdmin: approves,
-      storageBlueprints: approves ? blueprint.storageBlueprints : null
-    }),
-    7: (blueprint, authUser) => {
-      return blueprint.userId === authUser.uid
-        ? {
-            ...updateData,
-            sentBySupervisor: approves,
-            approvedByContractAdmin: approves && blueprint.revision === 'iniciado'
-          }
-        : {
-            ...updateData,
-            sentByDesigner: approves,
-            approvedBySupervisor: approves,
-            storageBlueprints: approves ? blueprint.storageBlueprints : null
-          }
-    },
-    8: () => ({
+      storageBlueprints: approves ? storageBlueprints : null
+    }
+  }
+
+  // TODO: Mejorar la legibilidad de esta parte.
+  const handleRole7 = () => {
+    if (userId === uid) {
+
+      return {
+        ...updateData,
+        resumeBlueprint: false,
+        checkedByClient: false,
+        sentBySupervisor: approves,
+        approvedBySupervisor: approves,
+        approvedByContractAdmin: false,
+        approvedByDocumentaryControl: false,
+        approvedByClient: false,
+        attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 6 : 9) : (approvedByContractAdmin ? 9 : 6)
+      }
+    } else {
+
+      return {
+        ...updateData,
+        sentByDesigner: approves,
+        attentive: approves ? 9 : 8,
+        approvedBySupervisor: approves,
+        storageBlueprints: approves ? storageBlueprints : null
+      }
+    }
+  }
+
+  // TODO: Mejorar la legibilidad de esta parte.
+  const handleRole8 = () => {
+
+    return {
       ...updateData,
+      resumeBlueprint: false,
+      checkedByClient: false,
       sentByDesigner: approves,
-      approvedBySupervisor:
-        (approves && blueprint.revision === 'iniciado') ||
-        (blueprint.revision === 'A' && !blueprint.approvedByDocumentaryControl)
-    }),
-    9: () =>
-      (isRevisionAtLeastB || isRevisionAtLeast0) && isNotApprovedByAdminAndSupervisor
-        ? {
-            ...updateData,
-            approvedByClient: blueprint.blueprintCompleted ? false : approves,
-            approvedByDocumentaryControl: true,
-            storageBlueprints:
-              approves &&
-              ((!blueprint.blueprintCompleted && isApprovedByClient) || (!isApprovedByClient && isRevisionAtLeast1))
-                ? blueprint.storageBlueprints
-                : null,
-            resumeBlueprint:
-              (isApprovedByClient && blueprint.blueprintCompleted) ||
-              (blueprint.resumeBlueprint && blueprint.approvedByDocumentaryControl)
-                ? true
-                : false,
-            blueprintCompleted:
-              approves &&
-              (((!blueprint.blueprintCompleted || blueprint.resumeBlueprint) && isApprovedByClient) ||
-                (!isApprovedByClient && isRevisionAtLeast1))
-                ? true
-                : false,
-            sentByDesigner: false,
-            sentBySupervisor: false,
-            remarks: remarks ? true : false,
-            storageHlcDocuments: null
-          }
-        : isOverResumable
-        ? {
-            ...updateData,
-            approvedByClient: false,
-            approvedByDocumentaryControl: false,
-            storageBlueprints: null,
-            sentByDesigner: false,
-            remarks: remarks ? true : false
-          }
-        : {
-            ...updateData,
-            approvedByDocumentaryControl: approves,
-            sentByDesigner: approves && (isRevisionAtLeastB || isRevisionAtLeast0) && blueprint.sentByDesigner,
-            sentBySupervisor: approves && (isRevisionAtLeastB || isRevisionAtLeast0) && blueprint.sentBySupervisor,
-            storageBlueprints:
-              approves && (isRevisionAtLeastB || isRevisionAtLeast0) ? blueprint.storageBlueprints : null
-          }
+      approvedBySupervisor: false,
+      approvedByContractAdmin: false,
+      approvedByDocumentaryControl: false,
+      approvedByClient: false,
+      attentive: isInitialRevision ? 9 : isRevA ? (approvedByDocumentaryControl ? 7 : 9) : 7
+    }
+  }
+
+  // TODO: Mejorar la legibilidad de esta parte.
+  const handleRole9 = () => {
+
+    console.log(attentive)
+
+    // Este debería ser el Caso cuando el Cliente responde (No para reabrir un Entregable).
+    if (sentToClient && attentive === 4) {
+
+      console.log("CASO 1")
+
+      return {
+        ...updateData,
+        approvedByClient: blueprintCompleted ? false : approves,
+        sentByDesigner: false,
+        sentBySupervisor: false,
+        checkedByClient: true,
+        sentToClient: false,
+        storageBlueprints: isRevisionAtLeast0 && approves && !remarks ? storageBlueprints : null,
+        storageHlcDocuments: null,
+        blueprintCompleted: isRevisionAtLeast0 && approves && !remarks ? true : false,
+        attentive: isRevisionAtLeast0 && approves && !remarks ? 10 : authorRole,
+        remarks: remarks ? remarks : false
+      }
+
+    // Este debería ser el Caso cuando el Cliente reabre un Entregable.
+    } else if (attentive === 10) {
+
+      console.log("CASO 2")
+
+      return {
+        ...updateData,
+        attentive: authorRole,
+        blueprintCompleted: false,
+        approvedByClient: false,
+        approvedByDocumentaryControl: false,
+        approvedBySupervisor: false,
+        approvedByContractAdmin: false,
+        storageBlueprints: null,
+        sentByDesigner: false,
+        remarks: remarks ? remarks : false,
+        resumeBlueprint: true
+      }
+
+    // Este debería ser el caso por defecto (Ni respuesta de cliente ni reabrir Entregable).
+    } else {
+
+      console.log("CASO 3")
+
+      return {
+        ...updateData,
+        approvedByDocumentaryControl: approves,
+        attentive: !approves ? authorRole : isRevisionAtLeastB ? 4 : authorRole,
+        sentByDesigner: approves && isRevisionAtLeastB && sentByDesigner,
+        sentBySupervisor: approves && isRevisionAtLeastB && sentBySupervisor,
+        remarks: remarks ? true : false,
+        storageBlueprints: approves && isRevisionAtLeastB ? [storageBlueprints[0]] : null,
+      }
+    }
+  }
+
+  // Mapeo de roles y sus respectivas acciones.
+  const roleActions = {
+    6: handleRole6,
+    7: handleRole7,
+    8: handleRole8,
+    9: handleRole9
   }
 
   // Aplica la acción correspondiente al rol del usuario
-  updateData = roleActions[userParam.role] ? roleActions[userParam.role](blueprint, userParam) : updateData
+  updateData = roleActions[role] ? await roleActions[role]() : updateData
 
   // Actualiza el plano en la base de datos
   await updateDoc(blueprintRef, updateData)
 
-  // Añade la nueva revisión a la subcolección de revisiones del entregable (blueprint)
-  await addDoc(collection(db, 'solicitudes', petitionID, 'blueprints', blueprint.id, 'revisions'), nextRevision)
+  // Se registra la nueva acción tomada por el usuario dentro de la colecction 'revisions' del Entregable.
+  await addDoc(collection(db, 'solicitudes', petitionID, 'blueprints', id, 'revisions'), nextRevision)
 
-  // Lee el documento de la 'solicitud previo al incremento de counterBlueprintCompleted'
-  const solicitudDocBefore = await getDoc(solicitudRef)
-  const blueprintDoc = await getDoc(blueprintRef)
-
-  if (blueprintDoc.data().blueprintCompleted && blueprintDoc.data().resumeBlueprint === false) {
-    // Si el documento no tiene un campo 'counterBlueprintCompleted', créalo
-    if (!solicitudDocBefore.data().counterBlueprintCompleted) {
-      await updateDoc(solicitudRef, { counterBlueprintCompleted: 0 })
-    }
-
-    await updateDoc(solicitudRef, { counterBlueprintCompleted: increment(1) })
-
-    // Obtiene la subcolección 'blueprints'
-    const blueprintsCollection = collection(db, 'solicitudes', petitionID, 'blueprints')
-    // Obtiene todos los documentos de la subcolección
-    const blueprintsSnapshot = await getDocs(blueprintsCollection)
-    // Obtiene la cantidad de documentos en la subcolección
-    const numBlueprints = blueprintsSnapshot.size
-
-    // Lee el documento de la 'solicitud posterior al incremento de counterBlueprintCompleted'
-    const solicitudDocAfter = await getDoc(solicitudRef)
-
-    if (solicitudDocAfter.data().counterBlueprintCompleted === numBlueprints) {
-      await updateDoc(solicitudRef, { otReadyToFinish: true })
-    } else {
-      await updateDoc(solicitudRef, { otReadyToFinish: false })
-    }
-  }
+  // Función para enviar emails de forma automática.
+  // authUser es el usuario conectado que ejecuta la acción.
+  // petitionID es el ID del la Solicitud/OT en Firestore.
+  // blueprint es el objeto con la información del entregable
+  // updateData es un objeto que contiene datos del siguiente revisor ("attentive" Rol del siguiente revisor , bla, bla)
+  await sendEmailDeliverableNextRevision(authUser, petitionID, blueprint, updateData)
 }
 
 const generateTransmittalCounter = async currentPetition => {
   try {
     // Referencia al documento de contador para la combinación específica dentro de la subcolección transmittals
-    const counterDocID = `${currentPetition.ot}-counter`
-    const counterRef = doc(db, 'counters', 'transmittal_CounterByOt')
+    const counterRef = doc(db, 'counters', 'transmittalCounter')
 
     // Incrementa el contador dentro de una transacción
     const incrementedCount = await runTransaction(db, async transaction => {
       const counterSnapshot = await transaction.get(counterRef)
 
       let currentCount
-      if (!counterSnapshot.exists() || !counterSnapshot.data()[counterDocID]) {
+      if (!counterSnapshot.exists() || !counterSnapshot.data().counter) {
         currentCount = formatCount(1)
-        transaction.set(counterRef, { [counterDocID]: { count: currentCount } }, { merge: true })
+        transaction.set(counterRef, { counter: currentCount }, { merge: true })
       } else {
-        currentCount = formatCount(Number(counterSnapshot.data()[counterDocID].count) + 1)
-        transaction.update(counterRef, { [counterDocID]: { count: currentCount } })
+        currentCount = formatCount(Number(counterSnapshot.data().counter) + 1)
+        transaction.update(counterRef, { counter: currentCount })
       }
 
       return currentCount // Retorna el nuevo contador para usarlo fuera de la transacción
@@ -1131,25 +1311,43 @@ const generateTransmittalCounter = async currentPetition => {
   }
 }
 
+/**
+ * Función para actualizar campos del blueprint y agregar un nuevo document en "revisions" cuando se genera un Transmittal.
+ * @param {string} newCode
+ * @param {Array} selected
+ * @param {Object} currentPetition
+ * @param {Object} authUser
+ */
 const updateSelectedDocuments = async (newCode, selected, currentPetition, authUser) => {
+
   try {
-    // Actualiza el campo lastTransmittal en cada uno de los documentos seleccionados
+
     for (const id of selected) {
       const docRef = doc(db, 'solicitudes', currentPetition.id, 'blueprints', id[0])
-      await updateDoc(docRef, { lastTransmittal: newCode })
+      const isM3D = id[0].split('-')[2] === 'M3D'
+
+      await updateDoc(docRef, {
+        attentive: 4,
+        milestone: id[1].milestone === 5 ? 5 : 4,
+        sentToClient: true,
+        lastTransmittal: newCode,
+        ...(isM3D && { approvedByClient: true })
+      })
 
       const nextRevision = {
         prevRevision: id[1].revision,
         newRevision: id[1].revision,
+        milestone: id[1].milestone === 5 ? 5 : 4,
         description: id[1].description,
         storageBlueprints: id[1].storageBlueprints[0],
         userEmail: authUser.email,
         userName: authUser.displayName,
         userId: authUser.uid,
         date: Timestamp.fromDate(new Date()),
-        remarks: 'transmittal generado',
+        remarks: 'Transmittal generado',
         lastTransmittal: newCode,
-        storageHlcDocuments: id[1].storageHlcDocuments ? id[1].storageHlcDocuments[0] : null
+        storageHlcDocuments: id[1].storageHlcDocuments ? id[1].storageHlcDocuments[0] : null,
+        attentive: 4
       }
 
       // Añade la nueva revisión a la subcolección de revisiones del entregable (blueprint)
@@ -1165,27 +1363,33 @@ const updateSelectedDocuments = async (newCode, selected, currentPetition, authU
 const finishPetition = async (currentPetition, authUser) => {
   try {
     console.log('currentPetition:', currentPetition)
-    const petitionRef = doc(db, 'solicitudes', currentPetition.id)
-    const petitionDoc = await getDoc(petitionRef)
 
-    console.log('petitionDoc:', petitionDoc.data())
+    // Desestructuración de currentPetition
+    const { id, state } = currentPetition
 
-    const otFinished = petitionDoc.data().otFinished
-    const otReadyToFinish = petitionDoc.data().otReadyToFinish
+    const petitionRef = doc(db, 'solicitudes', id)
+    const eventsCollection = collection(db, 'solicitudes', id, 'events')
 
-    if (!otFinished && otReadyToFinish) {
-      await updateDoc(petitionRef, {
-        otFinished: true,
-        otFinishedBy: { userName: authUser.displayName, userId: authUser.uid, userEmail: authUser.email },
-        otFinishedDate: new Date(),
-        state: 9
+    const newEvent = {
+      date: Timestamp.fromDate(new Date()),
+      user: authUser.email,
+      userId: authUser.uid,
+      userName: authUser.displayName,
+      userRole: authUser.role,
+
+    }
+
+    if (state !== 9) {
+      newEvent.newState = 9
+      newEvent.prevState = 8
+      await updateDoc(petitionRef, {state: 9}).then(() => {
+        addDoc(eventsCollection, newEvent)
       })
     } else {
-      await updateDoc(petitionRef, {
-        otFinished: false,
-        otFinishedBy: { userName: authUser.displayName, userId: authUser.uid, userEmail: authUser.email },
-        otFinishedDate: new Date(),
-        state: 8
+      newEvent.newState = 8
+      newEvent.prevState = 9
+      await updateDoc(petitionRef, {state: 8}).then(() => {
+        addDoc(eventsCollection, newEvent)
       })
     }
   } catch (error) {
@@ -1230,7 +1434,7 @@ const createWeekHoursByType = async (userParams, creations) => {
     const weekHoursRef = collection(userDocRef, 'workedHours')
 
     creations.forEach(change => {
-      console.log('change: ', change)
+      // console.log('change: ', change)
       const newDocRef = doc(weekHoursRef)
       const dayDate = new Date(change.day)
       dayDate.setHours(0, 0, 0, 0)
@@ -1406,6 +1610,317 @@ const updateWeekHoursWithPlant = async (userId, dayDocIds, plant, costCenter) =>
   }
 }
 
+/**
+ * Función para generar y actualizar los códigos de entregables.
+ * Mediante una transaction (FIFO) se obtienen los últimos contadores de códigos, se crean los códigos y se actualizan los contadores.
+ * @param {object} mappedCodes - Objeto con siglas de los códigos Procure y MEL a generar.
+ * @param {object} docData - Datos de la OT en Firestore.
+ * @param {number} quantity - Cantidad de entregables a generar.
+ * @param {object} userParam - Datos del Proyectista seleccionado para trabajar el entregable.
+ * @returns {Array.<string>} - Lista con códigos generados.
+ */
+const generateBlueprintCodes = async (mappedCodes, docData, quantity, userParam) => {
+
+  const { melDiscipline, melDeliverable, procureDiscipline, procureDeliverable } = mappedCodes
+  const { ot, plant, area } = docData
+
+  const idProject = '21286'
+
+  const procureCounterField = `${procureDiscipline}-${procureDeliverable}-counter`
+  const procureCounterRef = doc(db, 'counters', 'blueprintsProcureCodeCounter')
+
+  const melCounterDocId = `${melDiscipline}-${melDeliverable}-counter`
+  const melCounterRef = doc(db, 'solicitudes', docData.id, 'clientCodeGeneratorCount', melCounterDocId)
+
+  const petitionRef = doc(db, 'solicitudes', docData.id)
+
+  function formatCountMEL(count) {
+    return String(count).padStart(5, '0')
+  }
+
+  function formatCountProcure(count) {
+    return String(count).padStart(3, '0')
+  }
+
+  function extractAreaNumber(areaFullname) {
+    return areaFullname.split(" - ")[0]
+  }
+
+  const plantInitials = await getPlantInitals(plant)
+  const areaNumber = extractAreaNumber(area)
+  const otNumber = `OT${ot}`
+
+  const codes = await runTransaction(db, async transaction => {
+    const procureCounterDoc = await transaction.get(procureCounterRef)
+    const melCounterDoc = await transaction.get(melCounterRef)
+    const solicitudDoc = await transaction.get(petitionRef)
+
+    let melCounter = melCounterDoc.exists() ? Number(melCounterDoc.data().count) : 0
+    if (!melCounterDoc.exists()) {
+      transaction.set(melCounterRef, { count: formatCountMEL(0) })
+    }
+
+    let procureCounterData = procureCounterDoc.data()[procureCounterField]
+    if (!procureCounterData) {
+      procureCounterData = { count: "000" }
+      transaction.update(procureCounterRef, { [procureCounterField]: procureCounterData })
+    }
+
+    let procureCounter = Number(procureCounterData.count)
+
+    const newDocs = []
+    const blueprintCollectionRef = collection(db, 'solicitudes', docData.id, 'blueprints')
+
+    for (let i = 0; i < quantity; i++) {
+
+      const procureCode = `${idProject}-${procureDiscipline}-${procureDeliverable}-${formatCountProcure(procureCounter + i + 1)}`
+      const melCode = `${idProject}-${otNumber}-${plantInitials}-${areaNumber}-${melDiscipline}-${melDeliverable}-${formatCountMEL(melCounter + i + 1)}`
+
+      const userData = await getData(userParam.userId)
+
+      const newDoc = {
+        id: procureCode,
+        clientCode: melCode,
+        userId: userParam.userId,
+        userName: userData.name,
+        revision: "Iniciado",
+        milestone: 0,
+        userEmail: userData.email,
+        sentByDesigner: false,
+        sentBySupervisor: false,
+        date: Timestamp.fromDate(new Date()),
+        attentive: userData.role
+      };
+
+      // Se agrega el nuevo Blueprint a la collection "blueprints".
+      const newDocRef = doc(blueprintCollectionRef, newDoc.id)
+      transaction.set(newDocRef, newDoc)
+
+      // Crear referencia para la subcolección "revisions"
+      const revisionsCollectionRef = collection(db, 'solicitudes', docData.id, 'blueprints', newDoc.id, 'revisions')
+
+      // milestone = 0 significa Entregable "Iniciado".
+      const newRevision = {
+        milestone: 0,
+        date: Timestamp.fromDate(new Date()),
+        prevRevision: null,
+        newRevision: "Iniciado",
+        storageBlueprints: {
+          name: null,
+          url: null
+        }
+      }
+
+      // Genera un documento con un ID aleatorio
+      const newRevisionRef = doc(revisionsCollectionRef)
+      transaction.set(newRevisionRef, newRevision)
+
+      newDocs.push(newDoc)
+    }
+
+    transaction.update(procureCounterRef, { [`${procureCounterField}.count`]: formatCountProcure(procureCounter + quantity) })
+    transaction.update(melCounterRef, { count: formatCountMEL(melCounter + quantity) })
+
+    return newDocs
+  })
+
+  return codes
+}
+
+const updateBlueprintAssignment = async (petitionId, blueprint, newUser) => {
+
+  // Desestructuración de blueprint
+  const { id, attentive } = blueprint
+
+  const batch = writeBatch(db)
+
+  try {
+    // Crea una referencia al documento en la subcolección `blueprints`
+    const blueprintDocRef = doc(db, 'solicitudes', petitionId, 'blueprints', id)
+
+    // Se busca la información del nuevo Proyectista a asignar.
+    const newUserData = await getData(newUser.userId)
+
+    // Variables booleanas
+    const isNewUserSupervisor = newUserData.role === 7
+    const isNewUserDraftman = newUserData.role === 8
+
+    // Se corrige el attentive en caso de ser necesario.
+    const newAttentive = (attentive === 7 && isNewUserDraftman) ? 8 : (attentive === 8 && isNewUserSupervisor) ? 7 : attentive
+
+    // Actualiza el documento con los nuevos valores
+    batch.update(blueprintDocRef, {
+      userId: newUser.userId,
+      userName: newUserData.name,
+      userEmail: newUserData.email,
+      attentive: newAttentive
+    })
+
+    // Ejecuta el batch
+    await batch.commit()
+
+    return { success: true }
+  } catch (error) {
+    console.error('Error updating blueprint assignment:', error)
+
+    return { success: false, error: error.message }
+  }
+}
+
+const getProcureCounter = async procureCounterField => {
+  // Crea referencia a Firestore para el contador de Procure
+  const procureCounterRef = doc(db, 'counters', 'blueprintsProcureCodeCounter')
+
+  const procureCounterDoc = await getDoc(procureCounterRef)
+
+  if (!procureCounterDoc.exists()) {
+    throw new Error(`El documento blueprintsProcureCodeCounter no existe en Firestore.`)
+  }
+
+  const currentProcureCounterData = procureCounterDoc.data()[procureCounterField]
+  if (!currentProcureCounterData) {
+    throw new Error(`El campo ${procureCounterField} no existe en el documento blueprintsProcureCodeCounter.`)
+  }
+
+  const currentProcureCounter = Number(currentProcureCounterData.count)
+
+  return currentProcureCounter
+}
+
+const markBlueprintAsDeleted = async (mainDocId, procureId, clientCode) => {
+  const blueprintRef = doc(db, 'solicitudes', mainDocId, 'blueprints', procureId)
+
+  // Extrae los valores del clientCode (MEL)
+  const [__, otNumber, instalacion, areaNumber, melDiscipline, melDeliverable] = clientCode.split('-')
+
+  // Crea referencia al contador MEL
+  const melCounterDocId = `${melDiscipline}-${melDeliverable}-counter`
+  const melCounterRef = doc(db, 'solicitudes', mainDocId, 'clientCodeGeneratorCount', melCounterDocId)
+
+  await runTransaction(db, async transaction => {
+    // Obtiene el documento del contador MEL
+    const melCounterDoc = await transaction.get(melCounterRef)
+    const currentMelCounter = melCounterDoc.data().count
+
+    // Calcula el nuevo valor del contador
+    const newMelCounter = String(Number(currentMelCounter) - 1).padStart(5, '0')
+
+    // Actualiza el contador MEL
+    transaction.update(melCounterRef, {
+      count: newMelCounter
+    })
+
+    // Marca el blueprint como eliminado
+    transaction.update(blueprintRef, {
+      deleted: true,
+      deletedAt: Timestamp.fromDate(new Date())
+    })
+  })
+}
+
+const deleteBlueprintAndDecrementCounters = async (
+  mainDocId,
+  procureId,
+  procureCounterField,
+  currentProcureCounter,
+  currentMelCounter,
+  melDiscipline,
+  melDeliverable
+) => {
+  // Crea referencias a Firestore para el contador de Procure y MEL
+  const procureCounterRef = doc(db, 'counters', 'blueprintsProcureCodeCounter')
+  const melCounterDocId = `${melDiscipline}-${melDeliverable}-counter`
+  const melCounterRef = doc(db, 'solicitudes', mainDocId, 'clientCodeGeneratorCount', melCounterDocId)
+
+  // Referencia al documento de la subcolección "blueprints" que se eliminará
+  const blueprintDocRef = doc(db, 'solicitudes', mainDocId, 'blueprints', procureId)
+
+  // Referencia a la subcolección "revisions"
+  const revisionsCollectionRef = collection(blueprintDocRef, 'revisions')
+
+  await runTransaction(db, async transaction => {
+    // Verifica si la subcolección 'revisions' tiene documentos
+    const revisionsSnapshot = await getDocs(revisionsCollectionRef)
+
+    if (!revisionsSnapshot.empty) {
+      // Si existen documentos en la subcolección, se eliminan uno por uno
+      revisionsSnapshot.forEach(doc => {
+        transaction.delete(doc.ref)
+      })
+    }
+
+    // Después de eliminar los documentos de la subcolección 'revisions', elimina el documento 'blueprints'
+    transaction.delete(blueprintDocRef)
+
+    // Disminuye los contadores
+    transaction.update(procureCounterRef, {
+      [`${procureCounterField}.count`]: String(currentProcureCounter - 1).padStart(3, '0')
+    })
+
+    transaction.update(melCounterRef, {
+      count: String(currentMelCounter - 1).padStart(5, '0')
+    })
+  })
+}
+
+/**
+ * Función para actualizar Firestore con la información del Entregable (blueprint).
+ * En específico se añade/actualiza un array con los links de Google Drive del Entregable o de su HLC.
+ * @param {string} petitionId - ID de la OT.
+ * @param {string} blueprintId - ID del Entregable.
+ * @param {string} fileLink - Link de Google Drive donde se almacena el documento.
+ * @param {string} fileName - Nombre del documento almacenado.
+ * @param {string} destination - String que define si se actualiza el campo storageBlueprints o storageHlcDocuments en Firestore.
+ */
+const updateBlueprintsWithStorageOrHlc = async (petitionId, blueprintId, fileLink, fileName, destination) => {
+  try {
+    // Referencia al documento del blueprint dentro de la colección "blueprints" de una "solicitud"
+    const blueprintRef = doc(db, 'solicitudes', petitionId, 'blueprints', blueprintId)
+
+    // Crea el objeto que se va a agregar al campo storageBlueprints
+    const blueprintData = {
+      url: fileLink,
+      name: fileName
+    }
+
+    if (destination === 'storage') {
+      // Actualiza el documento en Firestore, añadiendo el nuevo archivo al array `storageBlueprints`
+      await updateDoc(blueprintRef, {
+        storageBlueprints: arrayUnion(blueprintData)
+      })
+    } else if (destination === 'hlc') {
+      // Actualiza el documento en Firestore, añadiendo el nuevo archivo al array `storageBlueprints`
+      await updateDoc(blueprintRef, {
+        storageHlcDocuments: arrayUnion(blueprintData)
+      })
+    }
+  } catch (error) {
+    console.error('Error al actualizar el blueprint:', error)
+  }
+}
+
+const deleteReferenceOfLastDocumentAttached = async (petitionId, blueprintId, action) => {
+  const blueprintRef = doc(db, 'solicitudes', petitionId, 'blueprints', blueprintId)
+
+  const querySnapshot = await getDoc(blueprintRef)
+  const docSnapshot = querySnapshot.data()
+
+  // console.log('docSnapshot.storageBlueprints', docSnapshot.storageBlueprints)
+  if (action === 'resetStorageHlcDocuments') {
+    await updateDoc(blueprintRef, {
+      storageHlcDocuments: null
+    })
+  } else if (action === 'resetStorageBlueprints') {
+    await updateDoc(blueprintRef, {
+      storageBlueprints: null
+    })
+  } else {
+    await updateDoc(blueprintRef, {
+      storageBlueprints: [docSnapshot.storageBlueprints[0]]
+    })
+  }
+}
+
 // Función para crear un nuevo Centro de Costo para una Planta específica.
 const createCostCenter = async (plant, costCenter) => {
   try {
@@ -1416,7 +1931,6 @@ const createCostCenter = async (plant, costCenter) => {
     await updateDoc(docRef, {
       [plant]: arrayUnion(costCenter)
     })
-
   } catch (error) {
     // Manejo de errores.
     console.error('Error al crear el Centro de Costo:', error)
@@ -1442,7 +1956,6 @@ const modifyCostCenter = async (plant, index, newCostCenterValue) => {
     await updateDoc(docRef, {
       [plant]: plantCostCenters
     })
-
   } catch (error) {
     // Manejo de errores
     console.error('Error al modificar el Centro de Costo:', error)
@@ -1460,7 +1973,6 @@ const deleteCostCenter = async (plant, costCenter) => {
     await updateDoc(docRef, {
       [plant]: arrayRemove(costCenter)
     })
-
   } catch (error) {
     // Manejo de errores.
     console.error('Error al eliminar el Centro de Costo:', error)
@@ -1490,7 +2002,6 @@ const setDefaultCostCenter = async (plant, oldIndex) => {
     await updateDoc(docRef, {
       [plant]: plantCostCenters
     })
-
   } catch (error) {
     // Manejo de errores.
     console.error('Error al establecer el Centro de Costo predeterminado:', error)
@@ -1503,11 +2014,9 @@ export {
   updateDocs,
   updateUserPhone,
   blockDayInDatabase,
-  generateBlueprint,
   useBlueprints,
   updateBlueprint,
   addDescription,
-  generateBlueprintCodeClient,
   generateTransmittalCounter,
   updateSelectedDocuments,
   addComment,
@@ -1520,8 +2029,18 @@ export {
   fetchSolicitudes,
   fetchUserList,
   updateWeekHoursWithPlant,
+  generateBlueprintCodes,
+  updateBlueprintAssignment,
+  getProcureCounter,
+  markBlueprintAsDeleted,
+  deleteBlueprintAndDecrementCounters,
+  updateBlueprintsWithStorageOrHlc,
+  deleteReferenceOfLastDocumentAttached,
   createCostCenter,
   modifyCostCenter,
   deleteCostCenter,
-  setDefaultCostCenter
+  setDefaultCostCenter,
+  getNextChar,
+  getBlueprintPercent,
+  getNextRevisionFolderName
 }

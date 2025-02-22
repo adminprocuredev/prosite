@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from 'react'
 // ** MUI Imports
 import Card from '@mui/material/Card'
 import { useTheme } from '@mui/material/styles'
@@ -12,20 +13,28 @@ const donutColors = {
   series2: '#00d4bd',
   series3: '#826bf8',
   series4: '#40CDFA',
-  series5: '#ffa1a1'
+  series5: '#ffa1a1',
+  series6: '#ff6347'
 }
 
-const ChartDonutObjetivesLast30days = ({ objetivesByState, loading }) => {
+const ChartDonutBlueprintsLast30daysByShift = ({ filteredByRevisionBlueprint = [], shift, loading }) => {
   // ** Hook
   const theme = useTheme()
 
-  const totalObjetives = objetivesByState.reduce((total, count) => total + count, 0)
-  const total = `Total: ${totalObjetives}`
+  const totalBlueprints = filteredByRevisionBlueprint.reduce((total, count) => total + count, 0)
+  const total = `Total: ${totalBlueprints}`
 
   const options = {
     stroke: { width: 0 },
-    labels: ['Agendados', 'En Ejecución', 'Terminados'],
-    colors: [donutColors.series3, donutColors.series1, donutColors.series2],
+    labels: ['Inicial', 'Rev. A', 'Rev. B', 'Rev. C', 'Rev. 0', 'Rev. 1'],
+    colors: [
+      donutColors.series1,
+      donutColors.series2,
+      donutColors.series3,
+      donutColors.series4,
+      donutColors.series5,
+      donutColors.series6
+    ],
     dataLabels: {
       enabled: true,
       formatter: function (val, opt) {
@@ -58,7 +67,6 @@ const ChartDonutObjetivesLast30days = ({ objetivesByState, loading }) => {
               show: true,
               fontSize: '1.2rem',
               label: 'Total',
-
               color: theme.palette.text.primary
             }
           }
@@ -109,19 +117,18 @@ const ChartDonutObjetivesLast30days = ({ objetivesByState, loading }) => {
   return (
     <Card>
       <CardHeader
-        title='Levantamientos últimos 30 días'
-        //subheader='Spending on various categories'
+        title={`Entregables Turno ${shift} - últimos 30 días`}
         subheaderTypographyProps={{ sx: { color: theme => `${theme.palette.text.disabled} !important` } }}
       />
       <CardContent>
         {loading ? (
           <p>Cargando datos...</p>
         ) : (
-          <ReactApexcharts type='donut' height={400} options={options} series={objetivesByState} />
+          <ReactApexcharts type='donut' height={400} options={options} series={filteredByRevisionBlueprint} />
         )}
       </CardContent>
     </Card>
   )
 }
 
-export default ChartDonutObjetivesLast30days
+export default ChartDonutBlueprintsLast30daysByShift

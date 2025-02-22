@@ -1,8 +1,8 @@
 const DefaultPalette = (mode, skin) => {
   // ** Vars
   const whiteColor = '#FFF'
-  const lightColor = '76, 78, 100'
-  const darkColor = '234, 234, 255'
+  const lightColor = '76, 78, 100' // rgb(76, 78, 100) / #4C4E64
+  const darkColor = '234, 234, 255' // rgb(234, 234, 255) / #EAEAFF / rgba(0.9176, 0.9176, 1, A)
   const mainColor = mode === 'light' ? lightColor : darkColor
 
   const defaultBgColor = () => {

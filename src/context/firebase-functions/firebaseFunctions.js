@@ -263,7 +263,7 @@ const signGoogle = async () => {
       let credential = GoogleAuthProvider.credentialFromResult(result)
       const token = credential.accessToken
       const params = { access_token: token }
-      localStorage.setItem('oauth2-test-params', JSON.stringify(params))
+      localStorage.setItem('oauth2-params', JSON.stringify(params))
     })
     .catch(error => {
       console.log(error)

@@ -61,12 +61,48 @@ const UserDropdown = props => {
     }
   }
 
-  const handleLogout = () => {
+  // ** Función para revocar tokens en Google
+  const revokeToken = async token => {
+    const params = new URLSearchParams()
+    params.append('token', token) // El token a revocar (puede ser el access_token o refresh_token)
+
+    try {
+      const response = await fetch('https://oauth2.googleapis.com/revoke', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: params.toString()
+      })
+
+      if (!response.ok) {
+        console.error('Error al intentar revocar el token en Google')
+      } else {
+        console.log('Token revocado exitosamente en Google')
+      }
+    } catch (error) {
+      console.error('Error en la solicitud de revocación del token:', error)
+    }
+  }
+
+  const handleLogout = async () => {
+    const storedParams = JSON.parse(localStorage.getItem('oauth2-params'))
+
+    if (storedParams) {
+      const { access_token } = storedParams
+
+      // Revoca el access_token si existe
+      if (access_token) {
+        await revokeToken(access_token)
+      }
+    }
+
     signOut(auth)
       .then(() => {
         setTimeout(() => {
           localStorage.removeItem('formData')
           localStorage.removeItem('user')
+          localStorage.removeItem('oauth2-params')
           handleDropdownClose('/login')
         }, 500) // Retraso de 500 milisegundos antes de redireccionar
       })

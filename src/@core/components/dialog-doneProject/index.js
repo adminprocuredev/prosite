@@ -22,6 +22,9 @@ import { LocalizationProvider, MobileDatePicker } from '@mui/x-date-pickers'
 import { AdapterMoment } from '@mui/x-date-pickers/AdapterMoment'
 import CustomAvatar from 'src/@core/components/mui/avatar'
 
+// ** Firebase Imports
+import { Timestamp } from 'firebase/firestore'
+
 // ** Date Library
 //import moment from 'moment'
 import moment from 'moment-timezone'
@@ -32,13 +35,18 @@ import Icon from 'src/@core/components/icon'
 
 // ** Hooks Imports
 import { CircularProgress, FormControl } from '@mui/material'
+import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
 import { useFirebase } from 'src/context/useFirebase'
+
+// ** Configuración de Google Drive
+import googleAuthConfig from 'src/configs/googleDrive'
 
 const Transition = forwardRef(function Transition(props, ref) {
   return <Fade ref={ref} {...props} />
 })
 
-export const DialogDoneProject = ({ open, doc, handleClose, proyectistas }) => {
+export const DialogDoneProject = ({ open, petition, handleClose, proyectistas }) => {
+
   // ** States
 
   const [draftmen, setDraftmen] = useState([])
@@ -56,6 +64,7 @@ export const DialogDoneProject = ({ open, doc, handleClose, proyectistas }) => {
 
   // ** Hooks
   const { updateDocs, authUser } = useFirebase()
+  const { uploadFile, findOrCreateFolder, createFolderStructure } = useGoogleDriveFolder()
 
   const handleClickDelete = name => {
     // Filtramos el array draftmen para mantener todos los elementos excepto aquel con el nombre proporcionado
@@ -65,13 +74,13 @@ export const DialogDoneProject = ({ open, doc, handleClose, proyectistas }) => {
     setDraftmen(updatedDraftmen)
   }
 
-  const handleKeyDown = (event) => {
+  const handleKeyDown = event => {
     if (event.key === '.' || event.key === ',' || event.key === '-' || event.key === '+') {
       event.preventDefault()
     }
   }
 
-  const handlePaste = (event) => {
+  const handlePaste = event => {
     event.preventDefault()
     setError('No se permite pegar valores en este campo.')
   }
@@ -81,7 +90,7 @@ export const DialogDoneProject = ({ open, doc, handleClose, proyectistas }) => {
 
     // Verifica si el valor ingresado es un número y si es mayor a 1
     if (!isNaN(inputValue) && Number(inputValue) > 0 && !inputValue.startsWith('0')) {
-      setUprisingTimeSelected({hours: Number(inputValue), minutes: 0})
+      setUprisingTimeSelected({ hours: Number(inputValue), minutes: 0 })
       setError('') // Limpia el mensaje de error si existe
     } else {
       setUprisingTimeSelected('')
@@ -106,14 +115,23 @@ export const DialogDoneProject = ({ open, doc, handleClose, proyectistas }) => {
     // Verificamos si el option ya existe en el array draftmen
     if (!draftmen.some(draftman => draftman.name === option.name)) {
       // Si no existe, actualizamos el estado añadiendo el nuevo valor al array
-      setDraftmen(prevDraftmen => [...prevDraftmen, {name: option.name, userId: option.userId}])
+      setDraftmen(prevDraftmen => [
+        ...prevDraftmen,
+        {
+          name: option.name,
+          userId: option.userId,
+          shift: option.shift,
+          enabled: option.enabled,
+          email: option.email,
+          role: option.role
+        }
+      ])
       document.getElementById('add-members').blur() // Oculta el componente al hacer clic en el ListItem
     }
   }
 
   // useEffect que definirá si el botón "Guardar" estará habilitado o no.
   useEffect(() => {
-
     const initialUprisingTime = {
       hours: 0,
       minutes: 0
@@ -121,40 +139,84 @@ export const DialogDoneProject = ({ open, doc, handleClose, proyectistas }) => {
     const initialDeadlineDate = moment()
     const initialDraftmen = []
 
-    const timeChanged = initialUprisingTime.hours !== uprisingTimeSelected.hours || initialUprisingTime.minutes !== uprisingTimeSelected.minutes;
-    const dateChanged = !initialDeadlineDate.isSame(deadlineDate, 'day');
-    const draftmenChanged = initialDraftmen.length !== draftmen.length || initialDraftmen.some((draftman, index) => draftman.name !== draftmen[index]?.name);
+    const timeChanged =
+      initialUprisingTime.hours !== uprisingTimeSelected.hours ||
+      initialUprisingTime.minutes !== uprisingTimeSelected.minutes
+    const dateChanged = !initialDeadlineDate.isSame(deadlineDate, 'day')
+
+    const draftmenChanged =
+      initialDraftmen.length !== draftmen.length ||
+      initialDraftmen.some((draftman, index) => draftman.name !== draftmen[index]?.name)
 
     if (timeChanged && dateChanged && draftmenChanged && !error && uprisingTimeSelected.hours > 0) {
       setIsSubmitDisabled(false)
     } else {
       setIsSubmitDisabled(true)
     }
+  }, [uprisingTimeSelected, deadlineDate, draftmen, error])
 
-  },[uprisingTimeSelected, deadlineDate, draftmen, error])
-
+  /**
+   * Función para obtener las iniciales del nombre del usuario.
+   * @param {string} string - Nombre del Usuario
+   * @returns {string} - string con las iniciales del usuario
+   */
+  const getInitials = string => string.split(/\s/).reduce((response, word) => (response += word.slice(0, 1)), '')
 
   // Función onSubmit que se encargará de ejecutar el almacenamiento de datos en la Base de Datos.
-  const onSubmit = id => {
+  const onSubmit = async() => {
+
     if (uprisingTimeSelected.hours > 0) {
       setLoading(true)
-      updateDocs(id, { uprisingInvestedHours: uprisingTimeSelected, deadline: deadlineDate, gabineteDraftmen: draftmen }, authUser)
-        .then(() => {
-          setLoading(false)
-          handleClose()
-        })
-        .catch(error => {
-          alert.error(error)
-          console.error(error)
-          setLoading(false)
-          handleClose()
-        })
+      try {
+
+        const subfolders = [
+          'ANTECEDENTES',
+          'SOLICITUD DE REQUERIMIENTO',
+          'LEVANTAMIENTO',
+          'EN TRABAJO',
+          'REVISIONES & COMENTARIOS',
+          'EMITIDOS',
+          'COMENTARIOS CLIENTE'
+        ]
+
+        // Se crea la estructura de carpetas.
+        const projectFolder = await createFolderStructure(petition, subfolders)
+
+        // Buscar o crear la carpeta "LEVANTAMIENTO".
+        const targetFolder = await findOrCreateFolder(projectFolder.id, "LEVANTAMIENTO", "LEVANTAMIENTO")
+
+        // Subir archivo a la carpeta "LEVANTAMIENTO".
+        const fileContent = `levantamiento de OT ${petition.ot} - ${petition.title} TERMINADO`
+        const file = new Blob([fileContent], { type: 'text/plain' })
+        const fileName = `levantamiento de OT ${petition.ot} terminado.txt`
+        await uploadFile(fileName, file, targetFolder.id)
+
+        // Actualizar Firestore.
+        const updatedDraftmen = draftmen.map(designer => ({
+          name: designer.name,
+          userId: designer.userId,
+          allocationTime: Timestamp.fromDate(new Date())
+        }))
+
+        await updateDocs(petition.id, {
+          uprisingInvestedHours: uprisingTimeSelected,
+          deadline: deadlineDate,
+          gabineteDraftmen: updatedDraftmen
+        }, authUser)
+
+        setDraftmen([])
+        handleClose()
+
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setLoading(false)
+      }
     } else {
       setError('Por favor, indique fecha de inicio y fecha de término.')
     }
-  }
 
-  const getInitials = string => string.split(/\s/).reduce((response, word) => (response += word.slice(0, 1)), '')
+  }
 
   return (
     <Dialog
@@ -181,7 +243,9 @@ export const DialogDoneProject = ({ open, doc, handleClose, proyectistas }) => {
           <Typography variant='body2'>Establece el total de horas</Typography>
         </Box>
         {loading ? (
-          <CircularProgress />
+          <Box sx={{ display: 'flex', flexDirection: 'row' }}>
+            <CircularProgress /> <Typography sx={{ ml: 3 }}>Creando estructura de carpetas...</Typography>
+          </Box>
         ) : (
           <Box sx={{ mb: 4, textAlign: 'center' }}>
             {/* Horas invertidas en Levantamiento */}
@@ -210,7 +274,7 @@ export const DialogDoneProject = ({ open, doc, handleClose, proyectistas }) => {
                 }}
               >
                 <MobileDatePicker
-                  dayOfWeekFormatter={(day) => day.substring(0, 2).toUpperCase()}
+                  dayOfWeekFormatter={day => day.substring(0, 2).toUpperCase()}
                   minDate={moment().subtract(1, 'year')}
                   maxDate={moment().add(1, 'year')}
                   label='Fecha Límite (Entrega de Gabinete)'
@@ -233,7 +297,9 @@ export const DialogDoneProject = ({ open, doc, handleClose, proyectistas }) => {
                 options={filteredOptions} // Usa las opciones filtradas en lugar de 'proyectistas'
                 ListboxComponent={List}
                 getOptionLabel={option => option.name}
-                renderInput={params => <TextField {...params} size='small' label='Seleccionar Proyectistas de Gabinete'/>}
+                renderInput={params => (
+                  <TextField {...params} size='small' label='Seleccionar Proyectistas de Gabinete' />
+                )}
                 filterOptions={filterOptions} // Agrega este prop
                 renderOption={(props, option) => (
                   <ListItem {...props} onClick={() => handleListItemClick(option)}>
@@ -265,7 +331,9 @@ export const DialogDoneProject = ({ open, doc, handleClose, proyectistas }) => {
                   </ListItem>
                 )}
               />
-              <Typography variant='h6'>{`${draftmen.length} Proyectista${draftmen.length === 1 ? '' : 's'} de Gabinete seleccionado${draftmen.length === 1 ? '' : 's'}`}</Typography>
+              <Typography variant='h6'>{`${draftmen.length} Proyectista${
+                draftmen.length === 1 ? '' : 's'
+              } de Gabinete seleccionado${draftmen.length === 1 ? '' : 's'}`}</Typography>
               <List dense sx={{ py: 4 }}>
                 {draftmen.map(draftman => {
                   return (
@@ -321,15 +389,14 @@ export const DialogDoneProject = ({ open, doc, handleClose, proyectistas }) => {
                 })}
               </List>
             </Box>
-
           </Box>
         )}
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
           <Button
             sx={{ lineHeight: '1.5rem', '& svg': { mr: 2 } }}
-            disabled={isSubmitDisabled}
-            onClick={() => onSubmit(doc.id)}
+            disabled={isSubmitDisabled || loading}
+            onClick={() => onSubmit()}
           >
             <EngineeringIcon sx={{ fontSize: 18 }} />
             Guardar
@@ -339,5 +406,3 @@ export const DialogDoneProject = ({ open, doc, handleClose, proyectistas }) => {
     </Dialog>
   )
 }
-
-//export default DialogAssignProject
