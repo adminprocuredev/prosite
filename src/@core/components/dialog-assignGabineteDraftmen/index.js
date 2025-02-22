@@ -1,28 +1,28 @@
 // ** React Imports
-import { useState, useEffect, forwardRef } from 'react'
+import { forwardRef, useEffect, useState } from 'react'
 
 // ** Firebase Imports
 import { Timestamp } from 'firebase/firestore'
 
 // ** MUI Imports
-import List from '@mui/material/List'
-import Box from '@mui/material/Box'
-import DialogActions from '@mui/material/DialogActions'
-import Avatar from '@mui/material/Avatar'
-import CustomAvatar from 'src/@core/components/mui/avatar'
-import Dialog from '@mui/material/Dialog'
-import Button from '@mui/material/Button'
-import ListItem from '@mui/material/ListItem'
-import TextField from '@mui/material/TextField'
-import IconButton from '@mui/material/IconButton'
-import Typography from '@mui/material/Typography'
-import Fade from '@mui/material/Fade'
-import ListItemText from '@mui/material/ListItemText'
+import EngineeringIcon from '@mui/icons-material/Engineering'
 import Autocomplete from '@mui/material/Autocomplete'
+import Avatar from '@mui/material/Avatar'
+import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
+import Fade from '@mui/material/Fade'
+import IconButton from '@mui/material/IconButton'
+import List from '@mui/material/List'
+import ListItem from '@mui/material/ListItem'
 import ListItemAvatar from '@mui/material/ListItemAvatar'
 import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction'
-import EngineeringIcon from '@mui/icons-material/Engineering'
+import ListItemText from '@mui/material/ListItemText'
+import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
+import CustomAvatar from 'src/@core/components/mui/avatar'
 
 // ** Icon Imports
 import Icon from 'src/@core/components/icon'
@@ -144,7 +144,7 @@ export const DialogAssignGabineteDraftmen = ({
 
   const getInitials = string => string.split(/\s/).reduce((response, word) => (response += word.slice(0, 1)), '')
 
-  const emptyFields = gabineteDraftmenState.length === 0
+  const emptyFields = gabineteDraftmenState?.length === 0
 
   const areArraysEqual = (arr1, arr2) => {
     return JSON.stringify(arr1) === JSON.stringify(arr2)
@@ -215,9 +215,9 @@ export const DialogAssignGabineteDraftmen = ({
               </ListItem>
             )}
           />
-          <Typography variant='h6'>{`${gabineteDraftmenState.length} Seleccionados`}</Typography>
+          <Typography variant='h6'>{`${gabineteDraftmenState?.length} Seleccionados`}</Typography>
           <List dense sx={{ py: 4 }}>
-            {gabineteDraftmenState.map(gabineteDraftmen => {
+            {gabineteDraftmenState?.map(gabineteDraftmen => {
               return (
                 <ListItem
                   key={gabineteDraftmen.name}
