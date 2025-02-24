@@ -58,6 +58,7 @@ const DataGridGabinete = () => {
   const [showReasignarSection, setShowReasignarSection] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [gabineteDraftmenState, setGabineteDraftmenState] = useState([])
+  const [transmittalNumber, setTransmittalNumber] = useState("")
 
   const apiRef = useGridApiRef()
 
@@ -186,13 +187,14 @@ const DataGridGabinete = () => {
     }
   }
 
-  const handleClickTransmittalGenerator = async currentPetition => {
+  const handleClickTransmittalGenerator = async (currentPetition) => {
     try {
       // Actualiza el campo lastTransmittal en cada uno de los documentos seleccionados
       const selected = apiRef.current.getSelectedRows()
 
       // Ahora, añade este contador al final de tu newCode
-      const newCode = await generateTransmittalCounter(currentPetition)
+      await generateTransmittalCounter(currentPetition)
+      const newCode = `21286-000-TT-${transmittalNumber}`
 
       await updateSelectedDocuments(newCode, selected, currentPetition, authUser)
 
@@ -539,6 +541,17 @@ const DataGridGabinete = () => {
             <CircularProgress sx={{ m: 5 }} />
           ) : (
             <DialogContent>
+
+              {/* Campo de texto para ingresar una descripción */}
+              <TextField
+                label='Número de Transmittal'
+                sx={{mb: 5}}
+                fullWidth
+                type='number'
+                value={transmittalNumber}
+                onChange={e => setTransmittalNumber(e.target.value)}
+              />
+
               <DialogContentText id='alert-dialog-description'>
                 ¿Está seguro de que desea generar un transmittal para los siguientes documentos?
               </DialogContentText>
