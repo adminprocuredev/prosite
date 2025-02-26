@@ -1248,7 +1248,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
         sentByDesigner: approves && isRevisionAtLeastB && sentByDesigner,
         sentBySupervisor: approves && isRevisionAtLeastB && sentBySupervisor,
         remarks: remarks ? true : false,
-        storageBlueprints: approves && isRevisionAtLeastB ? [storageBlueprints[0]] : null,
+        storageBlueprints: approves && isRevisionAtLeastB ? [storageBlueprints[storageBlueprints.length - 1]] : null,
       }
     }
   }
