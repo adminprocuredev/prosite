@@ -28,6 +28,7 @@ import { solicitudValidator } from '../form-validation/helperSolicitudValidator'
 import { getData, getPlantInitals } from './firestoreQuerys'
 import { sendEmailDeliverableNextRevision } from './mailing/sendEmailDeliverableNextRevision'
 import { sendEmailWhenReviewDocs } from './mailing/sendEmailWhenReviewDocs'
+import { number } from 'yup'
 
 const moment = require('moment')
 
@@ -1383,7 +1384,11 @@ const updateTransmittalCollection = async (newCode, transmittalLink, selectedDel
       })
     }
 
+    const splitedCode = newCode.split("-")
+    const transmittalNumber = Number(splitedCode[3])
+
     const transmittalData = {
+      number: transmittalNumber,
       deliverables: deliverables,
       date: Timestamp.fromDate(new Date()),
       code: newCode,
