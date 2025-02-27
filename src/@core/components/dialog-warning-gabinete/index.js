@@ -287,7 +287,6 @@ export default function AlertDialogGabinete({
         condition: storageBlueprints?.length === 2,
         component: (
           <Box sx={{ mt: 6 }}>
-            {console.log("Holi")}
             <Typography variant='body2'>
               Documento de corrección cargado: <br />
             </Typography>

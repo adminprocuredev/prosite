@@ -1314,24 +1314,25 @@ const generateTransmittalCounter = async currentPetition => {
 /**
  * Función para actualizar campos del blueprint y agregar un nuevo document en "revisions" cuando se genera un Transmittal.
  * @param {string} newCode
+ * @param {string} transmittalLink
  * @param {Array} selected
  * @param {Object} currentPetition
  * @param {Object} authUser
  */
-const updateSelectedDocuments = async (newCode, selected, currentPetition, authUser) => {
+const updateSelectedDocuments = async (newCode, transmittalLink, selected, currentPetition, authUser) => {
 
   try {
 
     for (const id of selected) {
       const docRef = doc(db, 'solicitudes', currentPetition.id, 'blueprints', id[0])
-      const isM3D = id[0].split('-')[2] === 'M3D'
+      // const isM3D = id[0].split('-')[2] === 'M3D'
 
       await updateDoc(docRef, {
         attentive: 4,
         milestone: id[1].milestone === 5 ? 5 : 4,
         sentToClient: true,
         lastTransmittal: newCode,
-        ...(isM3D && { approvedByClient: true })
+        // ...(isM3D && { approvedByClient: true })
       })
 
       const nextRevision = {
@@ -1347,7 +1348,8 @@ const updateSelectedDocuments = async (newCode, selected, currentPetition, authU
         remarks: 'Transmittal generado',
         lastTransmittal: newCode,
         storageHlcDocuments: id[1].storageHlcDocuments ? id[1].storageHlcDocuments[0] : null,
-        attentive: 4
+        attentive: 4,
+        storageTransmittal: {name: newCode, url: transmittalLink}
       }
 
       // Añade la nueva revisión a la subcolección de revisiones del entregable (blueprint)
@@ -1356,6 +1358,47 @@ const updateSelectedDocuments = async (newCode, selected, currentPetition, authU
   } catch (error) {
     console.error('Error al actualizar documentos seleccionados:', error)
     throw new Error('Error al actualizar documentos seleccionados')
+  }
+}
+
+/**
+ * Función para actualizar campos del blueprint y agregar un nuevo document en "revisions" cuando se genera un Transmittal.
+ * @param {string} newCode - Código del Transmittal generado.
+ * @param {string} transmittalLink - URL donde se encuentra almacenado el Transmittal en Google Drive.
+ * @param {Array} selectedDeliverables - Entregables seleccionados.
+ * @param {Object} currentPetition - OT en trabajo.
+ * @param {Object} authUser - Usuario que está ejecutando la acción.
+ */
+const updateTransmittalCollection = async (newCode, transmittalLink, selectedDeliverables, currentPetition, authUser) => {
+
+  try {
+
+    let deliverables = []
+
+    for (const deliverable of selectedDeliverables) {
+      deliverables.push({
+        clientCode: deliverable[1].clientCode,
+        id: deliverable[1].id,
+        revision: deliverable[1].revision
+      })
+    }
+
+    const transmittalData = {
+      deliverables: deliverables,
+      date: Timestamp.fromDate(new Date()),
+      code: newCode,
+      storageTransmittal: {
+        name: newCode,
+        url: transmittalLink
+      }
+    }
+
+    const collectionRef = collection(db, 'transmittals')
+    await addDoc(collectionRef, transmittalData)
+
+  } catch (error) {
+    console.error('Error al actualizar la Collección de Transmittals:', error)
+    throw new Error('Error al actualizar la Collección de Transmittals.')
   }
 }
 
@@ -2019,6 +2062,7 @@ export {
   addDescription,
   generateTransmittalCounter,
   updateSelectedDocuments,
+  updateTransmittalCollection,
   addComment,
   updateUserData,
   finishPetition,
