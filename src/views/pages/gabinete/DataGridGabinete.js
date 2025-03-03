@@ -73,6 +73,7 @@ const DataGridGabinete = () => {
     useBlueprints,
     generateTransmittalCounter,
     updateSelectedDocuments,
+    updateTransmittalCollection,
     finishPetition,
     subscribeToPetition
   } = useFirebase()
@@ -160,8 +161,9 @@ const DataGridGabinete = () => {
     setErrorTransmittal(false)
   }
 
-  const handleGenerateTransmittal = (tableElement, selected, newCode) => {
-    generateTransmittal(
+  const handleGenerateTransmittal = async (tableElement, selected, newCode) => {
+
+    const transmittalLink = await generateTransmittal(
       tableElement,
       selected,
       setTransmittalGenerated,
@@ -173,6 +175,9 @@ const DataGridGabinete = () => {
       setIsLoading,
       setOpenTransmittalDialog
     )
+
+    return transmittalLink
+
   }
 
   const handleOpenTransmittalDialog = () => {
@@ -196,8 +201,6 @@ const DataGridGabinete = () => {
       await generateTransmittalCounter(currentPetition)
       const newCode = `21286-000-TT-${transmittalNumber}`
 
-      await updateSelectedDocuments(newCode, selected, currentPetition, authUser)
-
       let tableElement = document.createElement('table')
       let numberOfDocuments = selected.size
 
@@ -212,7 +215,9 @@ const DataGridGabinete = () => {
       if (selected.size === 0) {
         setErrorTransmittal(true)
       } else {
-        handleGenerateTransmittal(tableElement, selected, newCode)
+        const transmittalLink = await handleGenerateTransmittal(tableElement, selected, newCode)
+        await updateTransmittalCollection (newCode, transmittalLink, selected, currentPetition, authUser)
+        await updateSelectedDocuments(newCode, transmittalLink, selected, currentPetition, authUser)
       }
     } catch (error) {
       console.error('Error al generar Transmittal:', error)

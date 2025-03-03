@@ -174,16 +174,26 @@ export const generateTransmittal = async (
   // Ubica la carpeta "EMITIDOS"
   const targetFolder = await findOrCreateFolder(projectFolder.id, "EMITIDOS", "EMITIDOS")
 
+  let fileLink
+
   if (targetFolder) {
     const fileData = await uploadFile(`${newCode}.pdf`, pdfBlob, targetFolder.id)
 
     if (fileData && fileData.id) {
-      const fileLink = `https://drive.google.com/file/d/${fileData.id}/view`
+
+      fileLink = `https://drive.google.com/file/d/${fileData.id}/view`
 
       console.log('Transmittal almacenado en Google Drive con éxito:', fileLink)
+
     }
   }
+
   setTransmittalGenerated(true)
   setOpenTransmittalDialog(false)
   setIsLoading(false)
+
+  if (fileLink) {
+    return fileLink
+  }
+
 }
