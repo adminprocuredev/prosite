@@ -294,6 +294,7 @@ const TableGabinete = ({
   }
 
   const renderButton = (row, approve, color, IconComponent, disabled, resume = false) => {
+
     const handleClick = () => handleClickOpenAlert(row, approve)
 
     return (
@@ -321,9 +322,9 @@ const TableGabinete = ({
     )
   }
 
-  const renderButtons = (row, flexDirection, canApprove = false, canReject = false, disabled, canResume = false) => {
+  const renderButtons = (row = false, flexDirection = false, canApprove = false, canReject = false, disabled = false, canResume = false) => {
 
-    if (petition.state !== 9) {
+    if (petition && petition.state !== 9) {
       return (
         <Container
           sx={{ display: 'flex', flexDirection: { flexDirection }, padding: '0rem!important', margin: '0rem!important' }}
@@ -1270,7 +1271,9 @@ const TableGabinete = ({
         if(canApprove === undefined) console.log("no hay canApprove")
         if(canReject === undefined) console.log("no hay canReject")
 
-        const buttons = renderButtons(row, flexDirection, canApprove, canReject)
+        const available = row !== undefined && flexDirection && canApprove !== undefined && canReject !== undefined
+
+        const buttons = available && renderButtons(row, flexDirection, canApprove, canReject)
 
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
           return (
@@ -1294,7 +1297,7 @@ const TableGabinete = ({
               </Box>
             </Box>
           )
-        } else if (!row.isRevision && !expandedRows.has(params.row.parentId)) {
+        } else if (available && !row.isRevision && !expandedRows.has(params.row.parentId)) {
           return (
             <>
               <Box
@@ -1353,11 +1356,13 @@ const TableGabinete = ({
 
         const disabled = petition?.otFinished
 
-        const buttons = renderButtons(row, flexDirection, canApprove, canReject, disabled, canResume)
+        const available = row !== undefined && flexDirection && canApprove !== undefined && canReject !== undefined && canResume !== undefined
+
+        const buttons = available && renderButtons(row, flexDirection, canApprove, canReject, disabled, canResume)
 
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
           return ''
-        } else if (!row.isRevision && !expandedRows.has(params.row.parentId)) {
+        } else if (available && !row.isRevision && !expandedRows.has(params.row.parentId)) {
           return (
             <Box sx={{ padding: '0rem!important', margin: '0rem!important' }}>
               <Box
