@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 
 import { CancelOutlined, CheckCircleOutline, OpenInNew, Upload } from '@mui/icons-material'
 import SyncIcon from '@mui/icons-material/Sync'
-import { Container } from '@mui/system'
+import { Container } from '@mui/material'
 
 import KeyboardArrowDownSharpIcon from '@mui/icons-material/KeyboardArrowDownSharp'
 import KeyboardArrowRightSharpIcon from '@mui/icons-material/KeyboardArrowRightSharp'
