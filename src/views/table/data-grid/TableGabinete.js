@@ -1259,11 +1259,11 @@ const TableGabinete = ({
         : 180,
       renderCell: params => {
         console.log("Se ingresa a Observaciones")
-        const { row } = params
+        const { row } = params || false
         localStorage.setItem('remarksGabineteWidthColumn', params.colDef.computedWidth)
         const permissionsData = permissions(row, authUser)
-        const canApprove = permissionsData?.approve
-        const canReject = permissionsData?.reject
+        const canApprove = permissionsData?.approve || false
+        const canReject = permissionsData?.reject || false
 
         const flexDirection = md ? 'row' : 'column'
 
@@ -1344,14 +1344,14 @@ const TableGabinete = ({
       headerName: 'Cliente',
       width: clientLocalWidth ? clientLocalWidth : role === 9 && !lg ? 160 : role !== 9 && !lg ? 70 : role !== 9 ? 120 : 120,
       renderCell: params => {
-        const { row, currentPetition } = params
+        const { row } = params || false
 
         localStorage.setItem('clientGabineteWidthColumn', params.colDef.computedWidth)
 
-        const canApprove = checkRoleAndApproval(authUser.role, row)
-        const canReject = checkRoleAndApproval(authUser.role, row)
-        const canGenerateBlueprint = checkRoleAndGenerateTransmittal(authUser.role, row)
-        const canResume = checkRoleAndResume(authUser.role, row)
+        const canApprove = checkRoleAndApproval(authUser.role, row) || false
+        const canReject = checkRoleAndApproval(authUser.role, row) || false
+        const canGenerateBlueprint = checkRoleAndGenerateTransmittal(authUser.role, row) || false
+        const canResume = checkRoleAndResume(authUser.role, row) || false
 
         const flexDirection = md ? 'row' : 'column'
 
