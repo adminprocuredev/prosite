@@ -1,6 +1,6 @@
 export const validateFiles = acceptedFiles => {
   const imageExtensions = ['jpeg', 'jpg', 'png', 'webp', 'bmp', 'tiff', 'svg', 'heif', 'HEIF']
-  const documentExtensions = ['xls', 'xlsx', 'doc', 'docx', 'ppt', 'pptx', 'pdf', 'csv', 'txt']
+  const documentExtensions = ['xls', 'xlsx', 'doc', 'docx', 'ppt', 'pptx', 'pdf', 'csv', 'txt', 'rcs', 'rcp', 'e57']
   const maxSizeBytes = 50 * 1024 * 1024
 
   const isValidFile = file => {
