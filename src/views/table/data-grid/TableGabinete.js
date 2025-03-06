@@ -20,7 +20,6 @@ import {
   DialogContent,
   IconButton,
   Link,
-  MenuItem,
   Select,
   Tooltip,
   Typography
@@ -1265,7 +1264,9 @@ const TableGabinete = ({
 
         const flexDirection = md ? 'row' : 'column'
 
-        const buttons = renderButtons(row, flexDirection, canApprove, canReject)
+        const RenderButtons = () => {
+          return (renderButtons(row, flexDirection, canApprove, canReject))
+        }
 
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
           return (
@@ -1304,7 +1305,9 @@ const TableGabinete = ({
               >
                 {canApprove || canReject ? (
                   md ? (
-                    buttons
+                    <>
+                      <RenderButtons />
+                    </>
                   ) : (
                     <Select
                       labelId='demo-simple-select-label'
@@ -1318,7 +1321,9 @@ const TableGabinete = ({
                         '& .MuiList-root': { display: 'flex', flexDirection: 'column' }
                       }}
                     >
-                      {buttons}
+                      <Container sx={{ display: 'flex', flexDirection: 'column' }}>
+                        <RenderButtons />
+                      </Container>
                     </Select>
                   )
                 ) : (
@@ -1348,7 +1353,9 @@ const TableGabinete = ({
 
         const disabled = petition?.otFinished
 
-        const buttons = renderButtons(row, flexDirection, canApprove, canReject, disabled, canResume)
+        const RenderButtons = () => {
+          return (renderButtons(row, flexDirection, canApprove, canReject, disabled, canResume))
+        }
 
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
           return ''
@@ -1369,24 +1376,58 @@ const TableGabinete = ({
               >
                 {canApprove || canReject ? (
                   md ? (
-                    buttons
+                    <>
+                      <RenderButtons />
+                    </>
                   ) : (
-                    <Select>
-                      {React.Children.map(buttons, (button, index) => (
-                        <MenuItem key={index}>{button}</MenuItem>
-                      ))}
+                    <Select
+                      labelId='demo-simple-select-label'
+                      id='demo-simple-select'
+                      size='small'
+                      IconComponent={() => <MoreHorizIcon />}
+                      sx={{
+                        '& .MuiSvgIcon-root': {
+                          position: 'absolute',
+                          margin: '20%',
+                          pointerEvents: 'none !important'
+                        },
+                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                        '& .MuiSelect-select': { backgroundColor: theme.palette.customColors.tableHeaderBg },
+                        '& .MuiList-root': { display: 'flex', flexDirection: 'column' }
+                      }}
+                    >
+                      <Container sx={{ display: 'flex', flexDirection: 'column' }}>
+                        <RenderButtons />
+                      </Container>
                     </Select>
                   )
                 ) : canGenerateBlueprint ? (
                   'Generar Transmittal'
                 ) : canResume ? (
                   md ? (
-                    buttons
+                    <>
+                      <RenderButtons />
+                    </>
                   ) : (
-                    <Select>
-                      {React.Children.map(buttons, (button, index) => (
-                        <MenuItem key={index}>{button}</MenuItem>
-                      ))}
+                    <Select
+                      labelId='demo-simple-select-label'
+                      id='demo-simple-select'
+                      size='small'
+                      IconComponent={() => <MoreHorizIcon />}
+                      sx={{
+                        '& .MuiSvgIcon-root': {
+                          position: 'absolute',
+                          margin: '20%',
+                          pointerEvents: 'none !important'
+                        },
+                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                        '& .MuiSelect-select': { backgroundColor: theme.palette.customColors.tableHeaderBg },
+                        '& .MuiList-root': { display: 'flex', flexDirection: 'column' }
+                      }}
+                    >
+                      <Container sx={{ display: 'flex', flexDirection: 'column' }}>
+                        <RenderButtons />
+                      </Container>
                     </Select>
                   )
                 ) : (
