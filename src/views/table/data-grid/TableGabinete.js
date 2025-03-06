@@ -1370,23 +1370,10 @@ const TableGabinete = ({
                   md ? (
                     buttons
                   ) : (
-                    <Select
-                      labelId='demo-simple-select-label'
-                      id='demo-simple-select'
-                      size='small'
-                      IconComponent={() => <MoreHorizIcon />}
-                      sx={{
-                        '& .MuiSvgIcon-root': {
-                          position: 'absolute',
-                          margin: '20%',
-                          pointerEvents: 'none !important'
-                        },
-                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                        '& .MuiSelect-select': { backgroundColor: theme.palette.customColors.tableHeaderBg },
-                        '& .MuiList-root': { display: 'flex', flexDirection: 'column' }
-                      }}
-                    >
-                      {buttons}
+                    <Select>
+                      {React.Children.map(buttons, (button, index) => (
+                        <MenuItem key={index}>{button}</MenuItem>
+                      ))}
                     </Select>
                   )
                 ) : canGenerateBlueprint ? (
@@ -1395,23 +1382,10 @@ const TableGabinete = ({
                   md ? (
                     buttons
                   ) : (
-                    <Select
-                      labelId='demo-simple-select-label'
-                      id='demo-simple-select'
-                      size='small'
-                      IconComponent={() => <MoreHorizIcon />}
-                      sx={{
-                        '& .MuiSvgIcon-root': {
-                          position: 'absolute',
-                          margin: '20%',
-                          pointerEvents: 'none !important'
-                        },
-                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                        '& .MuiSelect-select': { backgroundColor: theme.palette.customColors.tableHeaderBg },
-                        '& .MuiList-root': { display: 'flex', flexDirection: 'column' }
-                      }}
-                    >
-                      {buttons}
+                    <Select>
+                      {React.Children.map(buttons, (button, index) => (
+                        <MenuItem key={index}>{button}</MenuItem>
+                      ))}
                     </Select>
                   )
                 ) : (
