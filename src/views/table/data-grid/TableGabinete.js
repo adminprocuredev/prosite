@@ -1265,7 +1265,11 @@ const TableGabinete = ({
         const flexDirection = md ? 'row' : 'column'
 
         const RenderButtons = () => {
-          return (renderButtons(row, flexDirection, canApprove, canReject))
+          if (!row || !flexDirection || canApprove === undefined || canReject === undefined) {
+            console.warn("Valores no definidos en RenderButtons:", { row, flexDirection, canApprove, canReject });
+            return null;
+          }
+          return renderButtons(row, flexDirection, canApprove, canReject);
         }
 
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
