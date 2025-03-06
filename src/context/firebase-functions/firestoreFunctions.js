@@ -28,7 +28,6 @@ import { solicitudValidator } from '../form-validation/helperSolicitudValidator'
 import { getData, getPlantInitals } from './firestoreQuerys'
 import { sendEmailDeliverableNextRevision } from './mailing/sendEmailDeliverableNextRevision'
 import { sendEmailWhenReviewDocs } from './mailing/sendEmailWhenReviewDocs'
-import { number } from 'yup'
 
 const moment = require('moment')
 
@@ -879,7 +878,7 @@ const getNextRevisionFolderName = (blueprint) => {
       // Caso cuando se Reanuda un Entregable
       condition: () => {
           const result = resumeBlueprint
-          if (result) console.log("Condición 0.")
+          // if (result) console.log("Condición 0.")
 
           return result
       },
@@ -889,7 +888,7 @@ const getNextRevisionFolderName = (blueprint) => {
       // Si la revisión es "Iniciado" y el entregable es un M3D (Memoria de Cálculo).
       condition: () => {
           const result = isInitialRevision && isM3D
-          if (result) console.log("Condición 1.")
+          // if (result) console.log("Condición 1.")
 
           return result
       },
@@ -899,7 +898,7 @@ const getNextRevisionFolderName = (blueprint) => {
       // Si la revisión es "Iniciado" y el entregable no es un M3D (Memoria de Cálculo).
       condition: () => {
           const result = isInitialRevision && !isM3D
-          if (result) console.log("Condición 2.")
+          // if (result) console.log("Condición 2.")
 
           return result
       },
@@ -909,7 +908,7 @@ const getNextRevisionFolderName = (blueprint) => {
       // Si la revisión es Rev. A y ha sido Aprobada por Control Documental.
       condition: () => {
           const result = isRevA && approvedByDocumentaryControl
-          if (result) console.log("Condición 3.")
+          // if (result) console.log("Condición 3.")
 
           return result
       },
@@ -919,7 +918,7 @@ const getNextRevisionFolderName = (blueprint) => {
       // Si la revisión es Rev. A y no ha sido Aprobada por Control Documental.
       condition: () => {
           const result = isRevA && !approvedByDocumentaryControl
-          if (result) console.log("Condición 4.")
+          // if (result) console.log("Condición 4.")
 
           return result
       },
@@ -929,7 +928,7 @@ const getNextRevisionFolderName = (blueprint) => {
       // Si la revisión está en manos del Cliente.
       condition: () => {
           const result = beingReviewedByClient
-          if (result) console.log("Condición 5.")
+          // if (result) console.log("Condición 5.")
 
           return result
       },
@@ -938,7 +937,7 @@ const getNextRevisionFolderName = (blueprint) => {
     {
       condition: () => {
           const result = !beingReviewedByClient && isRevisionAtLeastB && !isNumeric && approvedByClient
-          if (result) console.log("Condición 6.")
+          // if (result) console.log("Condición 6.")
 
           return result
       },
@@ -947,7 +946,7 @@ const getNextRevisionFolderName = (blueprint) => {
     {
       condition: () => {
           const result = !beingReviewedByClient && isRevisionAtLeastB && approvedByDocumentaryControl && !approvedByClient && !sentByAuthor
-          if (result) console.log("Condición 7.")
+          // if (result) console.log("Condición 7.")
 
           return result
       },
@@ -956,7 +955,7 @@ const getNextRevisionFolderName = (blueprint) => {
     {
       condition: () => {
           const result = !beingReviewedByClient && isRevisionAtLeastB && approvedByDocumentaryControl && !approvedByClient && !sentByAuthor
-          if (result) console.log("Condición 8")
+          // if (result) console.log("Condición 8")
 
           return result
       },
@@ -965,7 +964,7 @@ const getNextRevisionFolderName = (blueprint) => {
     {
       condition: () => {
           const result = isRevisionAtLeastB && isNumeric && approvedByClient && !blueprintCompleted
-          if (result) console.log("Condición 9.")
+          // if (result) console.log("Condición 9.")
 
           return result
       },
@@ -974,7 +973,7 @@ const getNextRevisionFolderName = (blueprint) => {
     {
       condition: () => {
           const result = !beingReviewedByClient && isRevisionAtLeastB && isNumeric && approvedByClient
-          if (result) console.log("Condición 10.")
+          // if (result) console.log("Condición 10.")
 
           return result
       },

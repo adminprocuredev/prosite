@@ -373,7 +373,7 @@ const DataGridGabinete = () => {
           sx={{ mr: 6.5, flexGrow: '0.2' }}
           label={otPercent ? 'Porcentaje Promedio de Avance' : ''}
           value={otPercent ? `${otPercent} %` : ''}
-          id='form-props-read-only-input'
+          id='average'
           InputProps={{ readOnly: true }}
         />
 
@@ -401,14 +401,14 @@ const DataGridGabinete = () => {
           sx={{ m: 2.5, width: '50%' }}
           label='Tipo de levantamiento'
           value={currentPetition ? currentPetition.objective : ''}
-          id='form-props-read-only-input'
+          id='type'
           InputProps={{ readOnly: true }}
         />
         <TextField
           sx={{ m: 2.5, width: '50%' }}
           label='Entregable'
           value={currentPetition && currentPetition.deliverable ? currentPetition.deliverable.map(item => item) : ''}
-          id='form-props-read-only-input'
+          id='deliverables'
           InputProps={{ readOnly: true }}
         />
         <Autocomplete

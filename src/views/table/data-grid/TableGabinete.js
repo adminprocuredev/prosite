@@ -148,7 +148,7 @@ const TableGabinete = ({
   function permissions(row, authUser) {
 
     if (!row) {
-      return undefined
+      return { approve: false, reject: false }
     }
 
     // Desestructuración de Objetos.
@@ -321,7 +321,7 @@ const TableGabinete = ({
     )
   }
 
-  const renderButtons = (row, flexDirection, canApprove, canReject, disabled, canResume = false) => {
+  const renderButtons = (row, flexDirection, canApprove = false, canReject = false, disabled, canResume = false) => {
 
     if (petition.state !== 9) {
       return (
@@ -1256,6 +1256,7 @@ const TableGabinete = ({
         ? 165
         : 180,
       renderCell: params => {
+        console.log("Se ingresa a Observaciones")
         const { row } = params
         localStorage.setItem('remarksGabineteWidthColumn', params.colDef.computedWidth)
         const permissionsData = permissions(row, authUser)
@@ -1264,9 +1265,12 @@ const TableGabinete = ({
 
         const flexDirection = md ? 'row' : 'column'
 
-        const RenderButtons = () => {
-          return (renderButtons(row, flexDirection, canApprove, canReject))
-        }
+        if(row === undefined) console.log("no hay fila")
+        if(!flexDirection) console.log("no hay flexDirection")
+        if(canApprove === undefined) console.log("no hay canApprove")
+        if(canReject === undefined) console.log("no hay canReject")
+
+        const buttons = renderButtons(row, flexDirection, canApprove, canReject)
 
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
           return (
@@ -1305,9 +1309,7 @@ const TableGabinete = ({
               >
                 {canApprove || canReject ? (
                   md ? (
-                    <>
-                      <RenderButtons />
-                    </>
+                    buttons
                   ) : (
                     <Select
                       labelId='demo-simple-select-label'
@@ -1321,9 +1323,7 @@ const TableGabinete = ({
                         '& .MuiList-root': { display: 'flex', flexDirection: 'column' }
                       }}
                     >
-                      <Container sx={{ display: 'flex', flexDirection: 'column' }}>
-                        <RenderButtons />
-                      </Container>
+                      {buttons}
                     </Select>
                   )
                 ) : (
@@ -1353,9 +1353,7 @@ const TableGabinete = ({
 
         const disabled = petition?.otFinished
 
-        const RenderButtons = () => {
-          return (renderButtons(row, flexDirection, canApprove, canReject, disabled, canResume))
-        }
+        const buttons = renderButtons(row, flexDirection, canApprove, canReject, disabled, canResume)
 
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
           return ''
@@ -1376,9 +1374,7 @@ const TableGabinete = ({
               >
                 {canApprove || canReject ? (
                   md ? (
-                    <>
-                      <RenderButtons />
-                    </>
+                    buttons
                   ) : (
                     <Select
                       labelId='demo-simple-select-label'
@@ -1396,18 +1392,14 @@ const TableGabinete = ({
                         '& .MuiList-root': { display: 'flex', flexDirection: 'column' }
                       }}
                     >
-                      <Container sx={{ display: 'flex', flexDirection: 'column' }}>
-                        <RenderButtons />
-                      </Container>
+                      {buttons}
                     </Select>
                   )
                 ) : canGenerateBlueprint ? (
                   'Generar Transmittal'
                 ) : canResume ? (
                   md ? (
-                    <>
-                      <RenderButtons />
-                    </>
+                    buttons
                   ) : (
                     <Select
                       labelId='demo-simple-select-label'
@@ -1425,9 +1417,7 @@ const TableGabinete = ({
                         '& .MuiList-root': { display: 'flex', flexDirection: 'column' }
                       }}
                     >
-                      <Container sx={{ display: 'flex', flexDirection: 'column' }}>
-                        <RenderButtons />
-                      </Container>
+                      {buttons}
                     </Select>
                   )
                 ) : (
