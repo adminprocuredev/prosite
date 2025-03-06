@@ -1267,7 +1267,8 @@ const TableGabinete = ({
         const RenderButtons = () => {
           if (!row || !flexDirection || canApprove === undefined || canReject === undefined) {
             console.warn("Valores no definidos en RenderButtons:", { row, flexDirection, canApprove, canReject });
-            return null;
+
+            return null
           }
           return renderButtons(row, flexDirection, canApprove, canReject);
         }
