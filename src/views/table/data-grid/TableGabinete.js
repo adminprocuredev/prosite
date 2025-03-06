@@ -298,6 +298,7 @@ const TableGabinete = ({
     const handleClick = () => handleClickOpenAlert(row, approve)
 
     return (
+      row &&
       <Button
         onClick={handleClick}
         variant='contained'
