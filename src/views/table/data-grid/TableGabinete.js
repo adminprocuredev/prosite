@@ -1258,7 +1258,7 @@ const TableGabinete = ({
         ? 165
         : 180,
       renderCell: params => {
-        console.log("Se ingresa a Observaciones")
+        // console.log("Se ingresa a Observaciones")
         const { row } = params || false
         localStorage.setItem('remarksGabineteWidthColumn', params.colDef.computedWidth)
         const permissionsData = permissions(row, authUser)
@@ -1267,10 +1267,10 @@ const TableGabinete = ({
 
         const flexDirection = md ? 'row' : 'column'
 
-        if(row === undefined) console.log("no hay fila")
-        if(!flexDirection) console.log("no hay flexDirection")
-        if(canApprove === undefined) console.log("no hay canApprove")
-        if(canReject === undefined) console.log("no hay canReject")
+        // if(row === undefined) console.log("no hay fila")
+        // if(!flexDirection) console.log("no hay flexDirection")
+        // if(canApprove === undefined) console.log("no hay canApprove")
+        // if(canReject === undefined) console.log("no hay canReject")
 
         const available = row !== undefined && flexDirection && canApprove !== undefined && canReject !== undefined
 
@@ -1556,6 +1556,8 @@ const TableGabinete = ({
         getRowHeight={row => (row.id === currentRow ? 'auto' : 'auto')}
         isRowExpanded={row => expandedRows.has(row.id)}
       />
+      {doc && openAlert && console.log("Se abre AlerDialogGabinete")}
+      {doc && openAlert && console.log(doc)}
       {doc && openAlert && (
         <AlertDialogGabinete
           open={openAlert}
