@@ -1043,14 +1043,33 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
   const letterToNumber = approves && !isNumeric && approvedByClient && lastTransmittal
   const newRevision = letterToNumber ? "0" : getNextRevisionFolderName(blueprint)
 
+  console.log("getNextRevision")
+  console.log("blueprint que recibe getNextRevision")
+  console.log(blueprint)
+
+  console.log("Operador ternario para definir storageBlueprints")
+  if (approves && storageBlueprints.length === 2) {
+    //storageBlueprints = storageBlueprints[storageBlueprints.length - 1];
+    console.log("Caso 1 del Operador Ternario")
+    console.log(approves)
+    console.log(storageBlueprints)
+  } else if (approves && (remarks === false || !remarks)) {
+    //storageBlueprints = storageBlueprints[0];
+    console.log("Caso 2 del Operador Ternario")
+    console.log(approves)
+    console.log(remarks)
+  } else {
+    //storageBlueprints = storageBlueprints[storageBlueprints.length - 1];
+    console.log("Caso 3 del Operador Ternario")
+  }
+
   // Crea el objeto de la próxima revisión con los datos proporcionados y la nueva revisión calculada
   const nextRevision = {
     prevRevision: latestRevision && Object.keys(latestRevision).length === 0 ? latestRevision.newRevision : revision,
     newRevision,
     description,
     storageBlueprints:
-      approves && storageBlueprints.length === 2
-        ? storageBlueprints[storageBlueprints.length - 1]
+      approves && storageBlueprints.length === 2 ? storageBlueprints[storageBlueprints.length - 1]
         : approves && (remarks === false || !remarks)
         ? storageBlueprints[0]
         : storageBlueprints[storageBlueprints.length - 1],
@@ -1093,6 +1112,7 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
     sentToClient // Booleano que define si el Entregable fue enviado al Cliente mediante el Transmittal.
   } = blueprint
 
+  console.log("Se abre updateBlueprint")
   console.log(petitionID)
   console.log(blueprint)
   console.log(authUser)
@@ -1111,6 +1131,9 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
 
   // Calcula la próxima revisión del plano
   const nextRevision = await getNextRevision(approves, latestRevision, authUser, blueprint, remarks)
+
+  console.log("nextRevision dentro de updateBlueprint")
+  console.log(nextRevision)
 
   // Comprueba varias condiciones sobre el plano
   const isInitialRevision = revision === 'Iniciado'

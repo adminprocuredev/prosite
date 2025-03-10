@@ -202,6 +202,13 @@ export default function AlertDialogGabinete({
     // Determina el valor de `remarks`
     const remarks = remarksState.length > 0 ? remarksState : false
 
+    console.log("handleUpdateFirestore")
+    console.log(petitionId)
+    console.log(blueprint)
+    console.log(approves)
+    console.log(authUser)
+    console.log(remarks)
+
     try {
       if (authUser.role === 8) {
         // Lógica para el rol 8
@@ -245,7 +252,9 @@ export default function AlertDialogGabinete({
     updateFormState('files', null)
   }
 
+  // TODO: REVISAR ESTO...CREO QUE ACÁ HAY QUE AGREGAR UN setDoc({})
   const handleOnCloseDialog = () => {
+    setDoc({})
     handleDialogClose()
     updateFormState('files', null)
     updateFormState('toggleRemarks', showOptionsInRejected)
