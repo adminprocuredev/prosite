@@ -252,7 +252,9 @@ export default function AlertDialogGabinete({
     updateFormState('files', null)
   }
 
+  // TODO: REVISAR ESTO...CREO QUE ACÁ HAY QUE AGREGAR UN setDoc({})
   const handleOnCloseDialog = () => {
+    setDoc({})
     handleDialogClose()
     updateFormState('files', null)
     updateFormState('toggleRemarks', showOptionsInRejected)
