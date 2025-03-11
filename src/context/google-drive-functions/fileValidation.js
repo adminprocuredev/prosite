@@ -12,7 +12,7 @@ export const validateFiles = acceptedFiles => {
   return acceptedFiles.map(file => ({
     name: file.name,
     isValid: isValidFile(file),
-    msj: isValidFile(file) ? file.name : `${file.name} - El archivo excede el tamaño máximo de 5 MB`
+    msj: isValidFile(file) ? file.name : `${file.name} - El archivo excede el tamaño máximo de 50 MB y/o no es un archivo con una extensión permitida.`
   }))
 }
 
