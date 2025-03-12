@@ -254,7 +254,7 @@ const DataGridGabinete = () => {
   useEffect(() => {
     if (currentPetition) {
       const fetchRoleAndProyectistas = async () => {
-        if (authUser) {
+        if (authUser.role === 7) {
           // Carga los proyectistas
           const resProyectistas = await getUserData('getUserProyectistas', null, authUser)
           const resSupervisor = await getUserData('getUserSupervisor', null, authUser)
@@ -264,10 +264,20 @@ const DataGridGabinete = () => {
           const filteredSupervisores = resSupervisor.filter(user => user.enabled)
 
           setProyectistas([...filteredProyectistas, ...filteredSupervisores])
+        } else {
+          // Carga los proyectistas
+          const resProyectistas = await getUserData('getUserProyectistas', null, {shift: [currentPetition.supervisorShift]})
+          const resSupervisor = await getUserData('getUserSupervisor', null, {shift: [currentPetition.supervisorShift]})
+
+          // Filtramos solo los que tienen enabled = true
+          const filteredProyectistas = resProyectistas.filter(user => user.enabled)
+          const filteredSupervisores = resSupervisor.filter(user => user.enabled)
+
+          setProyectistas([...filteredProyectistas, ...filteredSupervisores])
         }
       }
 
-      authUser.role === 7 && fetchRoleAndProyectistas()
+      fetchRoleAndProyectistas()
     }
   }, [authUser, currentPetition])
 
