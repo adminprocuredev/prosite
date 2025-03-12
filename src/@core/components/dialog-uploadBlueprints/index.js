@@ -385,9 +385,9 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
                 </ListItem>
               )}
 
-              {(doc && ((authUser.uid === doc.userId) || (authUser.role === 9 && doc.attentive === 9))) ? (
+              {(doc && ((authUser.uid === doc.userId) || (authUser.role === 9))) ? (
                 <CustomListItem
-                  editable={doc && ((authUser.uid === doc.userId) || (authUser.role === 9 && doc.attentive === 9))}
+                  editable={doc && ((authUser.uid === doc.userId) || (authUser.role === 9))}
                   label='Descripción'
                   placeholder='Agregue la descripción del documento'
                   InputLabelProps={{
