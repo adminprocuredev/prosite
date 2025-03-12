@@ -265,6 +265,7 @@ export default function AlertDialogGabinete({
   }
 
   const handleOnClickNo = () => {
+    setDoc({})
     setRemarksState('')
     updateFormState('toggleRemarks', showOptionsInRejected)
     updateFormState('toggleAttach', showUploadFile)

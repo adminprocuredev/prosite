@@ -179,8 +179,8 @@ const TableGabinete = ({
 
     const dictionary = {
       6: {
-        approve: isRole6Turn && !approvedByContractAdmin,
-        reject: isRole6Turn && !approvedByContractAdmin
+        approve: isRole7Turn && !approvedByContractAdmin,
+        reject: isRole7Turn && !approvedByContractAdmin
       },
       7: {
         approve: (isRole7Turn && sentByAuthor && !isMyBlueprint && !approvedBySupervisor) || (isRole7Turn && isMyBlueprint && hasRequiredFields && !blueprintCompleted),

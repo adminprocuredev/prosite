@@ -1166,8 +1166,8 @@ const updateBlueprint = async (petitionID, blueprint, approves, authUser, remark
     return {
       ...updateData,
       sentByDesigner: approves,
-      attentive: approves ? 9 : 7,
-      sentBySupervisor: approves,
+      attentive: approves ? 9 : 8,
+      approvedBySupervisor: approves,
       approvedByContractAdmin: approves,
       storageBlueprints: approves ? storageBlueprints : null
     }
