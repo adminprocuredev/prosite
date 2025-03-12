@@ -1460,7 +1460,7 @@ const TableGabinete = ({
   }
 
   const isRowSelectable = params => {
-    if (authUser.role === 7) {
+    if ([5, 6, 7].includes(authUser.role)) {
       if (showReasignarSection) {
         // Si la sección de reasignación está habilitada, permite seleccionar cualquier fila
         return true
@@ -1529,7 +1529,7 @@ const TableGabinete = ({
           }
         }}
         apiRef={apiRef}
-        checkboxSelection={authUser.role === 9 || authUser.role === 7}
+        checkboxSelection={[5, 6, 7, 9].includes(authUser.role)}
         onRowSelectionModelChange={handleSelectionChange}
         disableRowSelectionOnClick
         isRowSelectable={isRowSelectable}
