@@ -254,7 +254,7 @@ const DataGridGabinete = () => {
   useEffect(() => {
     if (currentPetition) {
       const fetchRoleAndProyectistas = async () => {
-        if (authUser) {
+        if (authUser.role === 7) {
           // Carga los proyectistas
           const resProyectistas = await getUserData('getUserProyectistas', null, authUser)
           const resSupervisor = await getUserData('getUserSupervisor', null, authUser)
@@ -264,10 +264,20 @@ const DataGridGabinete = () => {
           const filteredSupervisores = resSupervisor.filter(user => user.enabled)
 
           setProyectistas([...filteredProyectistas, ...filteredSupervisores])
+        } else {
+          // Carga los proyectistas
+          const resProyectistas = await getUserData('getUserProyectistas', null, {shift: [currentPetition.supervisorShift]})
+          const resSupervisor = await getUserData('getUserSupervisor', null, {shift: [currentPetition.supervisorShift]})
+
+          // Filtramos solo los que tienen enabled = true
+          const filteredProyectistas = resProyectistas.filter(user => user.enabled)
+          const filteredSupervisores = resSupervisor.filter(user => user.enabled)
+
+          setProyectistas([...filteredProyectistas, ...filteredSupervisores])
         }
       }
 
-      authUser.role === 7 && fetchRoleAndProyectistas()
+      fetchRoleAndProyectistas()
     }
   }, [authUser, currentPetition])
 
@@ -377,7 +387,7 @@ const DataGridGabinete = () => {
           InputProps={{ readOnly: true }}
         />
 
-        {authUser.role === 7 && (
+        {[5, 6, 7].includes(authUser.role) && (
           <>
             <Box sx={{ display: 'flex', flexDirection: 'row', m: 0, p: 0 }}>
               <Checkbox checked={showReasignarSection} onChange={handleReasignarToggle} color='info' />
@@ -396,6 +406,7 @@ const DataGridGabinete = () => {
           </>
         )}
       </Box>
+
       <Box sx={{ m: 4, display: 'flex' }}>
         <TextField
           sx={{ m: 2.5, width: '50%' }}
@@ -453,17 +464,6 @@ const DataGridGabinete = () => {
               Finalizar OT
             </Button>
           )
-        ) : authUser.role === 7 ? (
-          <>
-            <Button
-              sx={{ width: '50%', m: 2.5, fontSize: xlDown ? '0.7rem' : '0.8rem' }}
-              variant='contained'
-              disabled={currentPetition?.state === 9}
-              onClick={() => currentPetition && handleClickOpen(currentPetition)}
-            >
-              Modificar proyectista
-            </Button>
-          </>
         ) : authUser.role === 9 ? (
           <Button
             sx={{ width: '50%', m: 2.5, fontSize: xlDown ? '0.7rem' : '0.8rem' }}
@@ -477,7 +477,20 @@ const DataGridGabinete = () => {
           ''
         )}
 
-        {authUser.role === 7 ? (
+        {[5, 6, 7].includes(authUser.role) ? (
+          <Button
+            sx={{ width: '50%', m: 2.5, fontSize: xlDown ? '0.7rem' : '0.8rem' }}
+            variant='contained'
+            disabled={currentPetition?.state === 9}
+            onClick={() => currentPetition && handleClickOpen(currentPetition)}
+          >
+            Modificar proyectista
+          </Button>
+        ) : (
+          ''
+        )}
+
+        {[5, 6, 7].includes(authUser.role) ? (
           <Button
             sx={{ width: '50%', m: 2.5, fontSize: xlDown ? '0.7rem' : '0.8rem' }}
             variant='contained'
@@ -490,7 +503,8 @@ const DataGridGabinete = () => {
           ''
         )}
       </Box>
-      {authUser.role === 7 && currentPetition && showReasignarSection && (
+
+      {[5, 6, 7].includes(authUser.role) && currentPetition && showReasignarSection && (
         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, ml: 6.5 }}>{renderProjectistSummary()}</Box>
           <Box sx={{ mr: 6.5 }}>
@@ -509,6 +523,7 @@ const DataGridGabinete = () => {
           </Box>
         </Box>
       )}
+
       <Box sx={{ m: 6.5, height: '100%' }}>
         <TableGabinete
           rows={blueprints ? blueprints : []}
@@ -522,6 +537,7 @@ const DataGridGabinete = () => {
           showReasignarSection={showReasignarSection}
         />
       </Box>
+
       {blueprints && (
         <DialogAssignGabineteDraftmen
           open={open}
@@ -595,6 +611,7 @@ const DataGridGabinete = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
       {openCodeGenerator && (
         <DialogCodeGenerator
           open={openCodeGenerator}
@@ -603,6 +620,7 @@ const DataGridGabinete = () => {
           roleData={roleData}
         />
       )}
+
       {openFinishOt && (
         <DialogFinishOt
           open={openFinishOt}
@@ -612,12 +630,14 @@ const DataGridGabinete = () => {
           state={currentPetition.state}
         />
       )}
+
       <ReasignarDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         selectedRows={selectedRows}
         doc={petitions && currentOT && petitions.find(petition => petition.ot == currentOT)}
       />
+
       <DialogDeleteBlueprint
         open={isDeleteDialogOpen}
         onClose={handleCloseDeleteDialog}

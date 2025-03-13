@@ -179,8 +179,8 @@ const TableGabinete = ({
 
     const dictionary = {
       6: {
-        approve: isRole6Turn && !approvedByContractAdmin,
-        reject: isRole6Turn && !approvedByContractAdmin
+        approve: isRole7Turn && !approvedByContractAdmin,
+        reject: isRole7Turn && !approvedByContractAdmin
       },
       7: {
         approve: (isRole7Turn && sentByAuthor && !isMyBlueprint && !approvedBySupervisor) || (isRole7Turn && isMyBlueprint && hasRequiredFields && !blueprintCompleted),
@@ -1460,7 +1460,7 @@ const TableGabinete = ({
   }
 
   const isRowSelectable = params => {
-    if (authUser.role === 7) {
+    if ([5, 6, 7].includes(authUser.role)) {
       if (showReasignarSection) {
         // Si la sección de reasignación está habilitada, permite seleccionar cualquier fila
         return true
@@ -1529,7 +1529,7 @@ const TableGabinete = ({
           }
         }}
         apiRef={apiRef}
-        checkboxSelection={authUser.role === 9 || authUser.role === 7}
+        checkboxSelection={[5, 6, 7, 9].includes(authUser.role)}
         onRowSelectionModelChange={handleSelectionChange}
         disableRowSelectionOnClick
         isRowSelectable={isRowSelectable}

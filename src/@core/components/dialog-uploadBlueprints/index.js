@@ -34,7 +34,6 @@ import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoog
 import { useFirebase } from 'src/context/useFirebase'
 
 // ** Configuración de Google Drive
-import googleAuthConfig from 'src/configs/googleDrive'
 
 // Dialog para cargar entregables.
 // doc: Object con la información del entregable.
@@ -386,9 +385,9 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
                 </ListItem>
               )}
 
-              {doc && authUser.uid === doc.userId ? (
+              {(doc && ((authUser.uid === doc.userId) || (authUser.role === 9))) ? (
                 <CustomListItem
-                  editable={doc && authUser.uid === doc.userId}
+                  editable={doc && ((authUser.uid === doc.userId) || (authUser.role === 9))}
                   label='Descripción'
                   placeholder='Agregue la descripción del documento'
                   InputLabelProps={{
