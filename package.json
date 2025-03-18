@@ -98,7 +98,7 @@
     "@babel/preset-env": "^7.20.2",
     "@iconify/iconify": "3.0.0",
     "@iconify/json": "2.1.131",
-    "@iconify/tools": "2.1.1",
+    "@iconify/tools": "4.1.2",
     "@iconify/types": "2.0.0",
     "@iconify/utils": "2.1.7",
     "babel-loader": "^9.1.2",
