@@ -35,7 +35,6 @@ import DialogDeleteBlueprint from 'src/@core/components/dialog-deleteBlueprint'
 import ReasignarDialog from 'src/@core/components/dialog-deliverableReassign'
 import DialogErrorTransmittal from 'src/@core/components/dialog-errorTransmittal'
 import DialogFinishOt from 'src/@core/components/dialog-finishOt'
-import { generateTransmittal } from 'src/context/google-drive-functions/generate-transmittal'
 import TableGabinete from 'src/views/table/data-grid/TableGabinete'
 
 const DataGridGabinete = () => {
@@ -162,6 +161,10 @@ const DataGridGabinete = () => {
   }
 
   const handleGenerateTransmittal = async (tableElement, selected, newCode) => {
+    // Se carga aqui y no arriba: generate-transmittal arrastra jsPDF y las dos
+    // fuentes Calibri, que suman 4,2 MB sin comprimir. Con el import estatico
+    // los pagaba todo el que abriera Gabinete, generara un transmittal o no.
+    const { generateTransmittal } = await import('src/context/google-drive-functions/generate-transmittal')
 
     const transmittalLink = await generateTransmittal(
       tableElement,
