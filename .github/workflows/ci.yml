@@ -20,11 +20,23 @@ jobs:
       - run: npm ci
 
       # Compila. Es la red que faltaba: el proyecto estuvo meses sin poder
-      # desplegar por un Node descontinuado y nadie se enteró, porque nada
-      # construía fuera de Vercel.
-      # Sin las NEXT_PUBLIC_* el build igual compila; esto detecta errores de
-      # compilacion, no configuracion faltante.
+      # desplegar por un Node descontinuado y nadie se entero, porque nada
+      # construia fuera de Vercel.
+      #
+      # Las variables de abajo son FALSAS y estan aqui a proposito. Next ejecuta
+      # el codigo al recolectar las paginas, y Firebase exige una apiKey no vacia
+      # o el build muere con auth/invalid-api-key. Con estos valores el build
+      # compila sin tocar ningun Firebase real: esto verifica que el codigo
+      # COMPILA, no que este bien configurado. Las de verdad viven en Vercel.
       - run: npm run build
+        env:
+          NEXT_PUBLIC_DEV_APIKEY: ci-build-no-es-una-clave-real
+          NEXT_PUBLIC_DEV_AUTHDOMAIN: ci.example.com
+          NEXT_PUBLIC_DEV_PROJECTID: ci-build
+          NEXT_PUBLIC_DEV_STORAGEBUCKET: ci-build.appspot.com
+          NEXT_PUBLIC_DEV_MESSAGINGSENDERID: '000000000000'
+          NEXT_PUBLIC_DEV_APPID: '1:000000000000:web:0000000000000000000000'
+          NEXT_PUBLIC_DEV_MAINTENANCE_MOD: 'false'
 
       - name: Self-checks
         run: |
