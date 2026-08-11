@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master, dev]
+  push:
+    branches: [master, dev]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - run: npm ci
+
+      # Compila. Es la red que faltaba: el proyecto estuvo meses sin poder
+      # desplegar por un Node descontinuado y nadie se enteró, porque nada
+      # construía fuera de Vercel.
+      # Sin las NEXT_PUBLIC_* el build igual compila; esto detecta errores de
+      # compilacion, no configuracion faltante.
+      - run: npm run build
+
+      - name: Self-checks
+        run: |
+          node src/context/firebase-functions/nombreCache.test.mjs
+          node src/context/google-drive-functions/fileValidation.test.mjs
