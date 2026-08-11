@@ -27,12 +27,17 @@ const AclGuard = props => {
   const router = useRouter()
 
   // If guestGuard is true and user is not logged in or its an error page, render the page without checking access
+  // '/nuevo-usuario' estaba en esta lista, o sea la pagina de creacion de
+  // usuarios se saltaba la ACL entera: cualquier usuario con sesion la abria y
+  // podia elegir rol 1 (administrador). La "contraseña de administrador" que
+  // pide el formulario solo reautentica al que ya esta operando, nunca
+  // comprueba que sea administrador. Ahora pasa por la ACL como el resto, que
+  // la deja para el rol 1, igual que '/editar-usuarios'.
   if (
     guestGuard ||
     router.route === '/404' ||
     router.route === '/500' ||
     router.route === '/' ||
-    router.route === '/nuevo-usuario' ||
     router.route === '/completar-perfil'
   ) {
     return <>{children}</>

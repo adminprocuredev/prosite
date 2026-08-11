@@ -98,17 +98,23 @@ const createUser = async (values, userParam, saveEmail, saveUID) => {
     // Guarda correo del admin
     saveEmail(userParam.email)
 
-    // Crea contraseña alfanumerica de 10 digitos
-    // Se comenta esta funcion para posterior uso en producción
-    // const newPassword = generatorPassword.generate({
-    //   length: 10,
-    //   numbers: true
-    // })
-    const newPassword = 'password'
+    // Contraseña aleatoria de 16 caracteres. Antes esto era la cadena literal
+    // 'password' para TODO usuario nuevo, con el generador comentado justo
+    // arriba: hasta que la persona usara el correo de restablecimiento,
+    // cualquiera que supiera su direccion entraba con su cuenta.
+    // La persona nunca ve esta contraseña; entra por el correo que se envia
+    // mas abajo con resetPassword.
+    const newPassword = generatorPassword.generate({
+      length: 16,
+      numbers: true,
+      symbols: true,
+      uppercase: true,
+      strict: true
+    })
 
     // Crea usuario
     try {
-      await Firebase.auth().createUserWithEmailAndPassword(email, newPassword) // Reemplazar 'password' por newPassword
+      await Firebase.auth().createUserWithEmailAndPassword(email, newPassword)
     } catch (createError) {
       console.log('Error al crear el usuario:', createError)
       throw createError // Re-lanzar el error para que se pueda capturar en un nivel superior si es necesario
