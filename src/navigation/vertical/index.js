@@ -48,7 +48,7 @@ const Navigation = () => {
     {
       title: 'Carga de Horas',
       path: '/carga-de-horas',
-      icon: 'mdi:hours-12',
+      icon: 'mdi:hours-24',
       subject: 'carga-de-horas',
       authorizedRoles: [1, 5, 6, 7, 8, 9, 10, 11, 12]
     },

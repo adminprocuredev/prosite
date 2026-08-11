@@ -13,6 +13,13 @@
 import { promises as fs } from 'fs'
 import { dirname } from 'path'
 
+// Este archivo mezcla import de ESM con require.resolve, asi que Node lo carga
+// como modulo ESM y `require` no existe: el script fallaba antes de generar
+// nada. createRequire es el puente estandar para usar require dentro de ESM.
+import { createRequire } from 'module'
+
+const require = createRequire(import.meta.url)
+
 // Installation: npm install --save-dev @iconify/tools @iconify/utils @iconify/json @iconify/iconify
 import { importDirectory, cleanupSVG, parseColors, isEmptyColor, runSVGO } from '@iconify/tools'
 import { getIcons, stringToIcon, minifyIconSet } from '@iconify/utils'
@@ -21,7 +28,113 @@ import { getIcons, stringToIcon, minifyIconSet } from '@iconify/utils'
 const sources = {
   json: [
     // Iconify JSON file (@iconify/json is a package name, /json/ is directory where files are, then filename)
-    require.resolve('@iconify/json/json/mdi.json'),
+    // Antes esto traia mdi.json COMPLETO (unos 7.000 iconos, 2,9 MB) y la app
+    // usa menos de cien. El bundle resultante viaja en _app, o sea lo descarga
+    // hasta quien solo abre el login. Lista extraida de los nombres literales
+    // presentes en src/, mas un margen de iconos de uso comun.
+    {
+      filename: require.resolve('@iconify/json/json/mdi.json'),
+      icons: [
+        'account-circle-outline',
+        'account-group',
+        'account-hard-hat',
+        'account-outline',
+        'alert',
+        'alert-circle-outline',
+        'arrow-down',
+        'arrow-up',
+        'bell-outline',
+        'bookmark-outline',
+        'briefcase-variant-outline',
+        'calendar-month-outline',
+        'cellphone',
+        'cellphone-link',
+        'chart-donut',
+        'chart-pie',
+        'check',
+        'check-circle',
+        'check-circle-outline',
+        'checkbox-blank-outline',
+        'checkbox-marked',
+        'chevron-down',
+        'chevron-left',
+        'chevron-right',
+        'chevron-up',
+        'circle',
+        'circle-medium',
+        'circle-outline',
+        'close',
+        'close-circle-outline',
+        'code-tags',
+        'cog',
+        'cog-outline',
+        'content-copy',
+        'content-save-outline',
+        'crown-outline',
+        'currency-usd',
+        'delete-forever',
+        'delete-outline',
+        'dots-horizontal',
+        'dots-vertical',
+        'download',
+        'download-outline',
+        'email-outline',
+        'export-variant',
+        'eye-off-outline',
+        'eye-outline',
+        'facebook',
+        'file-cad',
+        'file-document-multiple-outline',
+        'file-document-outline',
+        'file-excel',
+        'file-pdf',
+        'file-word',
+        'folder-multiple',
+        'github',
+        'google',
+        'heart',
+        'heart-outline',
+        'home-outline',
+        'hours-24',
+        'information-outline',
+        'language-javascript',
+        'language-typescript',
+        'laptop',
+        'link-variant',
+        'lock-outline',
+        'logout-variant',
+        'magnify',
+        'map-outline',
+        'menu',
+        'message-outline',
+        'minus',
+        'monitor',
+        'pencil-outline',
+        'person-add-outline',
+        'phone',
+        'plus',
+        'plus-circle-outline',
+        'poll',
+        'progress-upload',
+        'rocket-launch-outline',
+        'send',
+        'server',
+        'shield-account-outline',
+        'shield-outline',
+        'shopping-outline',
+        'square-edit-outline',
+        'star',
+        'star-outline',
+        'text-box-outline',
+        'tooltip-edit-outline',
+        'translate',
+        'trending-up',
+        'twitter',
+        'view-grid-outline',
+        'weather-night',
+        'weather-sunny',
+      ]
+    },
 
     // Custom file with only few icons
     {
