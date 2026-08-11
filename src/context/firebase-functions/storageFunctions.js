@@ -72,9 +72,20 @@ const uploadFilesToFirebaseStorage = async (files, idSolicitud, destination = 's
         arrayActual = solicitudDoc.data().fotos || []
       }
 
-      // Reemplaza el array actual con las nuevas fotos (si hay fotos para subir)
       if (arrayURL.length > 0) {
-        arrayActual = arrayURL
+        if (destination === 'solicitudes') {
+          // Las fotos de un levantamiento se ACUMULAN. Antes se reemplazaba el
+          // array completo: subir una foto nueva borraba las anteriores de la
+          // solicitud (los archivos quedaban en Storage, pero desaparecian del
+          // documento y por tanto de la vista).
+          arrayActual = [...arrayActual, ...arrayURL]
+        } else {
+          // blueprints y hlcDocuments se dejan reemplazando a proposito: aqui el
+          // array representa los archivos de la revision vigente del entregable,
+          // y acumular meteria archivos de revisiones anteriores en el
+          // transmittal. Confirmar con el cliente si esto es lo que esperan.
+          arrayActual = arrayURL
+        }
       }
 
       // Escribe el array modificado de vuelta en el documento

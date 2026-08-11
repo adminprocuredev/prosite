@@ -249,9 +249,11 @@ const updateDocumentAndAddEvent = async (ref, changedFields, userParam, prevDoc,
       ...(changedFields.draftmen && { draftmen: changedFields.draftmen })
     }
 
-    await updateDoc(ref, changedFields).then(() => {
-      addDoc(collection(db, 'solicitudes', id, 'events'), newEvent)
-    })
+    // El addDoc del evento estaba dentro de un .then() sin await ni return, asi
+    // que la funcion resolvia antes de que la bitacora quedara escrita: si esa
+    // escritura fallaba, el estado cambiaba igual y sin dejar rastro.
+    await updateDoc(ref, changedFields)
+    await addDoc(collection(db, 'solicitudes', id, 'events'), newEvent)
 
     await sendEmailWhenReviewDocs(userParam, newEvent.prevState, newEvent.newState, requesterId, id)
   } else {
@@ -569,7 +571,12 @@ const updateDocs = async (id, approves, userParam) => {
 
   changedFields.state = newState
 
-  updateDocumentAndAddEvent(ref, changedFields, userParam, prevDoc, docSnapshot.uid, id, prevState)
+  // Sin este await, updateDocs resolvia de inmediato: la UI cerraba el dialogo
+  // y volvia a habilitar los botones mientras la escritura, la bitacora y el
+  // correo seguian en curso, y un fallo quedaba como promesa rechazada fuera
+  // del catch de la pantalla. Una segunda pulsacion podia duplicar la
+  // transicion de estado.
+  await updateDocumentAndAddEvent(ref, changedFields, userParam, prevDoc, docSnapshot.uid, id, prevState)
 }
 
 // ** Modifica otros campos Usuarios
@@ -663,10 +670,22 @@ const useBlueprints = id => {
 
     const unsubscribeAll = [] // Almacenará todas las desuscripciones
 
+    // Los listeners de 'revisions' se recrean en CADA snapshot de 'blueprints',
+    // uno por entregable. Antes se acumulaban en unsubscribeAll y solo se
+    // cerraban al desmontar: con 200 entregables, cada emision del padre dejaba
+    // 200 listeners vivos de mas, volvia a cobrar todas las revisiones, y los
+    // viejos seguian escribiendo su copia obsoleta sobre el estado de React.
+    // Se llevan aparte para poder cerrarlos antes de crear la tanda nueva.
+    let revisionUnsubs = []
+
     const blueprintsRef = collection(db, `solicitudes/${id}/blueprints`)
 
     // Suscribirse a cambios en la subcolección 'blueprints'
     const unsubscribeBlueprints = onSnapshot(blueprintsRef, docSnapshot => {
+      // Cierra la tanda anterior de listeners de revisiones antes de abrir la nueva
+      revisionUnsubs.forEach(unsubscribe => unsubscribe())
+      revisionUnsubs = []
+
       if (docSnapshot.docs.length === 0) {
         setData([])
         setProjectistData({})
@@ -727,7 +746,7 @@ const useBlueprints = id => {
           }
         })
 
-        unsubscribeAll.push(unsubscribeRevisions)
+        revisionUnsubs.push(unsubscribeRevisions)
       })
 
       // Calcular 'otPercent' solo si hay documentos válidos
@@ -745,7 +764,10 @@ const useBlueprints = id => {
     unsubscribeAll.push(unsubscribeBlueprints)
 
     // Limpieza: desuscribirse de todos los listeners cuando el componente se desmonta o el ID cambia
-    return () => unsubscribeAll.forEach(unsubscribe => unsubscribe())
+    return () => {
+      unsubscribeAll.forEach(unsubscribe => unsubscribe())
+      revisionUnsubs.forEach(unsubscribe => unsubscribe())
+    }
   }, [id])
 
   return [data, projectistData, otPercent, otReadyToFinish, setData]
