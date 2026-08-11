@@ -200,9 +200,16 @@ const DataGridGabinete = () => {
       // Actualiza el campo lastTransmittal en cada uno de los documentos seleccionados
       const selected = apiRef.current.getSelectedRows()
 
-      // Ahora, añade este contador al final de tu newCode
-      await generateTransmittalCounter(currentPetition)
-      const newCode = `21286-000-TT-${transmittalNumber}`
+      // generateTransmittalCounter ya devuelve el codigo completo y correlativo
+      // (21286-000-TT-NNNN), incrementado dentro de una transaccion. Antes se
+      // llamaba, se descartaba lo que devolvia, y el codigo se rearmaba con el
+      // campo manual: si venia vacio el PDF salia "21286-000-TT-" sin numero, y
+      // el contador quedaba con huecos igual. Incidencia Gabinete 2.
+      // Se respeta el numero manual cuando el usuario escribe uno, porque ese
+      // campo parece intencional; si lo deja vacio, usa el correlativo generado.
+      const codigoGenerado = await generateTransmittalCounter(currentPetition)
+      const numeroManual = transmittalNumber?.trim()
+      const newCode = numeroManual ? `21286-000-TT-${numeroManual}` : codigoGenerado
 
       let tableElement = document.createElement('table')
       let numberOfDocuments = selected.size
