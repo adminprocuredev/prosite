@@ -456,8 +456,12 @@ const FormLayoutsSolicitud = () => {
         }
 
         // Se reordena la información de areas en domain, para que sea un arreglo que contiene el {N°Area - Nombre de Area}
-        const plantData = domainData?.plants?.[values.plant] || {}
-        if (plantData) {
+        // El `|| {}` de antes hacia que el if siempre pasara ({} es truthy) y
+        // plantData.areas.map explotara cuando la planta no estaba en el catalogo.
+        // El throw lo capturaba el catch de mas abajo, y de paso se saltaba la
+        // carga de centros de costo: dos desplegables vacios sin explicacion.
+        const plantData = domainData?.plants?.[values.plant]
+        if (plantData?.areas) {
           const areas = plantData.areas.map(area => `${area.number} - ${area.name}`)
           setAreas(areas)
         }
