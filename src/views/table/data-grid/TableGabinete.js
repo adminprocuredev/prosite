@@ -72,8 +72,14 @@ const TableGabinete = ({
     setOpenDialog(true)
   }
 
+  // Cierra el dialogo de carga. Tiene que bajar los DOS estados: mientras
+  // openUploadDialog siga en true, el efecto de mas abajo vuelve a poner en
+  // `doc` el entregable de `currentRow` cada vez que llega un snapshot, y el
+  // comentario termina guardandose en ese otro entregable (incidencia
+  // Gabinete 1).
   const handleCloseUploadDialog = () => {
     setOpenUploadDialog(false)
+    setOpenDialog(false)
   }
 
   const handleClickOpenAlert = (doc, isApproved) => {
@@ -1590,7 +1596,7 @@ const TableGabinete = ({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cerrar</Button>
+          <Button onClick={handleCloseUploadDialog}>Cerrar</Button>
         </DialogActions>
       </Dialog>
     </Card>
