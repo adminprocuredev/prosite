@@ -210,13 +210,17 @@ const getDomainData = async (document = null, field = null) => {
         // Si el 'document' indicado no existe, se maneja el error
         console.error(`El documento con ID '${document}' no existe.`)
 
-        return null
+        // Se devuelve {} y no null a proposito: quien llama hace
+        // Object.keys(...), Object.entries(...) o dictionary[estado] sin
+        // comprobar antes, y con null eso lanza TypeError y mata la pantalla
+        // completa. Con {} el resultado queda vacio y la pantalla se dibuja.
+        return {}
       }
     }
   } catch (error) {
     console.error('Error al obtener datos:', error)
 
-    return null
+    return {}
   }
 }
 

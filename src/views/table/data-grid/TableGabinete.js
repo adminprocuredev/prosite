@@ -30,9 +30,6 @@ import { useFirebase } from 'src/context/useFirebase'
 
 import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
 
-// TODO: Move to firebase-functions
-import { getStorage, list, ref } from 'firebase/storage'
-
 
 const TableGabinete = ({
   rows,
@@ -52,7 +49,6 @@ const TableGabinete = ({
   const [loadingProyectistas, setLoadingProyectistas] = useState(true)
   const [approve, setApprove] = useState(true)
   const [currentRow, setCurrentRow] = useState(null)
-  const [fileNames, setFileNames] = useState({})
   const [remarksState, setRemarksState] = useState('')
   const [openDialog, setOpenDialog] = useState(false)
   const [error, setError] = useState('')
@@ -129,20 +125,6 @@ const TableGabinete = ({
 
   const classes = useStyles()
 
-  const storage = getStorage()
-
-  const getBlueprintName = async id => {
-    const blueprintRef = ref(storage, `/uploadedBlueprints/${id}/blueprints`)
-    try {
-      const res = await list(blueprintRef)
-
-      return res?.items[0]?.name || 'No disponible'
-    } catch (err) {
-      console.error(err)
-
-      return 'Error al obtener el nombre del entregable'
-    }
-  }
 
 
   /**
@@ -403,13 +385,12 @@ const TableGabinete = ({
   }
 
   useEffect(() => {
-    // Primera parte: obtener los nombres de los planos
-    rows.map(async row => {
-      const blueprintName = await getBlueprintName(row.id)
-      setFileNames(prevNames => ({ ...prevNames, [row.id]: blueprintName }))
-    })
+    // Aqui habia una llamada a Firebase Storage POR CADA FILA para llenar
+    // `fileNames`, un estado que no se leia en ninguna parte. Con 200 entregables
+    // eran 200 llamadas y hasta 200 renders por cada vez que corria el efecto,
+    // sin ningun efecto visible. Se elimino junto con getBlueprintName.
 
-    // Segunda parte: manejar la apertura del diálogo de carga
+    // Manejo de la apertura del diálogo de carga
     if (openUploadDialog) {
       const filterRow = rows.find(rows => rows.id === currentRow)
       setDoc(filterRow)
