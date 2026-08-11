@@ -29,6 +29,7 @@ import { LocalizationProvider, MobileDatePicker } from '@mui/x-date-pickers'
 // ** Custom Components
 import DialogErrorFile from 'src/@core/components/dialog-errorFile'
 import Icon from 'src/@core/components/icon'
+import { validateFiles } from 'src/context/google-drive-functions/fileValidation'
 
 import {
   CustomAutocomplete,
@@ -475,38 +476,6 @@ const FormLayoutsSolicitud = () => {
     getSpecificDomainData()
   }, [domainData, values.plant])
 
-  const validateFiles = acceptedFiles => {
-    const imageExtensions = ['jpeg', 'jpg', 'png', 'webp', 'bmp', 'tiff', 'svg', 'heif', 'HEIF']
-    const documentExtensions = ['xls', 'xlsx', 'doc', 'docx', 'ppt', 'pptx', 'pdf', 'csv', 'txt']
-    const maxSizeBytes = 10 * 1024 * 1024 // 5 MB in bytes
-
-    const isValidImage = file => {
-      const extension = file.name.split('.').pop().toLowerCase()
-
-      return imageExtensions.includes(extension) && file.size <= maxSizeBytes
-    }
-
-    const isValidDocument = file => {
-      const extension = file.name.split('.').pop().toLowerCase()
-
-      return documentExtensions.includes(extension) && file.size <= maxSizeBytes
-    }
-
-    const isValidFile = file => {
-      return isValidImage(file) || isValidDocument(file)
-    }
-
-    const validationResults = acceptedFiles.map(file => {
-      return {
-        name: file.name,
-        isValid: isValidFile(file),
-        msj: isValidFile(file) ? `${file.name}` : `${file.name} - El archivo excede el tamaño máximo de 5 MB`
-      }
-    })
-
-    return validationResults
-  }
-
   const handleOpenErrorDialog = msj => {
     setErrorFileMsj(msj)
     setErrorDialog(true)
@@ -518,11 +487,9 @@ const FormLayoutsSolicitud = () => {
 
   const { getRootProps, getInputProps } = useDropzone({
     onDrop: acceptedFiles => {
-      const invalidFiles = validateFiles(acceptedFiles).filter(file => !file.isValid)
+      const invalidFiles = validateFiles(acceptedFiles, 10).filter(file => !file.isValid)
       if (invalidFiles.length > 0) {
-        const res = validateFiles(invalidFiles)
-        const msj = res[0].msj
-        handleOpenErrorDialog(msj)
+        handleOpenErrorDialog(invalidFiles[0].msj)
 
         return invalidFiles
       }
@@ -635,7 +602,7 @@ const FormLayoutsSolicitud = () => {
         ['Urgencia', 'Emergencia', 'Oportunidad'].includes(values.urgency)
 
       // Se define el array de booleanos invalidFiles que definirá si los documentos adjuntos son válidos o no.
-      const invalidFiles = validateFiles(files).filter(file => !file.isValid)
+      const invalidFiles = validateFiles(files, 10).filter(file => !file.isValid)
 
       // Se define la variable booleana isBlocked que define si el día 'start' seleccionado está bloqueado o no.
       const isBlocked = await consultBlockDayInDB(values.start.toDate())

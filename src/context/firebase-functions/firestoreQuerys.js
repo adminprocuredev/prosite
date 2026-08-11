@@ -16,6 +16,7 @@ import {
   where
 } from 'firebase/firestore'
 import { db } from 'src/configs/firebase'
+import { crearCacheDeNombres } from './nombreCache'
 
 import { unixToDate } from 'src/@core/components/unixToDate'
 
@@ -130,10 +131,14 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
         try {
           const allDocs = []
 
+          // Antes se leía users/{uid} una vez por FILA. Muchas solicitudes comparten
+          // usuario, así que la cache se crea por snapshot: se deduplica entre filas y
+          // cada snapshot vuelve a leer, o sea los nombres siguen igual de frescos.
+          const nombreDe = crearCacheDeNombres(uid => getDoc(doc(db, 'users', uid)))
+
           const promises = querySnapshot.docs.map(async d => {
             const docData = d.data()
-            const userSnapshot = await getDoc(doc(db, 'users', docData.uid))
-            const name = userSnapshot.data() ? userSnapshot.data().name : 'No definido'
+            const name = await nombreDe(docData.uid)
             const newDoc = { ...docData, id: d.id, name }
             allDocs.push(newDoc)
           })

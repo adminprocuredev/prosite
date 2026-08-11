@@ -157,9 +157,7 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
       // Valida los archivos con base en el tamaño y tipo
       const invalidFiles = validateFiles(acceptedFiles).filter(file => !file.isValid)
       if (invalidFiles.length > 0) {
-        const res = validateFiles(invalidFiles)
-        const msj = res[0].msj
-        handleOpenErrorDialog(msj)
+        handleOpenErrorDialog(invalidFiles[0].msj)
 
         return invalidFiles
       }
