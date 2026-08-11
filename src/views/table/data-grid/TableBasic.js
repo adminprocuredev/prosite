@@ -10,7 +10,6 @@ import useMediaQuery from '@mui/material/useMediaQuery'
 import { DataGridPremium, GridToolbarContainer } from '@mui/x-data-grid-premium'
 import { esES } from '@mui/x-data-grid-pro'
 import { addDays, differenceInDays, format, getWeek } from 'date-fns'
-import * as ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
 
 import { Check, Clear, Edit, MoreHoriz as MoreHorizIcon, OpenInNewOutlined } from '@mui/icons-material'
@@ -593,6 +592,13 @@ const TableBasic = ({ rows, role, roleData }) => {
 
   // handleExport es una función asíncrona que se utiliza para exportar los datos de la tabla a un archivo de Excel.
   const handleExport = async options => {
+    // ExcelJS se carga aqui y no arriba: son unos 300 KB comprimidos que antes
+    // descargaba todo el que abriera Solicitudes, exportara o no.
+    // exceljs es CommonJS, asi que segun como lo empaquete Next puede quedar
+    // bajo .default o en la raiz del namespace: se cubren los dos casos.
+    const modulo = await import('exceljs')
+    const ExcelJS = modulo.default ?? modulo
+
     // Se crea un nuevo libro de trabajo de Excel.
     const workbook = new ExcelJS.Workbook()
     // Se añade una nueva hoja de trabajo al libro de trabajo y se le asigna el nombre 'Hoja 1'.
