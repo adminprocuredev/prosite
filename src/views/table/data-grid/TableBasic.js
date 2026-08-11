@@ -15,7 +15,7 @@ import { saveAs } from 'file-saver'
 
 import { Check, Clear, Edit, MoreHoriz as MoreHorizIcon, OpenInNewOutlined } from '@mui/icons-material'
 import { Box, Button, Card, Container, Fade, IconButton, Select, Tooltip, Typography } from '@mui/material'
-import { GridColumnMenu, GridColumnMenuPinningItem, GridSortMenuItem } from '@mui/x-data-grid-pro'
+import { GridColumnMenu, GridColumnMenuPinningItem } from '@mui/x-data-grid-pro'
 
 import { FullScreenDialog } from 'src/@core/components/dialog-fullsize'
 import AlertDialog from 'src/@core/components/dialog-warning'
@@ -164,7 +164,10 @@ const TableBasic = ({ rows, role, roleData }) => {
         {...props}
         slots={{
           // opciones que se muestran
-          columnMenuSortingItem: GridSortMenuItem,
+          // ponytail: el ordenamiento lo pone GridColumnMenu por defecto. Antes
+          // habia un `columnMenuSortingItem: GridSortMenuItem` que no hacia nada
+          // (ni el slot ni el componente existen en MUI X v6) y dejaba un warning
+          // de import en cada build.
           columnMenuPinningItem: GridColumnMenuPinningItem,
 
           // Oculta se ocultan

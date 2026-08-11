@@ -1,6 +1,10 @@
 import React from 'react'
+import moment from 'moment'
 import { Box, FormControl, ListItem, Typography } from '@mui/material'
-import { DatePicker, LocalizationProvider, AdapterMoment } from '@mui/x-date-pickers'
+import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers'
+// AdapterMoment vive en su propia ruta; desde la raiz llega undefined y el
+// DatePicker se cae. Los otros tres usos del proyecto ya lo importan asi.
+import { AdapterMoment } from '@mui/x-date-pickers/AdapterMoment'
 import { unixToDate } from 'src/@core/components/unixToDate'
 
 function DateListItem({ editable, label, value, onChange, initialValue, customMinDate = null }) {
