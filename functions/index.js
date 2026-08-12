@@ -773,7 +773,12 @@ exports.scheduledFirestoreExport = functions.pubsub
 //
 // Aquí las dos escrituras ocurren en el servidor y, si la segunda falla, se
 // borra la cuenta recién creada para no dejar usuarios a medio crear.
-exports.createUserAsAdmin = functions.https.onCall(async (data, context) => {
+// maxInstances acotado a proposito: esta funcion la llama una persona desde un
+// formulario, nunca en volumen. Con un tope bajo, un bucle de reintentos se
+// convierte en un error visible en vez de una factura.
+exports.createUserAsAdmin = functions
+  .runWith({ maxInstances: 10, timeoutSeconds: 60, memory: '256MB' })
+  .https.onCall(async (data, context) => {
   // Debe haber sesión.
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Debes iniciar sesión.')
