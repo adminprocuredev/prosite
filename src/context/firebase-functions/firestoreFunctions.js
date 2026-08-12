@@ -1049,7 +1049,7 @@ const getMilestone = (newRevision, blueprint, approves, isRevisionAtLeast0) => {
 const getNextRevision = async (approves, latestRevision, authUser, blueprint, remarks) => {
 
   // Desestructuración de authUser
-  const { email, displayName, uid } = authUser
+  const { email, displayName, uid, role } = authUser
 
   // Desestructuración de blueprint
   const {
@@ -1123,6 +1123,13 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
     userEmail: email,
     userName: displayName,
     userId: uid,
+    // El ROL de quien hizo la acción. La bitácora guardaba solo el nombre, y en
+    // la tabla ese nombre cae bajo la columna "ENCARGADO", que en la fila del
+    // entregable significa "el proyectista asignado". Así, cuando Control
+    // Documental aprobaba, la bitácora lo mostraba en la columna del
+    // proyectista y se leía como si él fuera el proyectista de esa revisión.
+    // Incidencia Gabinete 7.
+    userRole: role ?? null,
     date: Timestamp.fromDate(new Date()),
     remarks: remarks || 'Sin observaciones',
     attentive: attentive

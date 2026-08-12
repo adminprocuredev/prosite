@@ -35,10 +35,20 @@ import { UploadBlueprintsDialog } from 'src/@core/components/dialog-uploadBluepr
 import AlertDialogGabinete from 'src/@core/components/dialog-warning-gabinete'
 import { unixToDate } from 'src/@core/components/unixToDate'
 import { puedeSubirHlc, veColumnaHlc } from 'src/context/firebase-functions/permisosHlc'
+import { permisosDeRevision } from './permisosDeRevision'
 import { useFirebase } from 'src/context/useFirebase'
 
 import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
 
+
+// Para distinguir, en la bitácora, quién hizo cada revisión. Solo los roles que
+// aparecen ahí. Incidencia Gabinete 7.
+const NOMBRE_DEL_ROL = {
+  6: 'Contract Owner',
+  7: 'Supervisor',
+  8: 'Proyectista',
+  9: 'Control Documental'
+}
 
 const TableGabinete = ({
   rows,
@@ -231,59 +241,6 @@ const TableGabinete = ({
    * @param {Object} authUser - Información del Usuario conectado que realiza la acción.
    * @returns {Object|undefined} - Retorna un Objeto con booleanos o Undefined en caso de errores.
    */
-  function permissions(row, authUser) {
-
-    if (!row) {
-      return { approve: false, reject: false }
-    }
-
-    // Desestructuración de Objetos.
-    const {
-      userId,
-      description,
-      clientCode,
-      storageBlueprints,
-      approvedByContractAdmin,
-      approvedByDocumentaryControl,
-      approvedBySupervisor,
-      blueprintCompleted,
-      attentive,
-      sentByDesigner,
-      sentBySupervisor
-    } = row
-
-    const { uid, role } = authUser
-
-    // Definición de variables booleanas.
-    const isRole6Turn = attentive === 6
-    const isRole7Turn = attentive === 7
-    const isRole8Turn = attentive === 8
-    const isRole9Turn = attentive === 9
-    const isMyBlueprint = userId === uid
-    const sentByAuthor = sentByDesigner || sentBySupervisor
-    const hasRequiredFields = description && clientCode && storageBlueprints && storageBlueprints.length >= 1
-
-    const dictionary = {
-      6: {
-        approve: isRole7Turn && !approvedByContractAdmin,
-        reject: isRole7Turn && !approvedByContractAdmin
-      },
-      7: {
-        approve: (isRole7Turn && sentByAuthor && !isMyBlueprint && !approvedBySupervisor) || (isRole7Turn && isMyBlueprint && hasRequiredFields && !blueprintCompleted),
-        reject: isRole7Turn  && sentByAuthor && !isMyBlueprint && !approvedBySupervisor
-      },
-      8: {
-        approve: isRole8Turn && isMyBlueprint && hasRequiredFields && !blueprintCompleted,
-        reject: false
-      },
-      9: {
-        approve: isRole9Turn && !approvedByDocumentaryControl,
-        reject: isRole9Turn && !approvedByDocumentaryControl
-      }
-    }
-
-    return dictionary[role]
-  }
 
 
   /**
@@ -823,15 +780,40 @@ const TableGabinete = ({
         let userNameContent
 
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
-          // Para las filas de revisión, muestra el autor de la revisión
+          // En la bitácora esta columna NO es el proyectista asignado: es quien
+          // hizo esa revisión. Se muestra con su rol porque el encabezado dice
+          // "ENCARGADO" y en la fila de arriba eso significa el proyectista;
+          // cuando Control Documental aprobaba, su nombre aparecía en la columna
+          // del proyectista y se leía como si lo fuera. Incidencia Gabinete 7.
+          //
+          // Las revisiones anteriores a este cambio no guardaron el rol: ahí se
+          // muestra solo el nombre, y el tooltip aclara igual que fue quien
+          // revisó.
           userNameContent = row.userName
+          // Number() por si el rol quedó guardado como texto en algún documento.
+          const rolDeQuienRevisa = NOMBRE_DEL_ROL[Number(row.userRole)]
 
           return (
-            <Box sx={{ overflow: 'hidden' }}>
-              <Typography noWrap sx={{ textOverflow: 'clip', fontSize: lg ? '0.8rem' : '1rem' }}>
-                {userNameContent || 'N/A'}
-              </Typography>
-            </Box>
+            <Tooltip
+              title={userNameContent ? `Revisó: ${userNameContent}${rolDeQuienRevisa ? ` (${rolDeQuienRevisa})` : ''}` : ''}
+              placement='bottom-start'
+            >
+              <Box sx={{ overflow: 'hidden' }}>
+                <Typography noWrap sx={{ textOverflow: 'clip', fontSize: lg ? '0.8rem' : '1rem' }}>
+                  {userNameContent || 'N/A'}
+                </Typography>
+                {rolDeQuienRevisa && (
+                  <Typography
+                    noWrap
+                    variant='caption'
+                    color='text.secondary'
+                    sx={{ display: 'block', textOverflow: 'clip', lineHeight: 1.2 }}
+                  >
+                    revisó · {rolDeQuienRevisa}
+                  </Typography>
+                )}
+              </Box>
+            </Tooltip>
           )
         } else if (!row.isRevision && !expandedRows.has(params.row.parentId)) {
           // Para las filas principales, muestra el responsable actual del blueprint
@@ -1333,7 +1315,7 @@ const TableGabinete = ({
         // console.log("Se ingresa a Observaciones")
         const { row } = params || false
         localStorage.setItem('remarksGabineteWidthColumn', params.colDef.computedWidth)
-        const permissionsData = permissions(row, authUser)
+        const permissionsData = permisosDeRevision(row, authUser)
         const canApprove = permissionsData?.approve || false
         const canReject = permissionsData?.reject || false
 
