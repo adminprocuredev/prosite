@@ -8,7 +8,6 @@ import Link from 'next/link'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
-import Divider from '@mui/material/Divider'
 import Dialog from '@mui/material/Dialog'
 import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
@@ -99,7 +98,6 @@ const LoginPage = () => {
   const [rememberMe, setRememberMe] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
   const [alertMessage, setAlertMessage] = useState('')
-  const [entrandoConGoogle, setEntrandoConGoogle] = useState(false)
 
   // ** Hooks
   const theme = useTheme()
@@ -121,24 +119,17 @@ const LoginPage = () => {
     }
   }
 
-  // Ingreso con Google. Es el camino recomendado para la gente de Procure: una
-  // sola identidad, sin contraseña que administrar y sin el segundo
-  // consentimiento de Drive que antes aparecia despues de entrar.
-  const handleSignGoogle = async e => {
-    e.preventDefault()
-    setEntrandoConGoogle(true)
-    try {
-      await signGoogle()
-    } catch (error) {
-      // popup-closed-by-user y cancelled-popup-request son el usuario cerrando
-      // la ventana: no es un error que valga la pena mostrar.
-      if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
-        setAlertMessage(error.message || 'No se pudo iniciar sesión con Google')
-      }
-    } finally {
-      setEntrandoConGoogle(false)
-    }
-  }
+  // Función para manejar el login con Google SSO.
+  // const handleSignGoogle = e => {
+  //   e.preventDefault()
+  //   signGoogle()
+  //     .then(token => {
+  //       // Manejar la respuesta exitosa
+  //     })
+  //     .catch(error => {
+  //       console.log(error)
+  //     })
+  // }
 
   // Se retorna de forma gráfica.
   return (
@@ -260,32 +251,15 @@ const LoginPage = () => {
 
               </Box>
 
-              {/* Botón 'Entrar' con correo y contraseña. Se mantiene para quien no
-                  tenga cuenta de Google, por ejemplo gente del cliente. */}
-              <Button fullWidth size='large' type='submit' variant='contained' sx={{ mb: 3 }}>
+              {/* Botón 'Entrar' */}
+              <Button fullWidth size='large' type='submit' variant='contained' sx={{ mb: 5 }}>
                 Entrar
               </Button>
 
-              <Divider sx={{ mb: 3 }}>
-                <Typography variant='body2' color='text.secondary'>o</Typography>
-              </Divider>
-
-              {/* Ingreso con Google */}
-              <Button
-                fullWidth
-                size='large'
-                variant='outlined'
-                disabled={entrandoConGoogle}
-                onClick={handleSignGoogle}
-                startIcon={<Icon icon='mdi:google' />}
-                sx={{ mb: 2 }}
-              >
-                {entrandoConGoogle ? 'Conectando…' : 'Continuar con Google'}
+              {/* <Button fullWidth size='large' onClick={(e) => handleSignGoogle(e)} variant='contained' sx={{ mb:3}}>
+                Entrar con Google
               </Button>
-
-              <Typography variant='body2' fontSize={12} align='center' color='text.secondary'>
-                Solo cuentas @procure.cl ya registradas en Prosite
-              </Typography>
+              <Typography variant='body1' fontSize={12} align='center'>Solo disponible para usuarios registrados Procure</Typography> */}
             </form>
           </BoxWrapper>
         </Paper>
