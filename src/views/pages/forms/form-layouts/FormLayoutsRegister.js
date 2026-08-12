@@ -1,5 +1,5 @@
 // ** React Imports
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // ** Next Imports
 import { useRouter } from 'next/router'
@@ -51,27 +51,30 @@ const FormLayoutsBasic = () => {
   // ** States
   const [errors, setErrors] = useState({})
   const [values, setValues] = useState(initialValues)
-  const [password, setPassword] = useState('')
-  const [dialog, setDialog] = useState(false)
-  const [attempts, setAttempts] = useState(0)
+  // Confirmacion de usuario creado y error, en reemplazo del dialogo que pedia
+  // la contraseña del administrador: con la creacion en el servidor la sesion
+  // no cambia y no hay nada que reautenticar.
+  const [dialogUserCreated, setDialogUserCreated] = useState(false)
+  const [dialogError, setDialogError] = useState(false)
+  // Evita el doble envio. El estado sirve para pintar el boton, pero el guard
+  // real es el ref: entre dos submits del mismo lote de React el estado todavia
+  // tiene el valor viejo y ambos pasarian.
+  const [enviando, setEnviando] = useState(false)
+  const enviandoRef = useRef(false)
   const [alertMessage, setAlertMessage] = useState('')
   const [contOptions, setContOptions] = useState([])
   const [opShiftOptions, setOpShiftOptions] = useState([])
-  const [oldEmail, setOldEmail] = useState('')
-  const [newUID, setNewUID] = useState('')
   const [plantsNames, setPlantsNames] = useState([])
   const [allowableEmails, setAllowableEmails] = useState([])
   const [procureRoles, setProcureRoles] = useState([])
   const [melRoles, setMelRoles] = useState([])
   const [userTypes, setUserTypes] = useState([])
-  const [wrongPasswordAdvice, setWrongPasswordAdvice] = useState(false)
-  const [tryingCreateUser, setTryingCreateUser] = useState(false)
   const [userAlreadyExists, setUserAlreadyExists] = useState(false)
   const basicKeys = ['firstName', 'fatherLastName', 'email', 'company', 'role']
   const [requiredKeys, setRequiredKeys] = useState([...basicKeys])
 
   // ** Hooks
-  const { createUser, signAdminBack, signAdminFailure, getUserData, consultUserEmailInDB, authUser, isCreatingProfile, setIsCreatingProfile, getDomainData } = useFirebase()
+  const { createUser, getUserData, consultUserEmailInDB, authUser, isCreatingProfile, setIsCreatingProfile, getDomainData } = useFirebase()
 
   // Acá se define en una constante los nombres de las plantas como un array
   const getPlantNames = async () => {
@@ -361,6 +364,10 @@ const FormLayoutsBasic = () => {
 
     if (areFieldsValid) {
 
+      if (enviandoRef.current) return
+      enviandoRef.current = true
+      setEnviando(true)
+
       try {
 
         // Formatear el campo 'plant'
@@ -379,17 +386,30 @@ const FormLayoutsBasic = () => {
           values.rut = values.rut.replace(/[.]/g, '')
         }
 
-        // Crear usuario
-        await createUser({ ...values }, authUser, setOldEmail, setNewUID)
+        // Crear usuario. Ahora lo hace una Cloud Function con el Admin SDK, asi
+        // que la sesion del administrador NO se toca y ya no hay que pedirle su
+        // contraseña para volver: el dialogo de reautenticacion sobra.
+        const resultado = await createUser({ ...values })
 
-        // Cambiar estados tras éxito
-        setIsCreatingProfile(true)
-        setDialog(true)
         setErrors({})
+        setAlertMessage(
+          resultado && resultado.correoEnviado === false
+            ? 'Usuario creado, pero no se pudo enviar el correo para definir la contraseña. La persona puede usar "¿Olvidaste tu contraseña?" en el login.'
+            : 'Usuario creado. Se le envió un correo para definir su contraseña.'
+        )
+        setDialogUserCreated(true)
       } catch (error) {
         console.error('Error al crear el usuario:', error)
-        setDialog(true)
-        setAlertMessage(error.toString())
+        // Antes esto abria el dialogo que pedia la contraseña del administrador
+        // para reautenticarse. Con la creacion en el servidor la sesion nunca
+        // cambia, asi que ese dialogo no solo sobraba: al tercer intento
+        // llamaba a signAdminFailure, que borraba auth.currentUser — o sea la
+        // cuenta del propio administrador.
+        setAlertMessage(error.message || String(error))
+        setDialogError(true)
+      } finally {
+        enviandoRef.current = false
+        setEnviando(false)
       }
     } else {
       // Manejo de errores en la validación
@@ -400,100 +420,6 @@ const FormLayoutsBasic = () => {
 
   // Se define router para redirir a los usuariosa otras páginas, de ser necesario.
   const router = useRouter()
-
-  const handleConfirm = async (values, password) => {
-
-    setTryingCreateUser(true)
-
-    const maxAttempts = 3 // Número máximo de intentos permitidos
-
-    const updatedAttempts = attempts + 1
-    setAttempts(updatedAttempts)
-
-    // Si ya se han alcanzado los intentos máximos, no continuar
-    if (updatedAttempts === 0  || updatedAttempts < maxAttempts) {
-
-      try {
-        // Intentar realizar la acción de autenticación
-        await signAdminBack(values, password, oldEmail, newUID)
-
-        // Si la autenticación es exitosa
-        setValues(initialValues)
-        setAttempts(0) // Reiniciar el contador de intentos
-        setDialog(false)
-        setIsCreatingProfile(false)
-
-      } catch (error) {
-          console.log(error)
-          // setAttempts(prevAttempts => prevAttempts + 1) // Incrementar el contador de intentos
-
-          if (error.message === 'FirebaseError: Firebase: Error (auth/wrong-password).') {
-              setAlertMessage('Contraseña incorrecta. Te quedan ' + (maxAttempts - updatedAttempts) + ' intentos disponibles.')
-              setWrongPasswordAdvice(true)
-          } else {
-            setAlertMessage('Error desconocido')
-            setWrongPasswordAdvice(true)
-          }
-      }
-
-    } else {
-
-      setAlertMessage('Has llegado al límite de contraseñas. Serás redirigido al login.')
-
-        // Mostrar el mensaje durante 3 segundos.
-        setTimeout(async () => {
-          try {
-            await signAdminFailure() // Asegúrate de que esta función sea async si tiene promesas.
-            router.push('/login') // Redirige al usuario al login.
-            setDialog(false) // Cierra el diálogo.
-            setAlertMessage('') // Limpia el mensaje de alerta.
-          } catch (error) {
-            console.log(error) // Maneja el error.
-          }
-        }, 3000)
-
-        return // Salir de la función si los intentos han alcanzado el máximo
-
-    }
-
-  }
-
-  // Maneja Cierre de Dialog de ingreso de Contraseña de Admin cuando se hace click en "Cancelar".
-  const handleClose = async () => {
-
-    setPassword('')
-
-    if (authUser.role !== 1) {
-      setAlertMessage('Registro cancelado: no se creó ningún usuario. Serás redirigid@ al login.')
-
-      try {
-        router.push('/login')
-        await signAdminFailure()
-        //router.push('/login') // Redirige al usuario
-      } catch (error) {
-        console.log(error)
-      }
-
-    } else {
-      setDialog(false)
-      setAlertMessage('')
-    }
-
-  }
-
-  // Maneja Cierre de Dialog donde se indica que usuario se equivocó al indicar la contraseña.
-  const handleTryPasswordAgain = async () => {
-
-    setTryingCreateUser(false)
-
-    if (attempts >= 3) {
-      handleConfirm()
-    }
-
-    setPassword('')
-    setAlertMessage('')
-    setWrongPasswordAdvice(false)
-  }
 
   // Maneja Cierre de Dialog donde se indica que el e-mail ya existe.
   const handleCloseDialogUserAlreadyExists = async () => {
@@ -792,51 +718,35 @@ const FormLayoutsBasic = () => {
               <Box sx={{ gap: 5, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
 
                 {/* Botón "Crear Usuario" */}
-                <Button disabled={Object.keys(errors).length > 0} type='submit' variant='contained' size='large'>
-                  Crear usuario
+                <Button disabled={Object.keys(errors).length > 0 || enviando} type='submit' variant='contained' size='large'>
+                  {enviando ? 'Creando…' : 'Crear usuario'}
                 </Button>
 
-                {/* Dialog para ingresar la contraseña del Admin*/}
-                <Dialog
-                  open={dialog}
-                  sx={{
-                    "& .MuiDialog-paper": {
-                      width: 'auto',          // Ajusta el tamaño del diálogo
-                      maxWidth: 500,          // Limita el tamaño máximo del diálogo (puedes ajustar el valor según sea necesario)
-                      margin: 'auto',         // Centra el diálogo
-                      overflow: 'hidden',     // Evita el scrollbar cuando el contenido es pequeño
-                    },
-                  }}
-                >
-                  {tryingCreateUser ? (
-                    <DialogContent sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                      <CircularProgress size={40} />
-                    </DialogContent>
-                  ) : (
-                    <DialogContent>
-                      <DialogContentText sx={{ mb: 5 }}>Ingresa tu contraseña para confirmar.</DialogContentText>
-                      <DialogContentText sx={{ mb: 5 }}>Si haces click en "CERRAR" serás redirigido al login.</DialogContentText>
-                      <TextField fullWidth label="Contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                    </DialogContent>
-                  )}
-
-                  {tryingCreateUser ? (
-                    null // Ya hemos centrado el CircularProgress en el DialogContent, no necesitamos acciones en esta parte.
-                  ) : (
-                    <DialogActions>
-                      <Button disabled={authUser && authUser.role === 1} onClick={async () => await handleClose()}>Cerrar</Button>
-                      <Button disabled={!password} onClick={async () => await handleConfirm(values, password)}>Confirmar</Button>
-                    </DialogActions>
-                  )}
-                </Dialog>
-
-                {/* Dialog para indicar Error en ingreso de Contraseña */}
-                <Dialog open={wrongPasswordAdvice}>
+                {/* Dialog de confirmación de usuario creado */}
+                <Dialog open={dialogUserCreated}>
                   <DialogContent>
                     <DialogContentText sx={{ mb: 5 }}>{alertMessage}</DialogContentText>
                   </DialogContent>
                   <DialogActions>
-                    <Button onClick={async() => await handleTryPasswordAgain()}>OK</Button>
+                    <Button
+                      onClick={() => {
+                        setDialogUserCreated(false)
+                        setValues(initialValues)
+                        setAlertMessage('')
+                      }}
+                    >
+                      OK
+                    </Button>
+                  </DialogActions>
+                </Dialog>
+
+                {/* Dialog de error al crear usuario */}
+                <Dialog open={dialogError}>
+                  <DialogContent>
+                    <DialogContentText sx={{ mb: 5 }}>{alertMessage}</DialogContentText>
+                  </DialogContent>
+                  <DialogActions>
+                    <Button onClick={() => { setDialogError(false); setAlertMessage('') }}>OK</Button>
                   </DialogActions>
                 </Dialog>
 

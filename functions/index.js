@@ -757,3 +757,150 @@ exports.scheduledFirestoreExport = functions.pubsub
     }
 
   })
+
+// * Creación de usuarios con el Admin SDK.
+//
+// Reemplaza al flujo del navegador, que tenía tres problemas graves:
+//   1. Usaba createUserWithEmailAndPassword del SDK de CLIENTE, así que la
+//      sesión pasaba a ser la del usuario recién creado y el administrador
+//      quedaba desconectado de su propia cuenta.
+//   2. El documento en 'users' se escribía DESPUÉS, y solo si el administrador
+//      lograba reautenticarse. Si no lo hacía, la cuenta quedaba creada en
+//      Authentication y sin documento: entraba al sistema sin rol y sin menú,
+//      y el correo ya no se podía reutilizar. Es la causa de las incidencias
+//      Gabinete 6 y Solicitudes 1.
+//   3. La contraseña inicial era la palabra 'password' para todos.
+//
+// Aquí las dos escrituras ocurren en el servidor y, si la segunda falla, se
+// borra la cuenta recién creada para no dejar usuarios a medio crear.
+exports.createUserAsAdmin = functions.https.onCall(async (data, context) => {
+  // Debe haber sesión.
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Debes iniciar sesión.')
+  }
+
+  // Y quien llama debe ser administrador. Esto se comprueba en el SERVIDOR:
+  // la comprobación del navegador no protege nada, porque cualquiera puede
+  // llamar a la función directamente.
+  const solicitante = await admin.firestore().collection('users').doc(context.auth.uid).get()
+  const datosSolicitante = solicitante.exists ? solicitante.data() : null
+  // Se exige rol 1 Y estar habilitado: al deshabilitar a alguien se escribe
+  // enabled:false y recién después se deshabilita su cuenta de Authentication,
+  // y un token ya emitido sigue sirviendo hasta que expira. Sin esta segunda
+  // condición, un administrador recién deshabilitado podría seguir creando
+  // usuarios durante esa ventana.
+  const deshabilitado = datosSolicitante && datosSolicitante.enabled !== undefined && !datosSolicitante.enabled
+  if (!datosSolicitante || datosSolicitante.role !== 1 || deshabilitado) {
+    throw new functions.https.HttpsError('permission-denied', 'Solo un administrador habilitado puede crear usuarios.')
+  }
+
+  const { email, name, role } = data || {}
+
+  if (!email || typeof email !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'Falta el correo.')
+  }
+  if (!name || typeof name !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'Falta el nombre.')
+  }
+  // El rol tiene que ser un NÚMERO: acl.js compara con === y un "1" de texto
+  // no calza con ningún rol conocido.
+  if (typeof role !== 'number' || !Number.isInteger(role) || role < 1 || role > 12) {
+    throw new functions.https.HttpsError('invalid-argument', 'El rol debe ser un número entre 1 y 12.')
+  }
+
+  // El dominio del correo se valida contra el catálogo 'domain/allowableDomains'.
+  // Antes esto vivía solo en el formulario, o sea no protegía nada: quien
+  // llamara a la función directamente podía dar de alta cualquier correo.
+  // Falla CERRADA a proposito: si el catalogo no existe o viene vacio, no se
+  // crea a nadie. Aceptar cualquier dominio ante la duda es el mismo error que
+  // tenia el ACL, que ante un rol desconocido concedia el permiso pedido.
+  const dominios = await admin.firestore().collection('domain').doc('allowableDomains').get()
+  const permitidos = dominios.exists ? Object.keys(dominios.data() || {}).map(d => d.toLowerCase()) : []
+  if (!permitidos.length) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'No hay dominios autorizados configurados (domain/allowableDomains). No se puede crear usuarios.'
+    )
+  }
+  const dominioCorreo = String(email).split('@')[1]
+  if (!dominioCorreo || !permitidos.includes(dominioCorreo.toLowerCase())) {
+    throw new functions.https.HttpsError('invalid-argument', 'El dominio del correo no está autorizado.')
+  }
+
+  // Contraseña aleatoria que nadie llega a ver: la persona entra por el correo
+  // de restablecimiento.
+  const password = require('crypto').randomBytes(24).toString('base64url')
+
+  let nuevoUsuario
+  try {
+    nuevoUsuario = await admin.auth().createUser({ email, password, displayName: name })
+  } catch (error) {
+    if (error.code === 'auth/email-already-exists') {
+      throw new functions.https.HttpsError('already-exists', 'El usuario ya se encuentra registrado.')
+    }
+    throw new functions.https.HttpsError('internal', 'No se pudo crear la cuenta: ' + error.message)
+  }
+
+  try {
+    const { firstName, fatherLastName, motherLastName, rut, phone, plant, engineering, shift, company, opshift, subtype } = data
+
+    // Misma regla de completedProfile que usaba createUserInDatabase.
+    let completedProfile = false
+    if (company === 'Procure') {
+      completedProfile = true
+    } else if (company === 'MEL') {
+      if (role === 2) {
+        completedProfile = !!email && !!name && !!opshift && !!phone && !!plant && !!role && !!rut && !!shift
+      } else if (role === 3 || role === 4) {
+        completedProfile = !!email && !!name && !!phone && !!plant && !!role && !!rut
+      } else {
+        completedProfile = !!email && !!name && !!opshift && !!phone && !!plant && !!role && !!rut && !!shift
+      }
+    }
+
+    await admin.firestore().collection('users').doc(nuevoUsuario.uid).set({
+      name,
+      firstName: firstName || '',
+      fatherLastName: fatherLastName || '',
+      motherLastName: motherLastName || '',
+      email,
+      rut: rut || '',
+      phone: phone ? String(phone).replace(/\s/g, '') : '',
+      company: company || '',
+      role,
+      ...(plant && { plant }),
+      ...(engineering && { engineering }),
+      ...(shift && { shift }),
+      ...(opshift && { opshift }),
+      ...(subtype && { subtype }),
+      completedProfile,
+      enabled: true,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdBy: context.auth.uid
+    })
+  } catch (error) {
+    // Si el documento no se pudo escribir, se deshace la cuenta: sin esto queda
+    // el usuario huérfano que es justamente el bug que se está arreglando.
+    try {
+      await admin.auth().deleteUser(nuevoUsuario.uid)
+    } catch (errorRollback) {
+      // Que el rollback falle es peor que el fallo original: queda una cuenta
+      // en Authentication sin documento y con el correo ocupado. Se registra
+      // con el uid para poder limpiarla a mano, y se le dice al cliente, en
+      // vez de tragarse el error.
+      console.error('ROLLBACK FALLIDO — cuenta huérfana en Authentication', {
+        uid: nuevoUsuario.uid,
+        email,
+        errorOriginal: error.message,
+        errorRollback: errorRollback.message
+      })
+      throw new functions.https.HttpsError(
+        'internal',
+        'El usuario quedó a medio crear y no se pudo deshacer. Avisa a soporte con este correo: ' + email
+      )
+    }
+    throw new functions.https.HttpsError('internal', 'No se pudo guardar el usuario: ' + error.message)
+  }
+
+  return { uid: nuevoUsuario.uid, email }
+})
