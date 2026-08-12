@@ -3,6 +3,7 @@ import { IconButton, Tooltip, Typography } from '@mui/material'
 import { useState } from 'react'
 import { updateBlueprintsWithStorageOrHlc, getNextChar, getNextRevisionFolderName } from 'src/context/firebase-functions/firestoreFunctions'
 import { getPlantInitals } from 'src/context/firebase-functions/firestoreQuerys'
+import { puedeSubirHlc } from 'src/context/firebase-functions/permisosHlc'
 import { useGoogleAuth } from './useGoogleDriveAuth'
 // ** Configuración de Google Drive
 import googleAuthConfig from 'src/configs/googleDrive'
@@ -339,10 +340,14 @@ export const useGoogleDriveFolder = () => {
 
     // Se define el nombre esperado del Entregable a cargar según sea el caso.
     // TODO: VALIDAR ESTOS CASOS
-    if (role === 8 || (role === 7 && userId === uid)) {
-      expectedFileName = `${clientCode}_REV_${expectedRevision}`
-    } else if (role === 9 && approvedByDocumentaryControl && !canBeCheckedByClient) {
+    //
+    // El caso de la HLC va PRIMERO. Si no, un Proyectista que adjunta la HLC de
+    // su entregable entra por la rama `role === 8` y se le exige el nombre del
+    // entregable, que no es el que va a subir. Incidencia Gabinete 11.
+    if (puedeSubirHlc(authUser, blueprint) && !canBeCheckedByClient) {
       expectedFileName = `${clientCode}_REV_${expectedRevision}_HLC`
+    } else if (role === 8 || (role === 7 && userId === uid)) {
+      expectedFileName = `${clientCode}_REV_${expectedRevision}`
     } else if (role === 9 && (approvedBySupervisor || approvedByContractAdmin || isM3D) && revision !== 'A' && approves) {
       expectedFileName = `${clientCode}_REV_${expectedRevision}`
     } else {

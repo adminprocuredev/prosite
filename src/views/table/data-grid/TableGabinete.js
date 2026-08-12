@@ -34,6 +34,7 @@ import {
 import { UploadBlueprintsDialog } from 'src/@core/components/dialog-uploadBlueprints'
 import AlertDialogGabinete from 'src/@core/components/dialog-warning-gabinete'
 import { unixToDate } from 'src/@core/components/unixToDate'
+import { puedeSubirHlc, veColumnaHlc } from 'src/context/firebase-functions/permisosHlc'
 import { useFirebase } from 'src/context/useFirebase'
 
 import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
@@ -67,8 +68,9 @@ const TableGabinete = ({
   const { authUser, getUserData, getBlueprintPercent, getNextRevisionFolderName } = useFirebase()
   const { checkRoleAndApproval } = useGoogleDriveFolder()
 
-  // Columnas que solo tienen sentido para Control Documental (rol 9).
-  const COLUMNAS_SOLO_CONTROL_DOCUMENTAL = ['clientApprove', 'storageHlcDocuments', 'lastTransmittal']
+  // Columnas que solo tienen sentido para Control Documental (rol 9). La de HLC
+  // no está aquí: los Proyectistas también la usan. Ver permisosHlc.
+  const COLUMNAS_SOLO_CONTROL_DOCUMENTAL = ['clientApprove', 'lastTransmittal']
 
   // Incidencia Gabinete 10. Antes esto era un objeto literal escrito en el JSX:
   // MUI lo tomaba como modelo controlado y el usuario no podia cambiar nada, ni
@@ -76,7 +78,7 @@ const TableGabinete = ({
   // y el boton "Columnas" del toolbar si funcionan.
   const [columnVisibilityModel, setColumnVisibilityModel] = useState({
     clientApprove: authUser?.role === 9,
-    storageHlcDocuments: authUser?.role === 9,
+    storageHlcDocuments: veColumnaHlc(authUser),
     lastTransmittal: authUser?.role === 9,
     // Existe para poder exportarla y para que se pueda mostrar desde el menu,
     // pero arranca oculta: la tabla se ve igual que antes.
@@ -91,7 +93,7 @@ const TableGabinete = ({
     setColumnVisibilityModel(prev => ({
       ...prev,
       clientApprove: authUser?.role === 9,
-      storageHlcDocuments: authUser?.role === 9,
+      storageHlcDocuments: veColumnaHlc(authUser),
       lastTransmittal: authUser?.role === 9
     }))
   }, [authUser?.role])
@@ -1142,27 +1144,6 @@ const TableGabinete = ({
 
         localStorage.setItem('hlcGabineteWidthColumn', params.colDef.computedWidth)
 
-        const canGenerateBlueprint = checkRoleAndGenerateTransmittal(authUser.role, row)
-
-        const canUploadHlc = row => {
-          if (row.revision && typeof params.row.revision === 'string' && row.revisions.length > 0) {
-            const sortedRevisions = [...row.revisions].sort((a, b) => new Date(b.date) - new Date(a.date))
-            const lastRevision = sortedRevisions[0]
-
-            if (
-              (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48) &&
-              row.approvedByDocumentaryControl === true &&
-              !('lastTransmittal' in lastRevision)
-            ) {
-              return true
-            }
-
-            return false
-          }
-
-          return false
-        }
-
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
           return (
             <Box
@@ -1231,15 +1212,7 @@ const TableGabinete = ({
                   </Typography>
                 )}
 
-                {(canGenerateBlueprint &&
-                  authUser.role === 9 &&
-                  row.approvedByDocumentaryControl &&
-                  row.sentByDesigner &&
-                  canUploadHlc(row)) ||
-                (authUser.role === 9 &&
-                  row.approvedByDocumentaryControl &&
-                  row.sentBySupervisor &&
-                  canUploadHlc(row)) ? (
+                {puedeSubirHlc(authUser, row) ? (
                   <IconButton
                     sx={{
                       my: 'auto',
@@ -1249,11 +1222,7 @@ const TableGabinete = ({
                       opacity: 0.7
                     }}
                     color='success'
-                    onClick={
-                      authUser.role === 9 && row.approvedByDocumentaryControl
-                        ? () => handleOpenUploadDialog(row)
-                        : null
-                    }
+                    onClick={() => handleOpenUploadDialog(row)}
                   >
                     {row.storageHlcDocuments ? null : (
                       <Upload
