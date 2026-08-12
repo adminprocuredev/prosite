@@ -19,7 +19,18 @@ const DefaultPalette = (mode, skin) => {
     customColors: {
       dark: darkColor,
       main: mainColor,
-      light: lightColor,
+
+      // Aquí había un `light: lightColor` que no usaba nadie y rompía la
+      // aplicación. MUI recorre TODAS las entradas de la paleta que tengan
+      // `main` y `light` y les aplica alpha() para armar las variantes de
+      // color del Switch. customColors cumplía ese filtro, pero sus valores
+      // son ternas sueltas —'76, 78, 100'— pensadas para interpolarse dentro
+      // de `rgba(...)`, no colores CSS: alpha() lanzaba
+      // "Unsupported `234, 234, 255` color" y se caía la página entera.
+      //
+      // Sin `light` la entrada deja de pasar el filtro y el Switch vuelve a
+      // construirse. Se dispara con cualquier Switch; el primero en aparecer
+      // fue el del panel de columnas del gabinete. Incidencia Gabinete 10.
       darkBg: '#2a2e36',
       lightBg: '#F7F7F9',
       bodyBg: mode === 'light' ? '#F7F7F9' : '#2a2e36',
