@@ -1076,11 +1076,18 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
   // "Cannot read properties of null (reading 'length')", el catch del diálogo
   // se lo comía y el usuario apretaba "Sí", el diálogo se cerraba y no pasaba
   // NADA. Ni avance, ni aviso.
-  const archivos = Array.isArray(storageBlueprints)
+  // Se filtran los que de verdad son un archivo. Contar el largo del contenedor
+  // no alcanza: [null] mide 1 y no hay nada, la revisión inicial se guarda como
+  // {name: null, url: null}, y con dos elementos de los cuales uno es basura se
+  // elegía el último y se descartaba el bueno. Lo que hace utilizable a un
+  // archivo es su url.
+  const contenedor = Array.isArray(storageBlueprints)
     ? storageBlueprints
     : storageBlueprints
     ? [storageBlueprints]
     : []
+
+  const archivos = contenedor.filter(archivo => archivo && typeof archivo.url === 'string' && archivo.url.trim() !== '')
 
   // El corte es solo al APROBAR. Un rechazo se sostiene con las observaciones y
   // no tiene por qué traer documento; cortarlo también ahí sería romper un
@@ -1105,7 +1112,11 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
 
   // Crea el objeto de la próxima revisión con los datos proporcionados y la nueva revisión calculada
   const nextRevision = {
-    prevRevision: latestRevision && Object.keys(latestRevision).length === 0 ? latestRevision.newRevision : revision,
+    // La condición estaba al revés: pedía que latestRevision estuviera VACÍO
+    // para leerle newRevision, así que con {} guardaba `undefined` —que
+    // Firestore rechaza— y con datos ignoraba la bitácora. La anterior es la
+    // última entrada de la bitácora; si no hay, la del propio entregable.
+    prevRevision: latestRevision?.newRevision ?? revision,
     newRevision,
     description,
     storageBlueprints: archivoDeLaRevision,

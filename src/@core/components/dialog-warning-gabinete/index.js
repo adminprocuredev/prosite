@@ -196,7 +196,7 @@ export default function AlertDialogGabinete({
 
       // También era mudo: el archivo no subía y el diálogo se quedaba igual.
       handleOpenErrorDialog(
-        error.message || 'No se pudo subir el archivo. Vuelve a intentarlo.',
+        error?.message || 'No se pudo subir el archivo. Vuelve a intentarlo.',
         'No se pudo subir el archivo'
       )
     } finally {
@@ -233,8 +233,11 @@ export default function AlertDialogGabinete({
       // El error se le muestra al usuario. Antes solo se escribía en la consola
       // y el diálogo se cerraba igual: se apretaba "Sí", la ventana desaparecía
       // y el entregable se quedaba donde estaba, sin ningún aviso.
-      handleOpenErrorDialog(err.message || 'No se pudo completar la acción. Vuelve a intentarlo.', 'No se pudo continuar')
+      // El acceso a .message va con ?. y despues de desbloquear: un rechazo sin
+      // motivo -Promise.reject() o throw null- hacia que el propio manejador de
+      // errores lanzara, y el boton quedaba bloqueado para siempre.
       setButtonClicked(false)
+      handleOpenErrorDialog(err?.message || 'No se pudo completar la acción. Vuelve a intentarlo.', 'No se pudo continuar')
 
       return
     }
@@ -439,7 +442,9 @@ export default function AlertDialogGabinete({
           open={errorDialog}
           handleClose={handleCloseErrorDialog}
           msj={errorFileMsj}
-          titulo={errorFileTitulo}
+          // Vacío deja que el diálogo use su propio título por omisión, en vez
+          // de pisarlo con una cadena vacía.
+          titulo={errorFileTitulo || undefined}
         />
       )}
     </Dialog>
