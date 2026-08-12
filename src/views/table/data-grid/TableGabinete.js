@@ -2,8 +2,15 @@ import MoreHorizIcon from '@mui/icons-material/MoreHoriz'
 import { useTheme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { makeStyles } from '@mui/styles'
-import { DataGridPremium, esES } from '@mui/x-data-grid-premium'
-import { useEffect, useState } from 'react'
+import {
+  DataGridPremium,
+  GridToolbarColumnsButton,
+  GridToolbarContainer,
+  GridToolbarExport,
+  esES,
+  gridSortedRowIdsSelector
+} from '@mui/x-data-grid-premium'
+import { useCallback, useEffect, useState } from 'react'
 
 import { CancelOutlined, CheckCircleOutline, OpenInNew, Upload } from '@mui/icons-material'
 import SyncIcon from '@mui/icons-material/Sync'
@@ -26,6 +33,7 @@ import {
 } from '@mui/material'
 import { UploadBlueprintsDialog } from 'src/@core/components/dialog-uploadBlueprints'
 import AlertDialogGabinete from 'src/@core/components/dialog-warning-gabinete'
+import { unixToDate } from 'src/@core/components/unixToDate'
 import { useFirebase } from 'src/context/useFirebase'
 
 import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
@@ -58,6 +66,50 @@ const TableGabinete = ({
   // Hooks.
   const { authUser, getUserData, getBlueprintPercent, getNextRevisionFolderName } = useFirebase()
   const { checkRoleAndApproval } = useGoogleDriveFolder()
+
+  // Columnas que solo tienen sentido para Control Documental (rol 9).
+  const COLUMNAS_SOLO_CONTROL_DOCUMENTAL = ['clientApprove', 'storageHlcDocuments', 'lastTransmittal']
+
+  // Incidencia Gabinete 10. Antes esto era un objeto literal escrito en el JSX:
+  // MUI lo tomaba como modelo controlado y el usuario no podia cambiar nada, ni
+  // desde el menu de la columna. Ahora es estado, asi que el menu de la columna
+  // y el boton "Columnas" del toolbar si funcionan.
+  const [columnVisibilityModel, setColumnVisibilityModel] = useState({
+    clientApprove: authUser?.role === 9,
+    storageHlcDocuments: authUser?.role === 9,
+    lastTransmittal: authUser?.role === 9,
+    // Existe para poder exportarla y para que se pueda mostrar desde el menu,
+    // pero arranca oculta: la tabla se ve igual que antes.
+    clientCode: false
+  })
+
+  // El estado inicial se fija al montar, pero el rol puede llegar despues (la
+  // sesion se resuelve de forma asincrona) o cambiar sin desmontar. Sin esto,
+  // un Control Documental que entra con la sesion a medio cargar se queda sin
+  // sus columnas hasta recargar.
+  useEffect(() => {
+    setColumnVisibilityModel(prev => ({
+      ...prev,
+      clientApprove: authUser?.role === 9,
+      storageHlcDocuments: authUser?.role === 9,
+      lastTransmittal: authUser?.role === 9
+    }))
+  }, [authUser?.role])
+
+  // El usuario puede mostrar y ocultar lo que quiera, MENOS las columnas
+  // restringidas: antes el modelo fijo las forzaba a ocultas para los demas
+  // roles, y con un modelo libre bastaria con pulsar "Mostrar todas" para
+  // sacarlas. La restriccion se reaplica en cada cambio.
+  const handleColumnVisibilityChange = modelo => {
+    if (authUser?.role === 9) {
+      setColumnVisibilityModel(modelo)
+
+      return
+    }
+
+    const restringidas = Object.fromEntries(COLUMNAS_SOLO_CONTROL_DOCUMENTAL.map(campo => [campo, false]))
+    setColumnVisibilityModel({ ...modelo, ...restringidas })
+  }
 
   const defaultSortingModel = [{ field: 'date', sort: 'desc' }]
 
@@ -124,6 +176,50 @@ const TableGabinete = ({
   })
 
   const classes = useStyles()
+
+  // Incidencia Gabinete 9: la exportacion ya viene con la licencia MUI X
+  // Premium que el cliente paga; solo faltaba exponerla. Pero por defecto no
+  // produce un "maestro": si hay filas seleccionadas exporta SOLO esas, y las
+  // subfilas de revision entran o no segun cuales esten expandidas, o sea dos
+  // descargas seguidas pueden dar archivos distintos. Aqui se fija: siempre
+  // todos los entregables de la OT, nunca las revisiones.
+  const obtenerFilasParaExportar = ({ apiRef: api }) =>
+    gridSortedRowIdsSelector(api).filter(id => {
+      const fila = api.current.getRow(id)
+
+      return fila && !fila.isRevision
+    })
+
+  // Solo los campos que exportan con dato util. Las demas columnas son
+  // acciones o se calculan en renderCell, que la exportacion NO ejecuta:
+  // saldrian vacias y darian un maestro enganoso.
+  const camposExportables = ['id', 'clientCode', 'revision', 'userName', 'attentive', 'description', 'date']
+
+  // La OT se limpia antes de usarla como nombre de archivo: un '/' o un ':'
+  // producen un nombre invalido en Windows y macOS.
+  const otParaArchivo = String(petition?.ot || 'sin-ot').replace(/[^\w.-]+/g, '-')
+
+  const opcionesExportacion = {
+    fileName: `Entregables-OT-${otParaArchivo}`,
+    fields: camposExportables,
+    getRowsToExport: obtenerFilasParaExportar
+  }
+
+  // useCallback para que el toolbar no se remonte en cada snapshot de
+  // Firestore, que en esta pantalla llegan seguido.
+  const Toolbar = useCallback(
+    () => (
+      <GridToolbarContainer sx={{ p: 2, gap: 2 }}>
+        <GridToolbarColumnsButton />
+        <GridToolbarExport
+          excelOptions={{ ...opcionesExportacion, includeHeaders: true }}
+          csvOptions={{ ...opcionesExportacion, utf8WithBom: true }}
+          printOptions={{ disableToolbarButton: true }}
+        />
+      </GridToolbarContainer>
+    ),
+    [otParaArchivo]
+  )
 
 
 
@@ -492,6 +588,16 @@ const TableGabinete = ({
 
   const columns = [
     {
+      // El codigo MEL solo se pintaba dentro de la columna 'id' con renderCell,
+      // asi que no existia como campo y por tanto no se podia exportar ni
+      // mostrar por separado. Como columna propia entra al maestro (Gabinete 9)
+      // y aparece en el menu de columnas (Gabinete 10). Oculta por defecto para
+      // no cambiar como se ve la tabla hoy.
+      field: 'clientCode',
+      headerName: 'Código MEL',
+      width: 260
+    },
+    {
       field: 'id',
       width: idLocalWidth ? idLocalWidth : role === 9 && !lg ? 355 : role !== 9 && !lg ? 360 : role !== 9 ? 300 : 300,
       headerName: 'Código Procure / MEL',
@@ -742,6 +848,10 @@ const TableGabinete = ({
     {
       field: 'attentive',
       headerName: 'EN ESPERA DE REVISIÓN POR',
+      // Igual que en 'date', y por la misma razon va en valueFormatter: sin
+      // esto el Excel saldria con el numero del rol (4, 7, 9...) en vez del
+      // nombre, y usar valueGetter cambiaria el criterio de ordenamiento.
+      valueFormatter: params => renderRole({ attentive: params.value }) || '',
       width: userNameLocalWidth
         ? userNameLocalWidth
         : role === 9 && !lg
@@ -1165,6 +1275,12 @@ const TableGabinete = ({
     {
       field: 'date',
       headerName: 'Fecha de Creación',
+      // La exportacion NO ejecuta renderCell: sin esto, el Excel recibiria el
+      // objeto Timestamp de Firestore y escribiria [object Object].
+      // Va en valueFormatter y NO en valueGetter a proposito: el valueGetter
+      // tambien alimenta el ordenamiento, y con la fecha como texto dd/mm/yyyy
+      // MUI ordena alfabeticamente, dejando 31/12/2025 por encima de 1/1/2026.
+      valueFormatter: params => (params.value?.seconds != null ? unixToDate(params.value.seconds)[0] : ''),
       width: dateLocalWidth
         ? dateLocalWidth
         : role === 9 && !lg
@@ -1533,11 +1649,9 @@ const TableGabinete = ({
         rows={filteredRows}
         useGridApiRef
         columns={columns}
-        columnVisibilityModel={{
-          clientApprove: authUser.role === 9,
-          storageHlcDocuments: authUser.role === 9,
-          lastTransmittal: authUser.role === 9
-        }}
+        columnVisibilityModel={columnVisibilityModel}
+        onColumnVisibilityModelChange={handleColumnVisibilityChange}
+        slots={{ toolbar: Toolbar }}
         localeText={esES.components.MuiDataGrid.defaultProps.localeText}
         sortingModel={defaultSortingModel}
         getRowHeight={row => (row.id === currentRow ? 'auto' : 'auto')}
