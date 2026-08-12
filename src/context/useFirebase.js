@@ -76,7 +76,8 @@ import {
   useSnapshot,
   fetchDisciplineProperties,
   fetchDeliverablesByDiscipline,
-  getPlantInitals
+  getPlantInitals,
+  getUsuariosParaReasignar
 } from 'src/context/firebase-functions/firestoreQuerys'
 
 import { updateUserProfile, uploadFilesToFirebaseStorage } from 'src/context/firebase-functions/storageFunctions'
@@ -197,6 +198,7 @@ const FirebaseContextProvider = props => {
     deleteCostCenter,
     setDefaultCostCenter,
     getPlantInitals,
+    getUsuariosParaReasignar,
     getNextChar,
     getBlueprintPercent,
     getNextRevisionFolderName
