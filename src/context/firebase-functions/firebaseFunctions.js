@@ -166,29 +166,77 @@ const updateUserInDatabase = async (values, uid) => {
 
 const signGoogle = async () => {
   const provider = new GoogleAuthProvider()
-  provider.setCustomParameters({
-    hd: 'procure.cl'
-  })
 
-  //Asks for permissions for the app to access the user's Drive files.
+  // Sugiere las cuentas del dominio en la pantalla de Google. Es comodidad, NO
+  // seguridad: quien quiera puede saltarselo. Lo que de verdad decide si
+  // alguien entra es la comprobacion de mas abajo contra la coleccion 'users'.
+  provider.setCustomParameters({ hd: 'procure.cl' })
+
+  // Alcance acotado: drive.file da acceso SOLO a los archivos que crea la
+  // propia aplicacion, no a todo el Drive de la persona.
   provider.addScope('https://www.googleapis.com/auth/drive.file')
   provider.addScope('https://www.googleapis.com/auth/drive.metadata.readonly')
   provider.addScope('https://www.googleapis.com/auth/userinfo.email')
   provider.addScope('https://www.googleapis.com/auth/userinfo.profile')
 
-  signInWithPopup(auth, provider)
-    // This gives you a Google Access Token. You can use it to access the Google API.
-    // Uncomment the following lines to save the token in the local storage
-    .then(result => {
-      window.alert('Ingreso exitoso')
-      let credential = GoogleAuthProvider.credentialFromResult(result)
-      const token = credential.accessToken
-      const params = { access_token: token }
-      localStorage.setItem('oauth2-params', JSON.stringify(params))
-    })
-    .catch(error => {
-      console.log(error)
-    })
+  const result = await signInWithPopup(auth, provider)
+
+  // Cierra la sesion y limpia lo que quedo en el navegador. Sin esta limpieza,
+  // 'user' y 'oauth2-params' sobreviven al rechazo: el siguiente ingreso podria
+  // reutilizar el token de Drive de otra identidad, porque useGoogle solo
+  // comprueba que exista un token, no de quien es.
+  const rechazar = async mensaje => {
+    localStorage.removeItem('user')
+    localStorage.removeItem('oauth2-params')
+    await Firebase.auth().signOut()
+    throw new Error(mensaje)
+  }
+
+  // Que Google confirme quien eres no significa que tengas acceso a Prosite.
+  // Sin esta comprobacion, cualquiera con correo del dominio entraria sin rol
+  // y quedaria atrapado en "completar perfil", que es el problema de las
+  // cuentas a medio crear.
+  //
+  // OJO: esto es una barrera de interfaz, NO la autorizacion. Quien quiera
+  // puede autenticarse contra Firebase sin pasar por aqui. Lo unico que protege
+  // de verdad son las reglas de Firestore.
+  let datos
+  try {
+    datos = await getData(result.user.uid)
+  } catch (error) {
+    // Si la consulta falla (red, permisos, Firestore caido) NO se puede
+    // afirmar que la persona tenga acceso: se cierra la sesion igual.
+    await rechazar('No se pudo verificar tu cuenta. Intenta de nuevo.')
+  }
+
+  if (!datos) {
+    await rechazar('Tu cuenta no está habilitada en Prosite. Pídele a un administrador que te cree el usuario.')
+  }
+  if (datos.enabled === false) {
+    await rechazar('Tu cuenta está deshabilitada. Contacta al administrador.')
+  }
+
+  // El parametro `hd` solo filtra lo que Google MUESTRA; no impide que llegue
+  // una cuenta de otro dominio. Se comprueba aqui tambien.
+  const correo = (result.user.email || '').toLowerCase()
+  if (!correo.endsWith('@procure.cl')) {
+    await rechazar('El ingreso con Google es solo para cuentas @procure.cl. Usa tu correo y contraseña.')
+  }
+
+  // El token de Drive se guarda igual que en el flujo de correo y contraseña.
+  // LIMITACION CONOCIDA: signInWithPopup entrega access_token pero NO
+  // refresh_token, y useGoogleDriveAuth necesita el refresh para renovar. Al
+  // expirar (una hora) vuelve a aparecer el consentimiento de Drive con scope
+  // completo. Resolverlo requiere rehacer el flujo de Drive, no este login.
+  const credential = GoogleAuthProvider.credentialFromResult(result)
+  if (credential && credential.accessToken) {
+    localStorage.setItem('oauth2-params', JSON.stringify({ access_token: credential.accessToken }))
+  }
+
+  const userData = await formatAuthUser(result.user)
+  localStorage.setItem('user', JSON.stringify(userData))
+
+  return userData
 }
 
 const deleteCurrentUser = async () => {

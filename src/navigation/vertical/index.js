@@ -74,7 +74,7 @@ const Navigation = () => {
       authorizedRoles: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     },
     {
-      title: 'Nuestro Equipo',
+      title: 'Equipo',
       path: '/nuestro-equipo',
       icon: 'mdi:account-group',
       subject: 'nuestro-equipo',
