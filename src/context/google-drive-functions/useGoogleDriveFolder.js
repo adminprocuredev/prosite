@@ -30,11 +30,14 @@ export const useGoogleDriveFolder = () => {
    */
   const executeApiCall = async (apiCall, ...args) => {
 
-    const storedParams = JSON.parse(localStorage.getItem('oauth2-params'))
-    const accessToken = storedParams.access_token
+    // JSON.parse(null) devuelve null, asi que leer .access_token de ahi lanzaba
+    // TypeError ANTES de llegar a la comprobacion de abajo: sin token, en vez
+    // de pedir autorizacion, reventaba.
+    const storedParams = JSON.parse(localStorage.getItem('oauth2-params') || 'null')
+    const accessToken = storedParams && storedParams.access_token
 
     if (!accessToken) {
-      setError('No access token found')
+      setError('Necesitas autorizar el acceso a Google Drive para continuar')
       await signInToGoogle()
 
       return
