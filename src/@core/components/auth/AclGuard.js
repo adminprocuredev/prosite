@@ -1,5 +1,5 @@
 // ** React Imports
-import { useState } from 'react'
+import { useMemo } from 'react'
 
 // ** Next Import
 import { useRouter } from 'next/router'
@@ -20,13 +20,25 @@ import { useFirebase } from 'src/context/useFirebase'
 const AclGuard = props => {
   // ** Props
   const { aclAbilities, children, guestGuard } = props
-  const [ability, setAbility] = useState(undefined)
 
   // ** Hooks
   const { authUser, loading } = useFirebase()
   const router = useRouter()
 
   // If guestGuard is true and user is not logged in or its an error page, render the page without checking access
+  // Los permisos son estado DERIVADO del rol: se calculan durante el render, sin
+  // setState. Antes era `if (... && !ability) setAbility(...)` en el cuerpo del
+  // componente, con dos problemas: un setState durante el render, y sobre todo
+  // que por la condicion `!ability` se construia UNA sola vez. Si cambiaba el
+  // rol del usuario, los permisos seguian siendo los del rol anterior hasta
+  // recargar la pagina. Con useMemo tampoco hay un render intermedio sin
+  // permisos (que mostraria un 401 y luego el contenido) ni uno con los
+  // permisos del rol viejo.
+  const ability = useMemo(
+    () => (authUser && authUser.role ? buildAbilityFor(authUser.role, aclAbilities.subject) : undefined),
+    [authUser && authUser.role, aclAbilities.subject]
+  )
+
   // '/nuevo-usuario' estaba en esta lista, o sea la pagina de creacion de
   // usuarios se saltaba la ACL entera: cualquier usuario con sesion la abria y
   // podia elegir rol 1 (administrador). La "contraseña de administrador" que
@@ -41,11 +53,6 @@ const AclGuard = props => {
     router.route === '/completar-perfil'
   ) {
     return <>{children}</>
-  }
-
-  // User is logged in, build ability for the user based on his role
-  if (authUser && authUser.role && !ability) {
-    setAbility(buildAbilityFor(authUser.role, aclAbilities.subject))
   }
 
   // Check the access of current user and render pages
