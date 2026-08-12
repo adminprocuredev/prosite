@@ -1905,54 +1905,47 @@ const getProcureCounter = async procureCounterField => {
   return currentProcureCounter
 }
 
-const markBlueprintAsDeleted = async (mainDocId, procureId, clientCode) => {
+/**
+ * Borrado LOGICO: el documento se marca y SIGUE EXISTIENDO, conservando su
+ * codigo Procure (que es su id) y su codigo MEL.
+ *
+ * Por eso el contador MEL no baja aqui, ni siquiera cuando el entregable
+ * eliminado era el ultimo de su serie. Bajar el contador equivale a reasignar
+ * un codigo MEL que su dueño nunca soltó. Esto ya ocurrio dos veces en
+ * produccion, y en ambas el correlativo era el ultimo:
+ *
+ *   21286-500-PL-2077 (borrado) y 21286-500-PL-2191 (vivo)
+ *     comparten 21286-OT1216-PCLC-0252-PP-DET-00001
+ *   21286-340-PL-1183 (borrado) y 21286-340-PL-1191 (vivo)
+ *     comparten 21286-OT1431-ICAT-0230-ST-DET-00002
+ *
+ * El MEL es el codigo que ve el cliente y con el que se emiten los
+ * transmittals. Un hueco en la numeracion es preferible a dos entregables con
+ * el mismo codigo. Incidencia Gabinete 4.
+ *
+ * El otro camino de borrado -deleteBlueprintAndDecrementCounters- SI baja los
+ * contadores cuando corresponde, porque alli el documento desaparece de verdad
+ * y libera su numero.
+ */
+const markBlueprintAsDeleted = async (mainDocId, procureId) => {
   const blueprintRef = doc(db, 'solicitudes', mainDocId, 'blueprints', procureId)
 
-  // Extrae los valores del clientCode (MEL)
-  const [__, otNumber, instalacion, areaNumber, melDiscipline, melDeliverable] = clientCode.split('-')
-
-  // Crea referencia al contador MEL
-  const melCounterDocId = `${melDiscipline}-${melDeliverable}-counter`
-  const melCounterRef = doc(db, 'solicitudes', mainDocId, 'clientCodeGeneratorCount', melCounterDocId)
-
-  await runTransaction(db, async transaction => {
-    // Obtiene el documento del contador MEL
-    const melCounterDoc = await transaction.get(melCounterRef)
-    const currentMelCounter = melCounterDoc.data().count
-
-    // El contador MEL solo baja si el entregable eliminado era EL ULTIMO de su
-    // serie. Antes bajaba siempre, y como este borrado es LOGICO (el documento
-    // se marca deleted pero sigue existiendo, y su id es el codigo Procure),
-    // no se sobreescribia nada: quedaban DOS entregables vivos con el mismo
-    // codigo MEL. Ese es el codigo que ve el cliente y con el que se emiten los
-    // transmittals. Incidencia Gabinete 4.
-    if (esElUltimo(clientCode, currentMelCounter)) {
-      transaction.update(melCounterRef, {
-        count: String(Number(currentMelCounter) - 1).padStart(5, '0')
-      })
-    }
-
-    // Marca el blueprint como eliminado
-    transaction.update(blueprintRef, {
-      deleted: true,
-      deletedAt: Timestamp.fromDate(new Date())
-    })
+  await updateDoc(blueprintRef, {
+    deleted: true,
+    deletedAt: Timestamp.fromDate(new Date())
   })
 }
 
-const deleteBlueprintAndDecrementCounters = async (
-  mainDocId,
-  procureId,
-  procureCounterField,
-  currentProcureCounter,
-  currentMelCounter,
-  melDiscipline,
-  melDeliverable
-) => {
-  // Crea referencias a Firestore para el contador de Procure y MEL
+// Borrado FISICO: el documento se elimina de verdad, junto con las revisiones
+// que existieran al momento de leerlas. Como deja de ocupar su codigo, aqui los
+// contadores SI pueden bajar — pero solo bajo las dos condiciones de mas abajo,
+// no en todo borrado fisico.
+//
+// Los contadores ya no se reciben como parametro: se leen dentro de la
+// transaccion.
+const deleteBlueprintAndDecrementCounters = async (mainDocId, procureId, procureCounterField) => {
+  // Crea referencias a Firestore para el contador de Procure
   const procureCounterRef = doc(db, 'counters', 'blueprintsProcureCodeCounter')
-  const melCounterDocId = `${melDiscipline}-${melDeliverable}-counter`
-  const melCounterRef = doc(db, 'solicitudes', mainDocId, 'clientCodeGeneratorCount', melCounterDocId)
 
   // Referencia al documento de la subcolección "blueprints" que se eliminará
   const blueprintDocRef = doc(db, 'solicitudes', mainDocId, 'blueprints', procureId)
@@ -1965,6 +1958,18 @@ const deleteBlueprintAndDecrementCounters = async (
     const blueprintSnapshot = await transaction.get(blueprintDocRef)
     const datosBlueprint = blueprintSnapshot.exists() ? blueprintSnapshot.data() : null
 
+    // La disciplina y el tipo del contador MEL salen del clientCode que tiene
+    // el propio documento, no de uno que quien llama haya partido por su
+    // cuenta: asi no hay dos versiones del mismo dato que puedan discrepar.
+    const [, , , , melDiscipline, melDeliverable] = String(
+      (datosBlueprint && datosBlueprint.clientCode) || ''
+    ).split('-')
+
+    const melCounterRef =
+      melDiscipline && melDeliverable
+        ? doc(db, 'solicitudes', mainDocId, 'clientCodeGeneratorCount', `${melDiscipline}-${melDeliverable}-counter`)
+        : null
+
     // Los contadores se leen DENTRO de la transacción. Antes se recibian como
     // parametro, leidos por quien llama antes de empezar: dos borrados
     // simultaneos podian escribir sobre un contador que ya habia cambiado, sin
@@ -1973,14 +1978,32 @@ const deleteBlueprintAndDecrementCounters = async (
     // extraia del codigo del propio entregable, asi que la comparacion se
     // cumplia siempre y no comprobaba nada.
     const procureCounterSnapshot = await transaction.get(procureCounterRef)
-    const melCounterSnapshot = await transaction.get(melCounterRef)
+    const melCounterSnapshot = melCounterRef ? await transaction.get(melCounterRef) : null
 
     const contadorProcureReal = procureCounterSnapshot.exists()
       ? procureCounterSnapshot.data()?.[procureCounterField]?.count
       : null
-    const contadorMelReal = melCounterSnapshot.exists() ? melCounterSnapshot.data()?.count : null
+    const contadorMelReal = melCounterSnapshot && melCounterSnapshot.exists() ? melCounterSnapshot.data()?.count : null
 
-    // Verifica si la subcolección 'revisions' tiene documentos
+    // Quien llama decidio "borrado fisico" con un contador leido FUERA de esta
+    // transaccion. Si en el intervalo se creo otro entregable, este ya no es el
+    // ultimo y destruirlo -a el y a todas sus revisiones- seria borrar un
+    // documento intermedio. En ese caso se degrada al borrado logico, que es lo
+    // que la bifurcacion habria elegido con el dato fresco.
+    if (!esElUltimo(procureId, contadorProcureReal)) {
+      transaction.update(blueprintDocRef, {
+        deleted: true,
+        deletedAt: Timestamp.fromDate(new Date())
+      })
+
+      return
+    }
+
+    // Esta lectura NO es transaccional: el SDK web no admite consultas dentro de
+    // una transacción, solo lecturas de documentos por referencia. Si alguien
+    // agrega una revisión entre este getDocs y el commit, esa revisión queda sin
+    // padre — Firestore no borra subcolecciones en cascada. Limpiarlo de verdad
+    // pide un borrado recursivo desde el servidor.
     const revisionsSnapshot = await getDocs(revisionsCollectionRef)
 
     if (!revisionsSnapshot.empty) {
@@ -1993,21 +2016,31 @@ const deleteBlueprintAndDecrementCounters = async (
     // Después de eliminar los documentos de la subcolección 'revisions', elimina el documento 'blueprints'
     transaction.delete(blueprintDocRef)
 
-    // Los contadores solo bajan si el entregable eliminado era EL ULTIMO.
+    // Llegar aqui ya significa que el entregable era el ultimo de la serie
+    // Procure -lo comprueba el guard de mas arriba, con el contador leido
+    // dentro de la transaccion-. Antes los contadores se decrementaban siempre,
+    // y eso perdia datos en silencio: con 00001, 00002 y 00003 (contador 3),
+    // borrar el 00002 dejaba el contador en 2, y el siguiente entregable se
+    // calculaba como 00003 — que ya existia. La creacion hace transaction.set,
+    // o sea lo SOBREESCRIBIA junto con todas sus revisiones. Incidencia
+    // Gabinete 4.
     //
-    // Antes se decrementaban siempre, y eso perdia datos en silencio: con
-    // 00001, 00002 y 00003 (contador 3), borrar el 00002 dejaba el contador en
-    // 2, y el siguiente entregable se calculaba como 00003 — que ya existia.
-    // La creacion hace transaction.set, o sea lo SOBREESCRIBIA junto con todas
-    // sus revisiones. Un hueco en la numeracion es preferible a pisar un
-    // entregable: incidencia Gabinete 4.
-    if (contadorProcureReal !== null && esElUltimo(procureId, contadorProcureReal)) {
+    // Falta la otra condicion: un entregable solo devuelve su numero si NUNCA
+    // salio de Prosite. En cuanto avanza de "Iniciado" puede haber viajado en
+    // un transmittal, y entonces su codigo esta en manos del cliente;
+    // reasignarlo le entrega dos documentos distintos con el mismo codigo. Un
+    // hueco en la numeracion es el mal menor.
+    const nuncaEmitido = Boolean(datosBlueprint) && datosBlueprint.revision === 'Iniciado'
+
+    if (nuncaEmitido) {
       transaction.update(procureCounterRef, {
         [`${procureCounterField}.count`]: String(Number(contadorProcureReal) - 1).padStart(3, '0')
       })
     }
 
-    if (contadorMelReal !== null && esElUltimo(datosBlueprint && datosBlueprint.clientCode, contadorMelReal)) {
+    // El contador MEL es por OT, asi que su ultimo no tiene por que coincidir
+    // con el ultimo Procure: se comprueba aparte.
+    if (nuncaEmitido && contadorMelReal !== null && esElUltimo(datosBlueprint.clientCode, contadorMelReal)) {
       transaction.update(melCounterRef, {
         count: String(Number(contadorMelReal) - 1).padStart(5, '0')
       })

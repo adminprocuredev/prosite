@@ -6,8 +6,13 @@
  * segmento. Devuelve null si el código no existe o no termina en número, para
  * que quien llama pueda decidir sin comparar contra un NaN.
  *
- * Se usa al eliminar un entregable: los contadores solo deben bajar si el que
- * se borró era el último. Ver deleteBlueprintAndDecrementCounters.
+ * Se usa al eliminar un entregable FÍSICAMENTE, donde el documento sí deja de
+ * ocupar su número: ser el último es una condición NECESARIA para bajar el
+ * contador, no suficiente — el entregable además tiene que no haber salido
+ * nunca. Ver deleteBlueprintAndDecrementCounters.
+ *
+ * En el borrado LÓGICO no aplica: el documento se queda con su código, así que
+ * el contador no baja nunca. Ver markBlueprintAsDeleted.
  */
 export const correlativoDeCodigo = codigo => {
   const ultimoSegmento = String(codigo == null ? '' : codigo)

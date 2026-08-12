@@ -35,4 +35,11 @@ assert.equal(esElUltimo('21286-100-ME-PL-0001', 1), true, 'único entregable')
 assert.equal(esElUltimo(null, 3), false, 'sin código')
 assert.equal(esElUltimo('21286-100-ME-PL-00A3', 3), false, 'código ilegible')
 
-console.log('ok — correlativoCodigo: 15 comprobaciones')
+// Sin contador tampoco. deleteBlueprintAndDecrementCounters se apoya en esto
+// para su guard: si el contador no existe o el campo viene vacío, el borrado
+// se degrada a lógico en vez de calcular Number(null) - 1 y escribir "0-1".
+assert.equal(esElUltimo('21286-100-ME-PL-0003', null), false, 'contador ausente')
+assert.equal(esElUltimo('21286-100-ME-PL-0003', undefined), false, 'contador indefinido')
+assert.equal(esElUltimo('21286-100-ME-PL-0003', ''), false, 'contador vacío')
+
+console.log('ok — correlativoCodigo: 18 comprobaciones')
