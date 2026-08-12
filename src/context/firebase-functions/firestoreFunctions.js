@@ -25,6 +25,7 @@ import { db } from 'src/configs/firebase'
 import { getUnixTime } from 'date-fns'
 import { useEffect, useState } from 'react'
 import { solicitudValidator } from '../form-validation/helperSolicitudValidator'
+import { esElUltimo } from './correlativoCodigo'
 import { getData, getPlantInitals } from './firestoreQuerys'
 import { sendEmailDeliverableNextRevision } from './mailing/sendEmailDeliverableNextRevision'
 import { sendEmailWhenReviewDocs } from './mailing/sendEmailWhenReviewDocs'
@@ -1763,6 +1764,31 @@ const generateBlueprintCodes = async (mappedCodes, docData, quantity, userParam)
     const newDocs = []
     const blueprintCollectionRef = collection(db, 'solicitudes', docData.id, 'blueprints')
 
+    // Antes de escribir nada se comprueba que ninguno de los codigos calculados
+    // este ocupado. Esta lectura va aqui y no dentro del bucle porque en una
+    // transaccion de Firestore todas las lecturas tienen que ir antes de las
+    // escrituras.
+    //
+    // Por que hace falta: mas abajo se usa transaction.set, que REEMPLAZA el
+    // documento si ya existe -y no borra su subcoleccion 'revisions', asi que
+    // quedaria un entregable nuevo con el historial de otro-. Mientras el
+    // contador vaya bien esto no deberia pasar, pero los contadores pudieron
+    // quedar atrasados por el bug de borrado que se arregla en esta misma
+    // tanda, y en ese estado la siguiente creacion pisa un entregable vivo.
+    // Ante la duda, se aborta con un mensaje claro en vez de perder datos.
+    for (let i = 0; i < quantity; i++) {
+      const codigoCandidato = `${idProject}-${procureDiscipline}-${procureDeliverable}-${formatCountProcure(
+        procureCounter + i + 1
+      )}`
+      const existente = await transaction.get(doc(blueprintCollectionRef, codigoCandidato))
+      if (existente.exists()) {
+        throw new Error(
+          `El código ${codigoCandidato} ya está en uso. El contador de entregables quedó desfasado: ` +
+            'avisa a soporte antes de volver a intentarlo, para no sobrescribir un entregable existente.'
+        )
+      }
+    }
+
     for (let i = 0; i < quantity; i++) {
 
       const procureCode = `${idProject}-${procureDiscipline}-${procureDeliverable}-${formatCountProcure(procureCounter + i + 1)}`
@@ -1894,13 +1920,17 @@ const markBlueprintAsDeleted = async (mainDocId, procureId, clientCode) => {
     const melCounterDoc = await transaction.get(melCounterRef)
     const currentMelCounter = melCounterDoc.data().count
 
-    // Calcula el nuevo valor del contador
-    const newMelCounter = String(Number(currentMelCounter) - 1).padStart(5, '0')
-
-    // Actualiza el contador MEL
-    transaction.update(melCounterRef, {
-      count: newMelCounter
-    })
+    // El contador MEL solo baja si el entregable eliminado era EL ULTIMO de su
+    // serie. Antes bajaba siempre, y como este borrado es LOGICO (el documento
+    // se marca deleted pero sigue existiendo, y su id es el codigo Procure),
+    // no se sobreescribia nada: quedaban DOS entregables vivos con el mismo
+    // codigo MEL. Ese es el codigo que ve el cliente y con el que se emiten los
+    // transmittals. Incidencia Gabinete 4.
+    if (esElUltimo(clientCode, currentMelCounter)) {
+      transaction.update(melCounterRef, {
+        count: String(Number(currentMelCounter) - 1).padStart(5, '0')
+      })
+    }
 
     // Marca el blueprint como eliminado
     transaction.update(blueprintRef, {
@@ -1931,6 +1961,25 @@ const deleteBlueprintAndDecrementCounters = async (
   const revisionsCollectionRef = collection(blueprintDocRef, 'revisions')
 
   await runTransaction(db, async transaction => {
+    // Las lecturas de la transacción van todas antes de las escrituras.
+    const blueprintSnapshot = await transaction.get(blueprintDocRef)
+    const datosBlueprint = blueprintSnapshot.exists() ? blueprintSnapshot.data() : null
+
+    // Los contadores se leen DENTRO de la transacción. Antes se recibian como
+    // parametro, leidos por quien llama antes de empezar: dos borrados
+    // simultaneos podian escribir sobre un contador que ya habia cambiado, sin
+    // que Firestore lo detectara -actualizar un documento que no se leyo en la
+    // transaccion es una escritura ciega-. Y en el caso de MEL el parametro se
+    // extraia del codigo del propio entregable, asi que la comparacion se
+    // cumplia siempre y no comprobaba nada.
+    const procureCounterSnapshot = await transaction.get(procureCounterRef)
+    const melCounterSnapshot = await transaction.get(melCounterRef)
+
+    const contadorProcureReal = procureCounterSnapshot.exists()
+      ? procureCounterSnapshot.data()?.[procureCounterField]?.count
+      : null
+    const contadorMelReal = melCounterSnapshot.exists() ? melCounterSnapshot.data()?.count : null
+
     // Verifica si la subcolección 'revisions' tiene documentos
     const revisionsSnapshot = await getDocs(revisionsCollectionRef)
 
@@ -1944,14 +1993,25 @@ const deleteBlueprintAndDecrementCounters = async (
     // Después de eliminar los documentos de la subcolección 'revisions', elimina el documento 'blueprints'
     transaction.delete(blueprintDocRef)
 
-    // Disminuye los contadores
-    transaction.update(procureCounterRef, {
-      [`${procureCounterField}.count`]: String(currentProcureCounter - 1).padStart(3, '0')
-    })
+    // Los contadores solo bajan si el entregable eliminado era EL ULTIMO.
+    //
+    // Antes se decrementaban siempre, y eso perdia datos en silencio: con
+    // 00001, 00002 y 00003 (contador 3), borrar el 00002 dejaba el contador en
+    // 2, y el siguiente entregable se calculaba como 00003 — que ya existia.
+    // La creacion hace transaction.set, o sea lo SOBREESCRIBIA junto con todas
+    // sus revisiones. Un hueco en la numeracion es preferible a pisar un
+    // entregable: incidencia Gabinete 4.
+    if (contadorProcureReal !== null && esElUltimo(procureId, contadorProcureReal)) {
+      transaction.update(procureCounterRef, {
+        [`${procureCounterField}.count`]: String(Number(contadorProcureReal) - 1).padStart(3, '0')
+      })
+    }
 
-    transaction.update(melCounterRef, {
-      count: String(currentMelCounter - 1).padStart(5, '0')
-    })
+    if (contadorMelReal !== null && esElUltimo(datosBlueprint && datosBlueprint.clientCode, contadorMelReal)) {
+      transaction.update(melCounterRef, {
+        count: String(Number(contadorMelReal) - 1).padStart(5, '0')
+      })
+    }
   })
 }
 
