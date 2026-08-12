@@ -7,6 +7,8 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import FormGroup from '@mui/material/FormGroup'
 import Grid from '@mui/material/Grid'
 import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
+import Typography from '@mui/material/Typography'
 import ReactDOM from 'react-dom/client'
 
 const apiKey = process.env.NEXT_PUBLIC_PROD_APIKEY // process.env.REACT_APP_GOOGLE_MAP_KEY //
@@ -851,6 +853,10 @@ class Map extends Component {
     }
     this.handlePolygonClick = this.handlePolygonClick.bind(this)
     this.togglePlantaVisibility = this.togglePlantaVisibility.bind(this)
+    this.irALaPlanta = this.irALaPlanta.bind(this)
+    this.soloEstaPlanta = this.soloEstaPlanta.bind(this)
+    this.mostrarTodasLasPlantas = this.mostrarTodasLasPlantas.bind(this)
+    this.ocultarTodasLasPlantas = this.ocultarTodasLasPlantas.bind(this)
   }
 
   handleMapClick() {
@@ -878,13 +884,41 @@ class Map extends Component {
       },
       () => {
         if (this.state.plantasVisible[index]) {
-          this.setState({
-            position: plantas[index].centro,
-            zoom: plantas[index].zoom // Agregamos el valor de zoom al estado
-          })
+          this.irALaPlanta(index)
         }
       }
     )
+  }
+
+  /** Centra el mapa en una planta y le hace zoom. */
+  irALaPlanta(index) {
+    this.setState({
+      position: plantas[index].centro,
+      zoom: plantas[index].zoom
+    })
+  }
+
+  /**
+   * Deja visible SOLO esta planta y vuela hacia ella.
+   *
+   * Es la acción que la gente quiere de verdad y la que faltaba: como todas
+   * las plantas arrancan marcadas, "quiero ver solo esta" obligaba a
+   * desmarcar las otras cinco una por una, y recién ahí el mapa se movía.
+   * Ahora es un clic en el nombre; la casilla sigue sirviendo para sumar o
+   * quitar plantas de a una.
+   */
+  soloEstaPlanta(index) {
+    this.setState({ plantasVisible: plantas.map((_, i) => i === index) }, () => this.irALaPlanta(index))
+  }
+
+  /** Todas visibles, sin mover la vista. */
+  mostrarTodasLasPlantas() {
+    this.setState({ plantasVisible: Array(plantas.length).fill(true) })
+  }
+
+  /** Ninguna visible: deja el mapa limpio para elegir desde cero. */
+  ocultarTodasLasPlantas() {
+    this.setState({ plantasVisible: Array(plantas.length).fill(false) })
   }
 
   //
@@ -930,6 +964,20 @@ class Map extends Component {
     return (
       <LoadScript googleMapsApiKey={apiKey}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* Atajos para lo que antes costaba cinco clics: aislar una planta o
+              limpiar el mapa. */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, px: 2, pt: 2 }}>
+            <Typography variant='body2' color='text.secondary'>
+              Haz click en el nombre de una planta para ver solo esa.
+            </Typography>
+            <Button size='small' onClick={this.mostrarTodasLasPlantas}>
+              Ver todas
+            </Button>
+            <Button size='small' onClick={this.ocultarTodasLasPlantas}>
+              Ocultar todas
+            </Button>
+          </Box>
+
           <FormGroup row>
             <Grid container spacing={0}>
               {plantas.map((planta, index) => (
@@ -947,7 +995,36 @@ class Map extends Component {
                         }}
                       />
                     }
-                    label={planta.nombre}
+                    label={
+                      // El nombre es el atajo a "solo esta"; la casilla sigue
+                      // sumando y quitando de a una.
+                      //
+                      // Es un <button> de verdad y no un span con onClick: así
+                      // se puede llegar con Tab y activarlo con Enter o
+                      // espacio, que con un span no se podía. Va con aspecto de
+                      // texto para que la fila se siga leyendo como una lista.
+                      <Button
+                        variant='text'
+                        onClick={event => {
+                          // Sin esto el click llega también a la casilla y su
+                          // toggle deshace lo que acaba de hacer el atajo.
+                          event.preventDefault()
+                          this.soloEstaPlanta(index)
+                        }}
+                        title={`Ver solo ${planta.nombre}`}
+                        sx={{
+                          p: 0,
+                          minWidth: 0,
+                          fontSize: '0.875rem',
+                          fontWeight: 'inherit',
+                          textTransform: 'none',
+                          color: 'inherit',
+                          '&:hover': { background: 'none', textDecoration: 'underline' }
+                        }}
+                      >
+                        {planta.nombre}
+                      </Button>
+                    }
                     sx={{
                       fontSize: '0.8rem' // Cambia el tamaño de la letra aquí
                     }}
