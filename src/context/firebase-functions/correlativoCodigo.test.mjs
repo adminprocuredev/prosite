@@ -1,7 +1,17 @@
 // Comprobación de correlativoCodigo. Sin framework: node lo corre directo.
 //   node src/context/firebase-functions/correlativoCodigo.test.mjs
-import assert from 'node:assert/strict'
+import assertOriginal from 'node:assert/strict'
 import { correlativoDeCodigo, esElUltimo } from './correlativoCodigo.js'
+
+// El total se cuenta solo: escrito a mano se desincroniza.
+let comprobaciones = 0
+const assert = new Proxy(assertOriginal, {
+  get: (objetivo, propiedad) => (...args) => {
+    comprobaciones++
+
+    return objetivo[propiedad](...args)
+  }
+})
 
 // --- correlativoDeCodigo -----------------------------------------------------
 
@@ -42,4 +52,4 @@ assert.equal(esElUltimo('21286-100-ME-PL-0003', null), false, 'contador ausente'
 assert.equal(esElUltimo('21286-100-ME-PL-0003', undefined), false, 'contador indefinido')
 assert.equal(esElUltimo('21286-100-ME-PL-0003', ''), false, 'contador vacío')
 
-console.log('ok — correlativoCodigo: 18 comprobaciones')
+console.log(`ok — correlativoCodigo: ${comprobaciones} comprobaciones`)

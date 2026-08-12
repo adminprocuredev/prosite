@@ -44,3 +44,4 @@ jobs:
           node src/context/google-drive-functions/fileValidation.test.mjs
           node src/context/firebase-functions/correlativoCodigo.test.mjs
           node src/context/firebase-functions/permisosHlc.test.mjs
+          node src/context/google-drive-functions/nombresEntregables.test.mjs

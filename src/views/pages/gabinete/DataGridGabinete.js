@@ -31,6 +31,7 @@ import { useGridApiRef } from '@mui/x-data-grid'
 import tableBody from 'public/html/table.js'
 import { DialogAssignGabineteDraftmen } from 'src/@core/components/dialog-assignGabineteDraftmen'
 import { DialogCodeGenerator } from 'src/@core/components/dialog-codeGenerator'
+import DialogCargaMasiva from 'src/@core/components/dialog-cargaMasiva'
 import DialogDeleteBlueprint from 'src/@core/components/dialog-deleteBlueprint'
 import ReasignarDialog from 'src/@core/components/dialog-deliverableReassign'
 import DialogErrorTransmittal from 'src/@core/components/dialog-errorTransmittal'
@@ -56,6 +57,7 @@ const DataGridGabinete = () => {
   const [checkedTypes, setCheckedTypes] = useState({})
   const [showReasignarSection, setShowReasignarSection] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [openCargaMasiva, setOpenCargaMasiva] = useState(false)
   const [gabineteDraftmenState, setGabineteDraftmenState] = useState([])
   const [transmittalNumber, setTransmittalNumber] = useState("")
 
@@ -415,6 +417,21 @@ const DataGridGabinete = () => {
             </Button>
           </>
         )}
+
+        {/* Carga masiva por OT: incidencia Gabinete 11. Sin esto hay que abrir
+            cada entregable y subir su archivo de a uno, que es lo que hace lento
+            el cierre de una OT con muchos entregables. El diálogo solo ofrece
+            los entregables que este usuario podría subir de a uno. */}
+        {[7, 8, 9].includes(authUser.role) && (
+          <Button
+            variant='outlined'
+            sx={{ mx: 2, flexGrow: '1' }}
+            onClick={() => setOpenCargaMasiva(true)}
+            disabled={!currentPetition}
+          >
+            Carga masiva
+          </Button>
+        )}
       </Box>
 
       <Box sx={{ m: 4, display: 'flex' }}>
@@ -655,6 +672,15 @@ const DataGridGabinete = () => {
         doc={petitions && currentOT && petitions.find(petition => petition.ot == currentOT)}
         setSelectedRows={setSelectedRows}
       />
+
+      {openCargaMasiva && (
+        <DialogCargaMasiva
+          open={openCargaMasiva}
+          onClose={() => setOpenCargaMasiva(false)}
+          petition={currentPetition}
+          blueprints={blueprints}
+        />
+      )}
       {errorTransmittal && <DialogErrorTransmittal open={errorTransmittal} handleClose={handleCloseErrorTransmittal} />}
     </Box>
   )

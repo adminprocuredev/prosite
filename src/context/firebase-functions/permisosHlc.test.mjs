@@ -1,7 +1,18 @@
 // Comprobación de permisosHlc. Sin framework: node lo corre directo.
 //   node src/context/firebase-functions/permisosHlc.test.mjs
-import assert from 'node:assert/strict'
+import assertOriginal from 'node:assert/strict'
 import { puedeSubirHlc, veColumnaHlc } from './permisosHlc.js'
+
+// El total se cuenta solo: escrito a mano se desincroniza y el resumen termina
+// mintiendo sobre cuántos casos corrieron.
+let comprobaciones = 0
+const assert = new Proxy(assertOriginal, {
+  get: (objetivo, propiedad) => (...args) => {
+    comprobaciones++
+
+    return objetivo[propiedad](...args)
+  }
+})
 
 const CONTROL_DOCUMENTAL = { role: 9, uid: 'cd-1' }
 const PROYECTISTA = { role: 8, uid: 'proy-1' }
@@ -288,4 +299,4 @@ assert.equal(veColumnaHlc(PROYECTISTA), true, 'el proyectista ve la columna')
 assert.equal(veColumnaHlc(SUPERVISOR), false, 'el supervisor no')
 assert.equal(veColumnaHlc(null), false, 'sin usuario, no')
 
-console.log('ok — permisosHlc: 37 comprobaciones')
+console.log(`ok — permisosHlc: ${comprobaciones} comprobaciones`)
