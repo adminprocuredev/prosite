@@ -1066,36 +1066,49 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
   const letterToNumber = approves && !isNumeric && approvedByClient && lastTransmittal
   const newRevision = letterToNumber ? "0" : getNextRevisionFolderName(blueprint)
 
-  console.log("getNextRevision")
-  console.log("blueprint que recibe getNextRevision")
-  console.log(blueprint)
+  // Aquí había un if/else de tres ramas cuyas tres asignaciones estaban
+  // comentadas: no hacía nada, solo imprimía el entregable entero y el usuario
+  // conectado en la consola del navegador.
+  //
+  // El archivo del entregable llega como array, como objeto suelto o sin nada
+  // -un entregable al que todavía no le suben nada tiene storageBlueprints en
+  // null-. Antes se leía .length a secas sobre eso: con null reventaba con
+  // "Cannot read properties of null (reading 'length')", el catch del diálogo
+  // se lo comía y el usuario apretaba "Sí", el diálogo se cerraba y no pasaba
+  // NADA. Ni avance, ni aviso.
+  const archivos = Array.isArray(storageBlueprints)
+    ? storageBlueprints
+    : storageBlueprints
+    ? [storageBlueprints]
+    : []
 
-  console.log("Operador ternario para definir storageBlueprints")
-  if (approves && storageBlueprints.length === 2) {
-    //storageBlueprints = storageBlueprints[storageBlueprints.length - 1];
-    console.log("Caso 1 del Operador Ternario")
-    console.log(approves)
-    console.log(storageBlueprints)
-  } else if (approves && (remarks === false || !remarks)) {
-    //storageBlueprints = storageBlueprints[0];
-    console.log("Caso 2 del Operador Ternario")
-    console.log(approves)
-    console.log(remarks)
-  } else {
-    //storageBlueprints = storageBlueprints[storageBlueprints.length - 1];
-    console.log("Caso 3 del Operador Ternario")
+  // El corte es solo al APROBAR. Un rechazo se sostiene con las observaciones y
+  // no tiene por qué traer documento; cortarlo también ahí sería romper un
+  // camino que hoy funciona por un problema que no tiene.
+  if (approves && archivos.length === 0) {
+    throw new Error(
+      'Este entregable todavía no tiene un archivo cargado, así que su revisión no puede avanzar. ' +
+        'Adjunta el documento y vuelve a intentarlo.'
+    )
   }
+
+  // Sin archivos queda null y no `undefined`: Firestore rechaza un campo
+  // undefined y volveríamos a un error, ahora visible pero incomprensible.
+  const archivoDeLaRevision =
+    archivos.length === 0
+      ? null
+      : approves && archivos.length === 2
+      ? archivos[archivos.length - 1]
+      : approves && (remarks === false || !remarks)
+      ? archivos[0]
+      : archivos[archivos.length - 1]
 
   // Crea el objeto de la próxima revisión con los datos proporcionados y la nueva revisión calculada
   const nextRevision = {
     prevRevision: latestRevision && Object.keys(latestRevision).length === 0 ? latestRevision.newRevision : revision,
     newRevision,
     description,
-    storageBlueprints:
-      approves && storageBlueprints.length === 2 ? storageBlueprints[storageBlueprints.length - 1]
-        : approves && (remarks === false || !remarks)
-        ? storageBlueprints[0]
-        : storageBlueprints[storageBlueprints.length - 1],
+    storageBlueprints: archivoDeLaRevision,
     userEmail: email,
     userName: displayName,
     userId: uid,
