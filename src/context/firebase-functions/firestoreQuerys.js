@@ -16,7 +16,7 @@ import {
   where
 } from 'firebase/firestore'
 import { db } from 'src/configs/firebase'
-import { crearCacheDeNombres } from './nombreCache'
+import { crearLectorDeNombres } from './nombreCache'
 
 import { unixToDate } from 'src/@core/components/unixToDate'
 
@@ -127,28 +127,42 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
         }
       }
 
+      // Los autores se resuelven en tandas dentro de una sola consulta, no con
+      // un getDoc por usuario. El lector vive FUERA del onSnapshot: así lo ya
+      // leído se conserva entre snapshots y una actualización cualquiera no
+      // vuelve a pedir los mismos nombres. El precio es que un cambio de nombre
+      // se ve al recargar la página, no al instante.
+      const nombresDe = crearLectorDeNombres(async uids => {
+        const snapshot = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', uids)))
+
+        return new Map(snapshot.docs.map(d => [d.id, d.data().name]))
+      })
+
+      // Firestore no espera a que termine un snapshot para entregar el
+      // siguiente, y aquí se espera a leer los nombres antes de pintar: sin
+      // este número de orden, un snapshot lento podía resolver DESPUÉS de uno
+      // más nuevo y devolver la tabla a un estado viejo —con solicitudes ya
+      // borradas, o estados anteriores— hasta que llegara otro cambio.
+      let ultimoSnapshot = 0
+
       const unsubscribe = onSnapshot(q, async querySnapshot => {
+        const miTurno = ++ultimoSnapshot
+
         try {
-          const allDocs = []
+          const nombres = await nombresDe(querySnapshot.docs.map(d => d.data().uid))
 
-          // Antes se leía users/{uid} una vez por FILA. Muchas solicitudes comparten
-          // usuario, así que la cache se crea por snapshot: se deduplica entre filas y
-          // cada snapshot vuelve a leer, o sea los nombres siguen igual de frescos.
-          const nombreDe = crearCacheDeNombres(uid => getDoc(doc(db, 'users', uid)))
-
-          const promises = querySnapshot.docs.map(async d => {
+          const allDocs = querySnapshot.docs.map(d => {
             const docData = d.data()
-            const name = await nombreDe(docData.uid)
-            const newDoc = { ...docData, id: d.id, name }
-            allDocs.push(newDoc)
-          })
 
-          await Promise.all(promises)
+            return { ...docData, id: d.id, name: nombres.get(docData.uid) }
+          })
 
           // Ordena manualmente las solicitudes por 'date' en orden descendente
           const sortedDocs = allDocs.sort((a, b) => b.date.seconds - a.date.seconds)
 
-          setData(sortedDocs)
+          if (miTurno === ultimoSnapshot) {
+            setData(sortedDocs)
+          }
         } catch (error) {
           console.error('Error al obtener los documentos de Firestore: ', error)
 
@@ -742,6 +756,25 @@ const fetchPetitionById = async id => {
   }
 }
 
+/**
+ * Consultas sobre los entregables de TODAS las solicitudes.
+ *
+ * ESTO ES LENTO Y SE SABE. Recorre las 486 solicitudes que tienen entregables
+ * una por una pidiendo la suya —487 viajes a us-central1, los 486 disparados a
+ * la vez con un solo Promise.all— y baja los 1567 documentos enteros para
+ * mostrar un número. Es lo que deja la portada en "Cargando datos...".
+ *
+ * La versión que lo arregla —`collectionGroup` más `getCountFromServer`, 2
+ * viajes en vez de 487— está escrita y probada, y vive en la rama `dev`. No
+ * entra aquí todavía porque necesita índices con alcance COLLECTION_GROUP que
+ * Firestore no crea solos y que aún no existen en producción: sin ellos las
+ * consultas responden `failed-precondition` y la portada queda rota, que es
+ * peor que lenta.
+ *
+ * Para desbloquearlo hacen falta las tres exenciones de un solo campo sobre el
+ * grupo `blueprints` (`deleted`, `blueprintCompleted`, `date`). El paso a paso
+ * está en ~/prosite-handoff/PEDIR-PERMISO-IAM.md
+ */
 const consultBluePrints = async (type, options = {}) => {
   const coll = collection(db, 'blueprints')
   let queryFunc

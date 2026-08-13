@@ -11,6 +11,7 @@ import CardHeader from '@mui/material/CardHeader'
 import CardContent from '@mui/material/CardContent'
 import Icon from 'src/@core/components/icon'
 import Box from '@mui/material/Box'
+import Alert from '@mui/material/Alert'
 
 // ** Custom Component Import
 import ObjetivesByDay from 'src/views/dashboard/ObjetivesByDay'
@@ -54,6 +55,7 @@ const Home = () => {
   const [objetivesByState, setObjetivesByState] = useState([0, 0, 0])
   const [top10, setTop10] = useState([])
   const [loading, setLoading] = useState(true)
+  const [errorCarga, setErrorCarga] = useState(null)
   const [revisionDataInBlueprintA, setRevisionDataInBlueprintA] = useState([0, 0, 0, 0, 0, 0])
   const [revisionDataInBlueprintB, setRevisionDataInBlueprintB] = useState([0, 0, 0, 0, 0, 0])
 
@@ -193,6 +195,13 @@ const Home = () => {
         setLoading(false)
       } catch (error) {
         console.error('Error fetching data:', error)
+
+        // Las once consultas van en un solo Promise.all: si UNA falla, fallan
+        // todas, y sin esto `loading` se quedaba en true para siempre. La
+        // portada mostraba "Cargando datos..." indefinidamente, que se lee
+        // como lentitud y no como error. Se apaga el spinner y se avisa.
+        setLoading(false)
+        setErrorCarga('No se pudieron cargar los datos del resumen. Vuelve a intentarlo o avisa a soporte.')
       }
     }
 
@@ -201,6 +210,11 @@ const Home = () => {
 
   return (
     <Grid container spacing={6} alignItems='stretch' className='match-height' sx={{ display: 'flex' }}>
+      {errorCarga && (
+        <Grid item xs={12} md={12}>
+          <Alert severity='error'>{errorCarga}</Alert>
+        </Grid>
+      )}
       <Grid item xs={12} md={12}>
         <Card>
           <CardHeader sx={{ pb: 3.25 }} title='Resumen Estadístico' titleTypographyProps={{ variant: 'h6' }} />
