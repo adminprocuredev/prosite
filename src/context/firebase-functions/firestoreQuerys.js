@@ -895,19 +895,33 @@ const consultDocs = async (type, options = {}) => {
 
   try {
     switch (type) {
+      // CONTAR NO ES BAJAR.
+      //
+      // Estos dos casos devuelven NÚMEROS, y hasta ahora los conseguían
+      // bajando la colección entera y midiendo el arreglo con `.size`. Las
+      // solicitudes pesan ~8,6 MB —30 campos con arreglos de mapas, medido
+      // contra producción—, y `byPlants` lo hacía SEIS veces más, una por
+      // planta: unos 60 MB desde `nam5`, en Estados Unidos, para pintar siete
+      // números en la portada.
+      //
+      // `getCountFromServer` los cuenta en el servidor y trae solo la cifra:
+      // medido contra producción, **1,3 s y 0 kB** contra 1,2 s y 8,6 MB. La
+      // latencia es la misma; lo que desaparece es la descarga, que es lo que
+      // ahogaba el canal con la gente en faena.
+      //
+      // No es un patrón nuevo en este archivo: `consultObjetives` y
+      // `consultBluePrints` ya cuentan así.
       case 'all':
-        const qAll = query(coll)
-        const snapshotAll = await getDocs(qAll)
+        const snapshotAll = await getCountFromServer(query(coll))
 
-        return snapshotAll.size
+        return snapshotAll.data().count
 
       case 'byPlants':
         const resultsByPlants = await Promise.all(
           options.plants.map(async plant => {
-            const qPlant = query(coll, where('plant', '==', plant))
-            const snapshotPlant = await getDocs(qPlant)
+            const snapshotPlant = await getCountFromServer(query(coll, where('plant', '==', plant)))
 
-            return snapshotPlant.size
+            return snapshotPlant.data().count
           })
         )
 
@@ -1155,16 +1169,21 @@ const consultObjetives = async (type, options = {}) => {
     case 'byPlants':
       // Consulta para obtener el número de documentos por planta
       queryFunc = async () => {
+        // Doce consultas que devuelven NÚMEROS —dos por planta— y que hasta
+        // ahora bajaban los documentos enteros para medir el arreglo con
+        // `.size`. Igual que en `consultDocs`: se cuentan en el servidor.
         const queries = options.plants.map(async plant => {
           const query1 = query(coll, where('plant', '==', plant), where('state', '>=', 6))
           const query2 = query(coll, where('plant', '==', plant), where('state', '==', 7))
 
-          const snapshot1 = await getDocs(query1)
-          const snapshot2 = await getDocs(query2)
+          const [snapshot1, snapshot2] = await Promise.all([
+            getCountFromServer(query1),
+            getCountFromServer(query2)
+          ])
 
           return {
-            query1: snapshot1.size,
-            query2: snapshot2.size
+            query1: snapshot1.data().count,
+            query2: snapshot2.data().count
           }
         })
         const results = await Promise.all(queries)
@@ -1181,6 +1200,15 @@ const consultObjetives = async (type, options = {}) => {
   return queryFunc()
 }
 
+// ponytail: techo conocido, y es el más caro que queda en la portada. Este sí
+// necesita los documentos —agrupa las solicitudes por autor para armar el top
+// 10—, así que se baja la colección entera: **8,6 MB**, medidos contra
+// producción. No se puede contar en el servidor porque no hay una agrupación
+// por campo, y el SDK web no tiene `select()` para pedir solo el `uid`: eso
+// existe únicamente en el SDK de administrador, o sea detrás de una Cloud
+// Function. Las salidas reales son dos: un contador por usuario mantenido al
+// escribir, o mover este cálculo a una función. Mientras tanto, el resto de la
+// portada ya no baja nada.
 const getUsersWithSolicitudes = async () => {
   const collSolicitudes = collection(db, 'solicitudes') // Obtener referencia a la colección 'solicitudes'
   const qSolicitudes = query(collSolicitudes) // Consulta para obtener todas las solicitudes

@@ -149,9 +149,20 @@ const FirebaseContextProvider = props => {
           setLoading(true)
         }
 
-        const databaseUserData = await formatAuthUser(authState)
-        const dictionary = await getDomainData('dictionary')
-        const roles = await getDomainData('roles')
+        // Las tres lecturas son INDEPENDIENTES entre sí: el usuario sale de
+        // `users/{uid}` y las otras dos de `domain`. Estaban en tres `await`
+        // seguidos, o sea tres viajes de ida y vuelta a `nam5` —Estados
+        // Unidos, ~1,2 s cada uno medido contra producción— antes de publicar
+        // nada. Y hasta que esto termina, los guards muestran el spinner: son
+        // segundos de pantalla vacía cada vez que entras.
+        //
+        // En paralelo es UN viaje en vez de tres. Ninguna depende del
+        // resultado de otra, así que no hay nada que ordenar.
+        const [databaseUserData, dictionary, roles] = await Promise.all([
+          formatAuthUser(authState),
+          getDomainData('dictionary'),
+          getDomainData('roles')
+        ])
 
         // Llegó otro evento de sesión mientras se cargaba: manda el nuevo.
         if (miTurno !== turno) return
