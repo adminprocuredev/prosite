@@ -66,6 +66,97 @@ const useEvents = (id, userParam, path = 'events') => {
   return data
 }
 
+/**
+ * Solicitudes cuyo levantamiento cae dentro de un rango de fechas.
+ *
+ * Existe para el calendario, que usaba `useSnapshot` y por lo tanto bajaba las
+ * 1.844 solicitudes completas —unos 3,5 MB desde Estados Unidos— para pintar
+ * los ~54 eventos de un mes. El 97% de lo que descargaba no se veía.
+ *
+ * Aquí se pide solo el rango que se está mirando, y se vuelve a pedir cuando
+ * cambias de mes. Nadie echa de menos datos que no caben en la pantalla.
+ *
+ * El filtro va sobre `start` porque es el campo con el que el calendario ubica
+ * cada evento. Es la única desigualdad de la consulta, así que le basta el
+ * índice de campo único que Firestore mantiene solo.
+ *
+ * `state >= 1` se aplica en el cliente y no en la consulta: sumarlo sería una
+ * segunda desigualdad, y Firestore obligaría entonces a ordenar por ambos
+ * campos y a crear un índice compuesto. Sobre unas decenas de documentos
+ * filtrar aquí no cuesta nada.
+ *
+ * @param {Object} userParam - Usuario conectado; sin él no se consulta.
+ * @param {Date} desde - Primer día visible.
+ * @param {Date} hasta - Último día visible.
+ */
+const useSolicitudesEnRango = (userParam, desde, hasta) => {
+  const [data, setData] = useState([])
+
+  // Las fechas llegan como objetos nuevos en cada render: comparar por valor
+  // evita rehacer la suscripción en cada pintada.
+  const desdeEnMs = desde ? desde.getTime() : null
+  const hastaEnMs = hasta ? hasta.getTime() : null
+
+  useEffect(() => {
+    // Sin usuario o sin rango no hay nada que mostrar, y hay que VACIAR: al
+    // cerrar sesión o al cambiar de cuenta, quedarse con lo anterior sería
+    // enseñarle a alguien las solicitudes de otra persona.
+    if (!userParam || desdeEnMs === null || hastaEnMs === null) {
+      setData([])
+
+      return
+    }
+
+    // Un levantamiento que empezó antes del mes visible y sigue corriendo
+    // dentro de él igual se dibuja, así que la ventana se abre hacia atrás.
+    //
+    // ponytail: techo conocido. La consulta trae los que EMPIEZAN en la
+    // ventana, no los que la cruzan, así que un levantamiento de más de 90
+    // días que arrancó antes del margen no aparecería. Alcanzarlo con
+    // exactitud pedía una segunda desigualdad sobre `end` —otra consulta y un
+    // índice compuesto— y a los levantamientos de faena, que duran días o
+    // semanas, no les hace falta. Si alguna vez desaparece uno largo del
+    // calendario, la salida es subir este número, no rehacer el hook.
+    const MARGEN_EN_DIAS = 90
+    const inicioConMargen = new Date(desdeEnMs - MARGEN_EN_DIAS * 24 * 60 * 60 * 1000)
+
+    const q = query(
+      collection(db, 'solicitudes'),
+      where('start', '>=', Timestamp.fromDate(inicioConMargen)),
+      where('start', '<=', Timestamp.fromDate(new Date(hastaEnMs)))
+    )
+
+    const comienzo = Date.now()
+
+    const unsubscribe = onSnapshot(
+      q,
+      querySnapshot => {
+        try {
+          const solicitudes = querySnapshot.docs
+            .map(d => ({ ...d.data(), id: d.id }))
+            .filter(solicitud => typeof solicitud.state === 'number' && solicitud.state >= 1)
+
+          setData(solicitudes)
+          console.info(
+            `[calendario] ${solicitudes.length} de ${querySnapshot.size} en el rango · ` +
+              `${querySnapshot.metadata.fromCache ? 'desde caché' : 'del servidor'} · ${Date.now() - comienzo} ms`
+          )
+        } catch (error) {
+          console.error('Error al armar los eventos del calendario:', error)
+        }
+      },
+      error => {
+        console.error('Firestore rechazó la consulta del calendario:', error.code, error.message)
+        setData([])
+      }
+    )
+
+    return () => unsubscribe()
+  }, [userParam, desdeEnMs, hastaEnMs])
+
+  return data
+}
+
 // ** Escucha cambios en los documentos en tiempo real
 const useSnapshot = (datagrid = false, userParam, control = false) => {
   const [data, setData] = useState([])
@@ -1276,6 +1367,7 @@ export {
   getUsuariosParaReasignar,
   useEvents,
   useSnapshot,
+  useSolicitudesEnRango,
   getData,
   getUserData,
   getAllUsersData,

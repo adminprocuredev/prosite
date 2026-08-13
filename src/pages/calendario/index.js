@@ -65,7 +65,7 @@ const AppCalendar = () => {
 
   const {
     authUser,
-    useSnapshot,
+    useSolicitudesEnRango,
     getRoleData,
     getDomainData,
     consultBlockDayInDB,
@@ -73,8 +73,17 @@ const AppCalendar = () => {
     subscribeToBlockDayChanges
   } = useFirebase()
 
+  // ** Rango visible del calendario. `datesSet` lo actualiza cada vez que
+  // cambias de mes o de vista; hasta que FullCalendar lo informe, no se
+  // consulta nada.
+  const [rangoVisible, setRangoVisible] = useState({ desde: null, hasta: null })
+
   // ** Hook para obtener los datos de la base de datos
-  const data = useSnapshot(false, authUser)
+  //
+  // Antes era useSnapshot(false, authUser), que baja las 1.844 solicitudes
+  // completas -unos 3,5 MB desde Estados Unidos- para pintar los ~54 eventos
+  // de un mes: el 97% no se veía. Ahora se pide solo el rango visible.
+  const data = useSolicitudesEnRango(authUser, rangoVisible.desde, rangoVisible.hasta)
   // ** Hook para obtener el tema
   const theme = useTheme()
 
@@ -340,6 +349,9 @@ const AppCalendar = () => {
       }
     },
     datesSet: async function (params) {
+      // Cambió el mes o la vista: se pide ese rango y no la colección entera.
+      setRangoVisible({ desde: params.start, hasta: params.end })
+
       const startDate = params.start.getTime()
       const endDate = params.end.getTime()
 
