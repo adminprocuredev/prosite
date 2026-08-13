@@ -1200,18 +1200,32 @@ const consultObjetives = async (type, options = {}) => {
   return queryFunc()
 }
 
-// ponytail: techo conocido, y es el más caro que queda en la portada. Este sí
-// necesita los documentos —agrupa las solicitudes por autor para armar el top
-// 10—, así que se baja la colección entera: **8,6 MB**, medidos contra
-// producción. No se puede contar en el servidor porque no hay una agrupación
-// por campo, y el SDK web no tiene `select()` para pedir solo el `uid`: eso
-// existe únicamente en el SDK de administrador, o sea detrás de una Cloud
-// Function. Las salidas reales son dos: un contador por usuario mantenido al
-// escribir, o mover este cálculo a una función. Mientras tanto, el resto de la
-// portada ya no baja nada.
+// El top 10 mira los ÚLTIMOS TRES MESES, no toda la historia.
+//
+// Antes contaba las solicitudes desde el principio de los tiempos, y eso tenía
+// dos problemas a la vez:
+//
+// - Costaba **8,6 MB** por carga. Es la única consulta de la portada que baja
+//   documentos —agrupar por autor no se puede hacer en el servidor: Firestore
+//   no tiene agrupación por campo, y el SDK del navegador no tiene `select()`
+//   para pedir solo el `uid`, eso vive en el SDK de administrador—. El resto
+//   de la portada ya no baja nada, son conteos.
+// - Y mostraba a gente que ya no trabaja aquí. Un ranking histórico no cambia
+//   nunca: quien pidió mucho hace tres años se queda arriba para siempre.
+//
+// Con la ventana se arreglan los dos: pasa a **1,1 MB** medidos contra
+// producción —seis meses; tres es todavía menos— y responde a «quién está
+// pidiendo más ahora», que es lo que se espera de un panel.
+//
+// ponytail: la ventana es la perilla. Si algún día quieren ver más atrás, se
+// sube este número y se paga en descarga; el techo está aquí escrito.
+const MESES_DEL_RANKING = 3
+
 const getUsersWithSolicitudes = async () => {
+  const desde = Timestamp.fromDate(moment().subtract(MESES_DEL_RANKING, 'months').toDate())
+
   const collSolicitudes = collection(db, 'solicitudes') // Obtener referencia a la colección 'solicitudes'
-  const qSolicitudes = query(collSolicitudes) // Consulta para obtener todas las solicitudes
+  const qSolicitudes = query(collSolicitudes, where('date', '>=', desde))
   const solicitudesSnapshot = await getDocs(qSolicitudes) // Obtener los documentos de las solicitudes
 
   const solicitudesByUser = {} // Objeto para almacenar el número de solicitudes por usuario
