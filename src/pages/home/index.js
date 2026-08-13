@@ -93,22 +93,6 @@ const Home = () => {
           return siFalla
         })
 
-      // El top 10 va POR SU CUENTA, fuera del `Promise.all`.
-      //
-      // Es la única consulta de la portada que sigue bajando documentos: para
-      // ordenar por autor tiene que leer las solicitudes enteras, 8,6 MB desde
-      // `nam5`. Dentro del conjunto, esos 8,6 MB retrasaban TODO —los diez
-      // números y los seis gráficos esperaban a la tabla del fondo, que es lo
-      // último que alguien mira—. Medido en producción: los datos aparecían a
-      // los 19,7 s, y el tramo largo era este.
-      //
-      // Aparte, cada cosa aparece cuando está lista. Su propio `catch` porque
-      // ya no lo cubre el `try` de abajo: si falla, se queda la tabla vacía y
-      // el resto de la portada ni se entera.
-      getUsersWithSolicitudes()
-        .then(setTop10)
-        .catch(error => console.error('No se pudo armar el top 10 de usuarios:', error))
-
       try {
         const [
           allDocsCount,
@@ -229,6 +213,28 @@ const Home = () => {
         setRevisionDataInBlueprintB(filteredByRevisionB)
 
         setLoading(false)
+
+        // EL TOP 10 SE PIDE AL FINAL, cuando el resto ya está en pantalla.
+        //
+        // Es la única consulta de la portada que sigue bajando documentos:
+        // para ordenar por autor hay que leer las solicitudes enteras, 8,6 MB
+        // desde `nam5`, medidos contra producción.
+        //
+        // Sacarlo del `Promise.all` no sirvió de nada, y el número lo dice:
+        // los datos aparecían a los 19.696 ms antes y a los 19.699 ms después.
+        // El cuello no era el orden de los `await` —ya iban en paralelo— sino
+        // los BYTES: el SDK habla por un solo canal, y mientras bajan 8,6 MB
+        // las demás respuestas esperan detrás.
+        //
+        // Pedirlo DESPUÉS es lo único que saca esos 8,6 MB de la competencia:
+        // los diez números y los seis gráficos ya están pintados cuando la
+        // descarga empieza, y la tabla del fondo se llena cuando llegue.
+        //
+        // Con su propio `catch`: si falla, la tabla se queda vacía y el resto
+        // de la portada ni se entera.
+        getUsersWithSolicitudes()
+          .then(setTop10)
+          .catch(error => console.error('No se pudo armar el top 10 de usuarios:', error))
 
         if (loQueFallo.length) {
           setErrorCarga(
