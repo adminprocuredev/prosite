@@ -27,7 +27,7 @@ const Accordion = theme => {
             '&:first-of-type': { borderTop: `1px solid ${theme.palette.divider}` }
           }),
           '&.Mui-disabled': {
-            backgroundColor: `rgba(${theme.palette.customColors.main}, 0.12)`
+            backgroundColor: `rgba(${theme.palette.customColors.mainRgb}, 0.12)`
           },
           '&.Mui-expanded': {
             boxShadow: theme.shadows[skin === 'bordered' ? 0 : 3],

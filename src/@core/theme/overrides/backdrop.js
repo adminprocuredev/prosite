@@ -8,7 +8,7 @@ const Backdrop = theme => {
         root: {
           backgroundColor:
             theme.palette.mode === 'light'
-              ? `rgba(${theme.palette.customColors.main}, 0.5)`
+              ? `rgba(${theme.palette.customColors.mainRgb}, 0.5)`
               : hexToRGBA('#101121', 0.87)
         },
         invisible: {

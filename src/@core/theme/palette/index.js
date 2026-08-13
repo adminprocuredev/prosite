@@ -16,21 +16,35 @@ const DefaultPalette = (mode, skin) => {
   }
 
   return {
+    // NINGUNA CLAVE DE AQUÍ SE PUEDE LLAMAR `main`. Va en serio, y ya costó
+    // dos caídas de página entera.
+    //
+    // Los valores de `customColors` no son colores CSS: son ternas sueltas
+    // —'234, 234, 255'— pensadas para interpolarse dentro de `rgba(...)`. Pero
+    // `customColors` vive dentro de la paleta, y varios componentes de MUI
+    // recorren la paleta ENTERA buscando entradas que parezcan un color, con
+    // este filtro:
+    //
+    //   Object.entries(theme.palette).filter(([, v]) => v.main && v.light)   // Switch, Alert (×2)
+    //   Object.entries(theme.palette).filter(([, v]) => v.main && v.dark)    // Alert
+    //
+    // A lo que pasa el filtro le aplican `alpha()` o `getContrastText()`, y
+    // esas funciones sí exigen un color CSS de verdad. Con una terna suelta
+    // lanzan "Unsupported `234, 234, 255` color" y se lleva la página entera:
+    // no es un componente feo, es pantalla en blanco.
+    //
+    // La primera vez se quitó `light`, y eso tapó el Switch y dos de las tres
+    // variantes del Alert —el primero que apareció fue el Switch del panel de
+    // columnas del gabinete, incidencia Gabinete 10—. La tercera, `main &&
+    // dark`, quedó abierta y volvió a morder: el 13-ago-2026 la portada de
+    // producción quedó en blanco al mostrar su Alert de error.
+    //
+    // Los cuatro filtros exigen `main`. Sin esa clave no hay filtro que pase,
+    // ni estos ni los que MUI agregue después. Por eso se llama `mainRgb`: el
+    // sufijo además avisa de qué son estos valores.
     customColors: {
       dark: darkColor,
-      main: mainColor,
-
-      // Aquí había un `light: lightColor` que no usaba nadie y rompía la
-      // aplicación. MUI recorre TODAS las entradas de la paleta que tengan
-      // `main` y `light` y les aplica alpha() para armar las variantes de
-      // color del Switch. customColors cumplía ese filtro, pero sus valores
-      // son ternas sueltas —'76, 78, 100'— pensadas para interpolarse dentro
-      // de `rgba(...)`, no colores CSS: alpha() lanzaba
-      // "Unsupported `234, 234, 255` color" y se caía la página entera.
-      //
-      // Sin `light` la entrada deja de pasar el filtro y el Switch vuelve a
-      // construirse. Se dispara con cualquier Switch; el primero en aparecer
-      // fue el del panel de columnas del gabinete. Incidencia Gabinete 10.
+      mainRgb: mainColor,
       darkBg: '#2a2e36',
       lightBg: '#F7F7F9',
       bodyBg: mode === 'light' ? '#F7F7F9' : '#2a2e36',
