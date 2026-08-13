@@ -99,8 +99,7 @@ const Home = () => {
           allBlueprintsFinished,
           allBlueprintsExisting,
           allObjCount,
-          weekObj,
-          lastSixMonthsObjetives,
+          actividadReciente,
           byStateDocs,
           byPlantsDocs,
           byPlantsObj,
@@ -110,13 +109,14 @@ const Home = () => {
           sinLlevarseElResto('entregables finalizados', consultBluePrints('finished'), null),
           sinLlevarseElResto('entregables existentes', consultBluePrints('existingBlueprints'), null),
           consultObjetives('all'),
-          consultObjetives('week'),
-          consultObjetives('lastSixMonths'),
+          consultObjetives('actividadReciente'),
           consultDocs('byState'),
           consultDocs('byPlants', { plants }),
           consultObjetives('byPlants', { plants }),
           sinLlevarseElResto('revisiones de los últimos 30 días', consultBluePrints('last30daysRevisions'), [])
         ])
+
+        const { porDia: weekObj, porMes: lastSixMonthsObjetives } = actividadReciente
 
         const [monthArray, cantArray] = lastSixMonthsObjetives.reduce(
           (acc, item) => {
@@ -200,7 +200,6 @@ const Home = () => {
         setAllBlueprintsFinished(allBlueprintsFinished)
         setAllBlueprintsExisting(allBlueprintsExisting)
         setObjetivesOfActualWeek(weekObj)
-        setObjetivesOfLastSixMonths(lastSixMonthsObjetives)
         setObjetivesOfLastSixMonths(cantArray)
         setMonthssOfLastSixMonths(monthArray)
         setObjetivesByPlants(byPlantsObj)

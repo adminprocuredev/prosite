@@ -20,11 +20,11 @@ import {
 import { db } from 'src/configs/firebase'
 import { crearLectorDeNombres } from './nombreCache'
 import { buscaPorNombre, faltaDatoPara } from './requisitosDeUsuarios'
+import { agruparActividadReciente, ventanaActividadReciente } from './actividadReciente'
 
 import { unixToDate } from 'src/@core/components/unixToDate'
 
 // Librería
-import { capitalize } from 'lodash'
 
 const moment = require('moment')
 
@@ -1116,53 +1116,27 @@ const consultObjetives = async (type, options = {}) => {
       }
       break
 
-    case 'week':
-      // Consulta para obtener el número de documentos por día de la semana en la semana actual
+    // Los dos gráficos de levantamientos, de UNA consulta.
+    //
+    // Eran siete: 'week' pedía `where('state','>=',6)` sin ventana de fechas
+    // —las 1622 solicitudes enteras, ~7,4 MB, para pintar siete barras que
+    // suman 7— y 'lastSixMonths' pedía cada mes por su cuenta. El porqué del
+    // reemplazo y el reparto en meses y días están en `actividadReciente.js`.
+    case 'actividadReciente':
       queryFunc = async () => {
-        const startDate = moment().startOf('isoWeek').toDate()
-        const endDate = moment().endOf('isoWeek').toDate()
-        const documentsByDay = Array(7).fill(0)
-        const q = query(coll, where('state', '>=', 6))
-        const snapshot = await getDocs(q)
+        // UNA sola hora para pedir y para repartir. Con dos `moment()` —uno
+        // antes del await y otro después— una carga que cruce la medianoche del
+        // último día del mes pide marzo-agosto y reparte abril-septiembre: el
+        // mes más viejo se descarta entero y el más nuevo sale a medias.
+        const ahora = moment()
+        const { desde, hasta } = ventanaActividadReciente(ahora)
 
-        snapshot.forEach(doc => {
-          const start = doc.data().start.toDate()
-          const dayOfWeek = moment(start).isoWeekday()
-          if (moment(start).isSameOrAfter(startDate) && moment(start).isSameOrBefore(endDate)) {
-            documentsByDay[dayOfWeek - 1]++
-          }
-        })
+        const snapshot = await getDocs(query(coll, where('start', '>=', desde), where('start', '<', hasta)))
 
-        return documentsByDay
-      }
-      break
-
-    case 'lastSixMonths':
-      // Consulta para obtener el número de documentos en los últimos seis meses
-      queryFunc = async () => {
-        const currentDate = moment()
-        const monthsData = []
-        const queries = []
-
-        for (let i = 0; i < 6; i++) {
-          const monthStartDate = currentDate.clone().subtract(i, 'months').startOf('month').toDate()
-          const monthEndDate = currentDate.clone().subtract(i, 'months').endOf('month').toDate()
-
-          const q = query(coll, where('start', '>=', monthStartDate), where('start', '<=', monthEndDate))
-          queries.push(getDocs(q))
-        }
-
-        const snapshots = await Promise.all(queries)
-
-        snapshots.forEach((snapshot, index) => {
-          const filteredDocs = snapshot.docs.filter(doc => doc.data().state >= 6)
-          const cant = filteredDocs.length
-          const monthStartDate = currentDate.clone().subtract(index, 'months').startOf('month')
-          const month = capitalize(monthStartDate.locale('es').format('MMM'))
-          monthsData.unshift({ month, cant })
-        })
-
-        return monthsData
+        return agruparActividadReciente(
+          snapshot.docs.map(documento => documento.data()),
+          ahora
+        )
       }
       break
 
