@@ -153,4 +153,83 @@ const conTimestamp = (fecha, state = 7) => ({ state, start: { toDate: () => new 
   )
 }
 
+// --- los números tienen que salir IGUALES que antes ---------------------------
+//
+// Toda la PR se apoya en una promesa: se baja muchísimo menos y la portada
+// muestra lo mismo. Aquí está comprobada contra el algoritmo viejo, copiado tal
+// cual, sobre un revoltijo de solicitudes repartidas en dos años.
+//
+// El viejo pedía a Firestore `where('state','>=',6)` sin fechas y recortaba la
+// semana en el navegador; el nuevo pide la ventana y recorta el estado. Lo que
+// se compara es el resultado de los dos caminos completos, con el filtro del
+// servidor simulado en cada uno.
+{
+  const ahora = moment('2026-08-13T09:00:00')
+
+  // Firestore ordena por tipo: `>= 6` solo alcanza a los números.
+  const comoFirestoreFiltraElEstado = docs => docs.filter(d => typeof d.state === 'number' && d.state >= 6)
+  const comoFirestoreFiltraLaVentana = (docs, desde, hasta) =>
+    docs.filter(d => d.start instanceof Date && d.start >= desde && d.start < hasta)
+
+  const semanaALaVieja = docs => {
+    const inicio = ahora.clone().startOf('isoWeek').toDate()
+    const fin = ahora.clone().endOf('isoWeek').toDate()
+    const porDia = Array(7).fill(0)
+
+    for (const doc of docs) {
+      const start = doc.start
+      if (moment(start).isSameOrAfter(inicio) && moment(start).isSameOrBefore(fin)) {
+        porDia[moment(start).isoWeekday() - 1]++
+      }
+    }
+
+    return porDia
+  }
+
+  const mesesALaVieja = docs => {
+    const meses = []
+    for (let i = 0; i < 6; i++) {
+      const desde = ahora.clone().subtract(i, 'months').startOf('month').toDate()
+      const hasta = ahora.clone().subtract(i, 'months').endOf('month').toDate()
+      const delMes = docs.filter(d => d.start instanceof Date && d.start >= desde && d.start <= hasta)
+      meses.unshift(comoFirestoreFiltraElEstado(delMes).length)
+    }
+
+    return meses
+  }
+
+  // 600 solicitudes repartidas en dos años, con estados de todo tipo y algunas
+  // rotas a propósito. Semilla fija: un test que cambia solo no prueba nada.
+  let semilla = 20260813
+  const alAzar = tope => {
+    semilla = (semilla * 1103515245 + 12345) % 2147483648
+
+    return semilla % tope
+  }
+
+  const estados = [0, 1, 5, 6, 7, 8, 9, 12, '7', NaN, undefined, null]
+  const revoltijo = Array.from({ length: 600 }, () => ({
+    state: estados[alAzar(estados.length)],
+    start: alAzar(40) === 0 ? undefined : ahora.clone().subtract(alAzar(730), 'days').toDate()
+  }))
+
+  const { desde, hasta } = ventanaActividadReciente(ahora)
+  const nuevo = agruparActividadReciente(comoFirestoreFiltraLaVentana(revoltijo, desde, hasta), ahora)
+  const soloLevantamientos = comoFirestoreFiltraElEstado(revoltijo).filter(d => d.start instanceof Date)
+
+  assert.deepEqual(nuevo.porDia, semanaALaVieja(soloLevantamientos), 'la semana da lo mismo que el algoritmo viejo')
+  assert.deepEqual(
+    nuevo.porMes.map(mes => mes.cant),
+    mesesALaVieja(revoltijo),
+    'los seis meses dan lo mismo que el algoritmo viejo'
+  )
+
+  // Y que el revoltijo no sea todo ceros, o el deepEqual no probaría nada.
+  assert.ok(nuevo.porDia.reduce((a, b) => a + b) > 0, 'la semana de prueba tiene datos')
+  assert.ok(
+    nuevo.porMes.reduce((total, mes) => total + mes.cant, 0) > 20,
+    'los seis meses de prueba tienen datos'
+  )
+}
+
 console.log(`ok — actividadReciente: ${comprobaciones} comprobaciones`)
