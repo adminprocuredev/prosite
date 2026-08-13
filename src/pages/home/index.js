@@ -70,6 +70,28 @@ const Home = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      // UNA consulta que falle no puede llevarse las otras diez.
+      //
+      // Las tres de entregables son consultas de GRUPO de colecciones, y esas
+      // se evalúan contra una regla propia: `match /{path=**}/blueprints/{id}`.
+      // Hoy producción solo tiene la anidada —`/solicitudes/{s}/blueprints/{c}`,
+      // que no aplica a las de grupo—, así que las tres vuelven con
+      // `permission-denied`. Dentro de un `Promise.all` a secas eso dejaba la
+      // portada ENTERA sin un solo número, incluidas las ocho consultas que sí
+      // funcionan.
+      //
+      // Con esto, lo que falle se queda en su casilla y el resto se pinta. El
+      // aviso dice QUÉ falta, no un "algo salió mal" que no lleva a ninguna
+      // parte.
+      const loQueFallo = []
+      const sinLlevarseElResto = (queEs, promesa, siFalla) =>
+        promesa.catch(error => {
+          console.error(`Falló "${queEs}" en la portada:`, error.code || '', error.message || error)
+          loQueFallo.push(queEs)
+
+          return siFalla
+        })
+
       try {
         const [
           allDocsCount,
@@ -85,8 +107,8 @@ const Home = () => {
           blueprintsLast30days
         ] = await Promise.all([
           consultDocs('all'),
-          consultBluePrints('finished'),
-          consultBluePrints('existingBlueprints'),
+          sinLlevarseElResto('entregables finalizados', consultBluePrints('finished'), null),
+          sinLlevarseElResto('entregables existentes', consultBluePrints('existingBlueprints'), null),
           consultObjetives('all'),
           consultObjetives('week'),
           consultObjetives('lastSixMonths'),
@@ -94,7 +116,7 @@ const Home = () => {
           consultDocs('byPlants', { plants }),
           consultObjetives('byPlants', { plants }),
           getUsersWithSolicitudes(),
-          consultBluePrints('last30daysRevisions')
+          sinLlevarseElResto('revisiones de los últimos 30 días', consultBluePrints('last30daysRevisions'), [])
         ])
 
         const [monthArray, cantArray] = lastSixMonthsObjetives.reduce(
@@ -193,6 +215,13 @@ const Home = () => {
         setRevisionDataInBlueprintB(filteredByRevisionB)
 
         setLoading(false)
+
+        if (loQueFallo.length) {
+          setErrorCarga(
+            `No se pudieron cargar: ${loQueFallo.join(', ')}. El resto del resumen sí está al día. ` +
+              'Avisa a soporte; no es un problema de tu conexión.'
+          )
+        }
       } catch (error) {
         console.error('Error fetching data:', error)
 
