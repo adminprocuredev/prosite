@@ -127,6 +127,17 @@ const createUser = async values => {
     if (error.code === 'functions/permission-denied') {
       throw new Error('Solo un administrador puede crear usuarios.')
     }
+
+    // La funcion vive aparte del sitio: se despliega con firebase, no con
+    // Vercel, asi que puede faltar en un ambiente donde el resto ya esta al
+    // dia. Sin este caso el mensaje era "Error al crear usuario: internal",
+    // que manda a buscar el problema en el formulario y no donde esta.
+    if (error.code === 'functions/not-found') {
+      throw new Error(
+        'La creación de usuarios no está habilitada en este ambiente: falta desplegar la función createUserAsAdmin. ' +
+          'Avisa a soporte; no es un problema de los datos que escribiste.'
+      )
+    }
     throw new Error('Error al crear usuario: ' + (error.message || error))
   }
 }
