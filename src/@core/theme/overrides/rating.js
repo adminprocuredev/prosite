@@ -9,7 +9,7 @@ const Rating = theme => {
           }
         },
         iconEmpty: {
-          color: `rgba(${theme.palette.customColors.main}, 0.22)`
+          color: `rgba(${theme.palette.customColors.mainRgb}, 0.22)`
         }
       }
     }
