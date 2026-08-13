@@ -1236,9 +1236,14 @@ const getUsersWithSolicitudes = async () => {
   const sortedUsers = Object.values(solicitudesByUser).sort((a, b) => b.docs - a.docs) // Ordenar los usuarios por cantidad de solicitudes (de mayor a menor)
   const limitedUsers = sortedUsers.slice(0, 10) // Limitar la cantidad de usuarios a 10
 
-  // Consulta adicional a la colección 'users'
-  const collUsers = collection(db, 'users') // Obtener referencia a la colección 'users'
-  const usersSnapshot = await getDocs(collUsers) // Obtener los documentos de la colección 'users'
+  // Se piden los DIEZ que se van a mostrar, no los ~240 que hay. Antes se
+  // bajaba la colección `users` entera para después buscar diez ids dentro.
+  // Diez cabe de sobra en un `in`, cuyo tope real es 30 —probado contra el
+  // servidor, que responde «'IN' supports up to 30 comparison values»—, así
+  // que sigue siendo UNA consulta.
+  const usersSnapshot = limitedUsers.length
+    ? await getDocs(query(collection(db, 'users'), where(documentId(), 'in', limitedUsers.map(u => u.id))))
+    : { docs: [] }
 
   // Mapear los usuarios limitados con sus propiedades
   const usersWithProperties = limitedUsers.map(user => {
