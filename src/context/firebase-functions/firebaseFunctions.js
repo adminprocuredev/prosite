@@ -124,8 +124,29 @@ const createUser = async values => {
     if (error.code === 'functions/already-exists') {
       throw new Error('El usuario ya se encuentra registrado.')
     }
+    // `permission-denied` llega por DOS caminos que no tienen nada que ver:
+    //
+    // 1. La funcion nos rechazo -> viene con SU mensaje, el de abajo, escrito
+    //    en index.js. Ahi si es un problema de quien esta llamando.
+    // 2. Google corto la llamada ANTES de que la funcion existiera para el
+    //    mundo, porque al desplegarla no se le pudo dejar `allUsers` como
+    //    invocador. El cuerpo es una pagina HTML de error, el SDK no la
+    //    entiende y deja el mensaje en 'permission-denied' o 'Forbidden'.
+    //
+    // Sin distinguirlas, el caso 2 le decia al administrador "solo un
+    // administrador puede crear usuarios" -o sea, le echaba la culpa de un
+    // permiso de infraestructura que no puede ver ni arreglar-.
     if (error.code === 'functions/permission-denied') {
-      throw new Error('Solo un administrador puede crear usuarios.')
+      const RECHAZO_DE_LA_FUNCION = 'Solo un administrador habilitado puede crear usuarios.'
+      if ((error.message || '').includes(RECHAZO_DE_LA_FUNCION)) {
+        throw new Error('Solo un administrador habilitado puede crear usuarios.')
+      }
+
+      throw new Error(
+        'La creación de usuarios está desplegada pero no habilitada: a la función createUserAsAdmin ' +
+          'le falta el permiso de invocación en Google Cloud. Avisa a soporte; no es un problema de ' +
+          'los datos que escribiste ni de tus permisos en Prosite.'
+      )
     }
 
     // La funcion vive aparte del sitio: se despliega con firebase, no con
