@@ -83,7 +83,11 @@ const Top10UsersWihitMostDocs = ({ top10 }) => {
     <Card>
       <CardHeader
         sx={{ pb: 3.25 }}
-        title='Top 10 usuarios con más solicitudes'
+        // El periodo va en el título a propósito. Sin él, la tabla parece un
+        // ranking histórico y no lo es: cuenta los últimos tres meses
+        // (MESES_DEL_RANKING en firestoreQuerys.js). Antes sí era histórico, y
+        // por eso salía primera gente que ya no trabaja aquí.
+        title='Top 10 usuarios con más solicitudes - últimos 3 meses'
         titleTypographyProps={{ variant: 'h6' }}
       ></CardHeader>
       <CardContent>
