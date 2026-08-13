@@ -25,6 +25,7 @@ import { db } from 'src/configs/firebase'
 import { getUnixTime } from 'date-fns'
 import { useEffect, useState } from 'react'
 import { solicitudValidator } from '../form-validation/helperSolicitudValidator'
+import { esElUltimo } from './correlativoCodigo'
 import { getData, getPlantInitals } from './firestoreQuerys'
 import { sendEmailDeliverableNextRevision } from './mailing/sendEmailDeliverableNextRevision'
 import { sendEmailWhenReviewDocs } from './mailing/sendEmailWhenReviewDocs'
@@ -249,9 +250,11 @@ const updateDocumentAndAddEvent = async (ref, changedFields, userParam, prevDoc,
       ...(changedFields.draftmen && { draftmen: changedFields.draftmen })
     }
 
-    await updateDoc(ref, changedFields).then(() => {
-      addDoc(collection(db, 'solicitudes', id, 'events'), newEvent)
-    })
+    // El addDoc del evento estaba dentro de un .then() sin await ni return, asi
+    // que la funcion resolvia antes de que la bitacora quedara escrita: si esa
+    // escritura fallaba, el estado cambiaba igual y sin dejar rastro.
+    await updateDoc(ref, changedFields)
+    await addDoc(collection(db, 'solicitudes', id, 'events'), newEvent)
 
     await sendEmailWhenReviewDocs(userParam, newEvent.prevState, newEvent.newState, requesterId, id)
   } else {
@@ -569,7 +572,12 @@ const updateDocs = async (id, approves, userParam) => {
 
   changedFields.state = newState
 
-  updateDocumentAndAddEvent(ref, changedFields, userParam, prevDoc, docSnapshot.uid, id, prevState)
+  // Sin este await, updateDocs resolvia de inmediato: la UI cerraba el dialogo
+  // y volvia a habilitar los botones mientras la escritura, la bitacora y el
+  // correo seguian en curso, y un fallo quedaba como promesa rechazada fuera
+  // del catch de la pantalla. Una segunda pulsacion podia duplicar la
+  // transicion de estado.
+  await updateDocumentAndAddEvent(ref, changedFields, userParam, prevDoc, docSnapshot.uid, id, prevState)
 }
 
 // ** Modifica otros campos Usuarios
@@ -663,10 +671,22 @@ const useBlueprints = id => {
 
     const unsubscribeAll = [] // Almacenará todas las desuscripciones
 
+    // Los listeners de 'revisions' se recrean en CADA snapshot de 'blueprints',
+    // uno por entregable. Antes se acumulaban en unsubscribeAll y solo se
+    // cerraban al desmontar: con 200 entregables, cada emision del padre dejaba
+    // 200 listeners vivos de mas, volvia a cobrar todas las revisiones, y los
+    // viejos seguian escribiendo su copia obsoleta sobre el estado de React.
+    // Se llevan aparte para poder cerrarlos antes de crear la tanda nueva.
+    let revisionUnsubs = []
+
     const blueprintsRef = collection(db, `solicitudes/${id}/blueprints`)
 
     // Suscribirse a cambios en la subcolección 'blueprints'
     const unsubscribeBlueprints = onSnapshot(blueprintsRef, docSnapshot => {
+      // Cierra la tanda anterior de listeners de revisiones antes de abrir la nueva
+      revisionUnsubs.forEach(unsubscribe => unsubscribe())
+      revisionUnsubs = []
+
       if (docSnapshot.docs.length === 0) {
         setData([])
         setProjectistData({})
@@ -727,7 +747,7 @@ const useBlueprints = id => {
           }
         })
 
-        unsubscribeAll.push(unsubscribeRevisions)
+        revisionUnsubs.push(unsubscribeRevisions)
       })
 
       // Calcular 'otPercent' solo si hay documentos válidos
@@ -745,7 +765,10 @@ const useBlueprints = id => {
     unsubscribeAll.push(unsubscribeBlueprints)
 
     // Limpieza: desuscribirse de todos los listeners cuando el componente se desmonta o el ID cambia
-    return () => unsubscribeAll.forEach(unsubscribe => unsubscribe())
+    return () => {
+      unsubscribeAll.forEach(unsubscribe => unsubscribe())
+      revisionUnsubs.forEach(unsubscribe => unsubscribe())
+    }
   }, [id])
 
   return [data, projectistData, otPercent, otReadyToFinish, setData]
@@ -1026,7 +1049,7 @@ const getMilestone = (newRevision, blueprint, approves, isRevisionAtLeast0) => {
 const getNextRevision = async (approves, latestRevision, authUser, blueprint, remarks) => {
 
   // Desestructuración de authUser
-  const { email, displayName, uid } = authUser
+  const { email, displayName, uid, role } = authUser
 
   // Desestructuración de blueprint
   const {
@@ -1043,39 +1066,70 @@ const getNextRevision = async (approves, latestRevision, authUser, blueprint, re
   const letterToNumber = approves && !isNumeric && approvedByClient && lastTransmittal
   const newRevision = letterToNumber ? "0" : getNextRevisionFolderName(blueprint)
 
-  console.log("getNextRevision")
-  console.log("blueprint que recibe getNextRevision")
-  console.log(blueprint)
+  // Aquí había un if/else de tres ramas cuyas tres asignaciones estaban
+  // comentadas: no hacía nada, solo imprimía el entregable entero y el usuario
+  // conectado en la consola del navegador.
+  //
+  // El archivo del entregable llega como array, como objeto suelto o sin nada
+  // -un entregable al que todavía no le suben nada tiene storageBlueprints en
+  // null-. Antes se leía .length a secas sobre eso: con null reventaba con
+  // "Cannot read properties of null (reading 'length')", el catch del diálogo
+  // se lo comía y el usuario apretaba "Sí", el diálogo se cerraba y no pasaba
+  // NADA. Ni avance, ni aviso.
+  // Se filtran los que de verdad son un archivo. Contar el largo del contenedor
+  // no alcanza: [null] mide 1 y no hay nada, la revisión inicial se guarda como
+  // {name: null, url: null}, y con dos elementos de los cuales uno es basura se
+  // elegía el último y se descartaba el bueno. Lo que hace utilizable a un
+  // archivo es su url.
+  const contenedor = Array.isArray(storageBlueprints)
+    ? storageBlueprints
+    : storageBlueprints
+    ? [storageBlueprints]
+    : []
 
-  console.log("Operador ternario para definir storageBlueprints")
-  if (approves && storageBlueprints.length === 2) {
-    //storageBlueprints = storageBlueprints[storageBlueprints.length - 1];
-    console.log("Caso 1 del Operador Ternario")
-    console.log(approves)
-    console.log(storageBlueprints)
-  } else if (approves && (remarks === false || !remarks)) {
-    //storageBlueprints = storageBlueprints[0];
-    console.log("Caso 2 del Operador Ternario")
-    console.log(approves)
-    console.log(remarks)
-  } else {
-    //storageBlueprints = storageBlueprints[storageBlueprints.length - 1];
-    console.log("Caso 3 del Operador Ternario")
+  const archivos = contenedor.filter(archivo => archivo && typeof archivo.url === 'string' && archivo.url.trim() !== '')
+
+  // El corte es solo al APROBAR. Un rechazo se sostiene con las observaciones y
+  // no tiene por qué traer documento; cortarlo también ahí sería romper un
+  // camino que hoy funciona por un problema que no tiene.
+  if (approves && archivos.length === 0) {
+    throw new Error(
+      'Este entregable todavía no tiene un archivo cargado, así que su revisión no puede avanzar. ' +
+        'Adjunta el documento y vuelve a intentarlo.'
+    )
   }
+
+  // Sin archivos queda null y no `undefined`: Firestore rechaza un campo
+  // undefined y volveríamos a un error, ahora visible pero incomprensible.
+  const archivoDeLaRevision =
+    archivos.length === 0
+      ? null
+      : approves && archivos.length === 2
+      ? archivos[archivos.length - 1]
+      : approves && (remarks === false || !remarks)
+      ? archivos[0]
+      : archivos[archivos.length - 1]
 
   // Crea el objeto de la próxima revisión con los datos proporcionados y la nueva revisión calculada
   const nextRevision = {
-    prevRevision: latestRevision && Object.keys(latestRevision).length === 0 ? latestRevision.newRevision : revision,
+    // La condición estaba al revés: pedía que latestRevision estuviera VACÍO
+    // para leerle newRevision, así que con {} guardaba `undefined` —que
+    // Firestore rechaza— y con datos ignoraba la bitácora. La anterior es la
+    // última entrada de la bitácora; si no hay, la del propio entregable.
+    prevRevision: latestRevision?.newRevision ?? revision,
     newRevision,
     description,
-    storageBlueprints:
-      approves && storageBlueprints.length === 2 ? storageBlueprints[storageBlueprints.length - 1]
-        : approves && (remarks === false || !remarks)
-        ? storageBlueprints[0]
-        : storageBlueprints[storageBlueprints.length - 1],
+    storageBlueprints: archivoDeLaRevision,
     userEmail: email,
     userName: displayName,
     userId: uid,
+    // El ROL de quien hizo la acción. La bitácora guardaba solo el nombre, y en
+    // la tabla ese nombre cae bajo la columna "ENCARGADO", que en la fila del
+    // entregable significa "el proyectista asignado". Así, cuando Control
+    // Documental aprobaba, la bitácora lo mostraba en la columna del
+    // proyectista y se leía como si él fuera el proyectista de esa revisión.
+    // Incidencia Gabinete 7.
+    userRole: role ?? null,
     date: Timestamp.fromDate(new Date()),
     remarks: remarks || 'Sin observaciones',
     attentive: attentive
@@ -1741,6 +1795,31 @@ const generateBlueprintCodes = async (mappedCodes, docData, quantity, userParam)
     const newDocs = []
     const blueprintCollectionRef = collection(db, 'solicitudes', docData.id, 'blueprints')
 
+    // Antes de escribir nada se comprueba que ninguno de los codigos calculados
+    // este ocupado. Esta lectura va aqui y no dentro del bucle porque en una
+    // transaccion de Firestore todas las lecturas tienen que ir antes de las
+    // escrituras.
+    //
+    // Por que hace falta: mas abajo se usa transaction.set, que REEMPLAZA el
+    // documento si ya existe -y no borra su subcoleccion 'revisions', asi que
+    // quedaria un entregable nuevo con el historial de otro-. Mientras el
+    // contador vaya bien esto no deberia pasar, pero los contadores pudieron
+    // quedar atrasados por el bug de borrado que se arregla en esta misma
+    // tanda, y en ese estado la siguiente creacion pisa un entregable vivo.
+    // Ante la duda, se aborta con un mensaje claro en vez de perder datos.
+    for (let i = 0; i < quantity; i++) {
+      const codigoCandidato = `${idProject}-${procureDiscipline}-${procureDeliverable}-${formatCountProcure(
+        procureCounter + i + 1
+      )}`
+      const existente = await transaction.get(doc(blueprintCollectionRef, codigoCandidato))
+      if (existente.exists()) {
+        throw new Error(
+          `El código ${codigoCandidato} ya está en uso. El contador de entregables quedó desfasado: ` +
+            'avisa a soporte antes de volver a intentarlo, para no sobrescribir un entregable existente.'
+        )
+      }
+    }
+
     for (let i = 0; i < quantity; i++) {
 
       const procureCode = `${idProject}-${procureDiscipline}-${procureDeliverable}-${formatCountProcure(procureCounter + i + 1)}`
@@ -1857,50 +1936,47 @@ const getProcureCounter = async procureCounterField => {
   return currentProcureCounter
 }
 
-const markBlueprintAsDeleted = async (mainDocId, procureId, clientCode) => {
+/**
+ * Borrado LOGICO: el documento se marca y SIGUE EXISTIENDO, conservando su
+ * codigo Procure (que es su id) y su codigo MEL.
+ *
+ * Por eso el contador MEL no baja aqui, ni siquiera cuando el entregable
+ * eliminado era el ultimo de su serie. Bajar el contador equivale a reasignar
+ * un codigo MEL que su dueño nunca soltó. Esto ya ocurrio dos veces en
+ * produccion, y en ambas el correlativo era el ultimo:
+ *
+ *   21286-500-PL-2077 (borrado) y 21286-500-PL-2191 (vivo)
+ *     comparten 21286-OT1216-PCLC-0252-PP-DET-00001
+ *   21286-340-PL-1183 (borrado) y 21286-340-PL-1191 (vivo)
+ *     comparten 21286-OT1431-ICAT-0230-ST-DET-00002
+ *
+ * El MEL es el codigo que ve el cliente y con el que se emiten los
+ * transmittals. Un hueco en la numeracion es preferible a dos entregables con
+ * el mismo codigo. Incidencia Gabinete 4.
+ *
+ * El otro camino de borrado -deleteBlueprintAndDecrementCounters- SI baja los
+ * contadores cuando corresponde, porque alli el documento desaparece de verdad
+ * y libera su numero.
+ */
+const markBlueprintAsDeleted = async (mainDocId, procureId) => {
   const blueprintRef = doc(db, 'solicitudes', mainDocId, 'blueprints', procureId)
 
-  // Extrae los valores del clientCode (MEL)
-  const [__, otNumber, instalacion, areaNumber, melDiscipline, melDeliverable] = clientCode.split('-')
-
-  // Crea referencia al contador MEL
-  const melCounterDocId = `${melDiscipline}-${melDeliverable}-counter`
-  const melCounterRef = doc(db, 'solicitudes', mainDocId, 'clientCodeGeneratorCount', melCounterDocId)
-
-  await runTransaction(db, async transaction => {
-    // Obtiene el documento del contador MEL
-    const melCounterDoc = await transaction.get(melCounterRef)
-    const currentMelCounter = melCounterDoc.data().count
-
-    // Calcula el nuevo valor del contador
-    const newMelCounter = String(Number(currentMelCounter) - 1).padStart(5, '0')
-
-    // Actualiza el contador MEL
-    transaction.update(melCounterRef, {
-      count: newMelCounter
-    })
-
-    // Marca el blueprint como eliminado
-    transaction.update(blueprintRef, {
-      deleted: true,
-      deletedAt: Timestamp.fromDate(new Date())
-    })
+  await updateDoc(blueprintRef, {
+    deleted: true,
+    deletedAt: Timestamp.fromDate(new Date())
   })
 }
 
-const deleteBlueprintAndDecrementCounters = async (
-  mainDocId,
-  procureId,
-  procureCounterField,
-  currentProcureCounter,
-  currentMelCounter,
-  melDiscipline,
-  melDeliverable
-) => {
-  // Crea referencias a Firestore para el contador de Procure y MEL
+// Borrado FISICO: el documento se elimina de verdad, junto con las revisiones
+// que existieran al momento de leerlas. Como deja de ocupar su codigo, aqui los
+// contadores SI pueden bajar — pero solo bajo las dos condiciones de mas abajo,
+// no en todo borrado fisico.
+//
+// Los contadores ya no se reciben como parametro: se leen dentro de la
+// transaccion.
+const deleteBlueprintAndDecrementCounters = async (mainDocId, procureId, procureCounterField) => {
+  // Crea referencias a Firestore para el contador de Procure
   const procureCounterRef = doc(db, 'counters', 'blueprintsProcureCodeCounter')
-  const melCounterDocId = `${melDiscipline}-${melDeliverable}-counter`
-  const melCounterRef = doc(db, 'solicitudes', mainDocId, 'clientCodeGeneratorCount', melCounterDocId)
 
   // Referencia al documento de la subcolección "blueprints" que se eliminará
   const blueprintDocRef = doc(db, 'solicitudes', mainDocId, 'blueprints', procureId)
@@ -1909,7 +1985,56 @@ const deleteBlueprintAndDecrementCounters = async (
   const revisionsCollectionRef = collection(blueprintDocRef, 'revisions')
 
   await runTransaction(db, async transaction => {
-    // Verifica si la subcolección 'revisions' tiene documentos
+    // Las lecturas de la transacción van todas antes de las escrituras.
+    const blueprintSnapshot = await transaction.get(blueprintDocRef)
+    const datosBlueprint = blueprintSnapshot.exists() ? blueprintSnapshot.data() : null
+
+    // La disciplina y el tipo del contador MEL salen del clientCode que tiene
+    // el propio documento, no de uno que quien llama haya partido por su
+    // cuenta: asi no hay dos versiones del mismo dato que puedan discrepar.
+    const [, , , , melDiscipline, melDeliverable] = String(
+      (datosBlueprint && datosBlueprint.clientCode) || ''
+    ).split('-')
+
+    const melCounterRef =
+      melDiscipline && melDeliverable
+        ? doc(db, 'solicitudes', mainDocId, 'clientCodeGeneratorCount', `${melDiscipline}-${melDeliverable}-counter`)
+        : null
+
+    // Los contadores se leen DENTRO de la transacción. Antes se recibian como
+    // parametro, leidos por quien llama antes de empezar: dos borrados
+    // simultaneos podian escribir sobre un contador que ya habia cambiado, sin
+    // que Firestore lo detectara -actualizar un documento que no se leyo en la
+    // transaccion es una escritura ciega-. Y en el caso de MEL el parametro se
+    // extraia del codigo del propio entregable, asi que la comparacion se
+    // cumplia siempre y no comprobaba nada.
+    const procureCounterSnapshot = await transaction.get(procureCounterRef)
+    const melCounterSnapshot = melCounterRef ? await transaction.get(melCounterRef) : null
+
+    const contadorProcureReal = procureCounterSnapshot.exists()
+      ? procureCounterSnapshot.data()?.[procureCounterField]?.count
+      : null
+    const contadorMelReal = melCounterSnapshot && melCounterSnapshot.exists() ? melCounterSnapshot.data()?.count : null
+
+    // Quien llama decidio "borrado fisico" con un contador leido FUERA de esta
+    // transaccion. Si en el intervalo se creo otro entregable, este ya no es el
+    // ultimo y destruirlo -a el y a todas sus revisiones- seria borrar un
+    // documento intermedio. En ese caso se degrada al borrado logico, que es lo
+    // que la bifurcacion habria elegido con el dato fresco.
+    if (!esElUltimo(procureId, contadorProcureReal)) {
+      transaction.update(blueprintDocRef, {
+        deleted: true,
+        deletedAt: Timestamp.fromDate(new Date())
+      })
+
+      return
+    }
+
+    // Esta lectura NO es transaccional: el SDK web no admite consultas dentro de
+    // una transacción, solo lecturas de documentos por referencia. Si alguien
+    // agrega una revisión entre este getDocs y el commit, esa revisión queda sin
+    // padre — Firestore no borra subcolecciones en cascada. Limpiarlo de verdad
+    // pide un borrado recursivo desde el servidor.
     const revisionsSnapshot = await getDocs(revisionsCollectionRef)
 
     if (!revisionsSnapshot.empty) {
@@ -1922,14 +2047,35 @@ const deleteBlueprintAndDecrementCounters = async (
     // Después de eliminar los documentos de la subcolección 'revisions', elimina el documento 'blueprints'
     transaction.delete(blueprintDocRef)
 
-    // Disminuye los contadores
-    transaction.update(procureCounterRef, {
-      [`${procureCounterField}.count`]: String(currentProcureCounter - 1).padStart(3, '0')
-    })
+    // Llegar aqui ya significa que el entregable era el ultimo de la serie
+    // Procure -lo comprueba el guard de mas arriba, con el contador leido
+    // dentro de la transaccion-. Antes los contadores se decrementaban siempre,
+    // y eso perdia datos en silencio: con 00001, 00002 y 00003 (contador 3),
+    // borrar el 00002 dejaba el contador en 2, y el siguiente entregable se
+    // calculaba como 00003 — que ya existia. La creacion hace transaction.set,
+    // o sea lo SOBREESCRIBIA junto con todas sus revisiones. Incidencia
+    // Gabinete 4.
+    //
+    // Falta la otra condicion: un entregable solo devuelve su numero si NUNCA
+    // salio de Prosite. En cuanto avanza de "Iniciado" puede haber viajado en
+    // un transmittal, y entonces su codigo esta en manos del cliente;
+    // reasignarlo le entrega dos documentos distintos con el mismo codigo. Un
+    // hueco en la numeracion es el mal menor.
+    const nuncaEmitido = Boolean(datosBlueprint) && datosBlueprint.revision === 'Iniciado'
 
-    transaction.update(melCounterRef, {
-      count: String(currentMelCounter - 1).padStart(5, '0')
-    })
+    if (nuncaEmitido) {
+      transaction.update(procureCounterRef, {
+        [`${procureCounterField}.count`]: String(Number(contadorProcureReal) - 1).padStart(3, '0')
+      })
+    }
+
+    // El contador MEL es por OT, asi que su ultimo no tiene por que coincidir
+    // con el ultimo Procure: se comprueba aparte.
+    if (nuncaEmitido && contadorMelReal !== null && esElUltimo(datosBlueprint.clientCode, contadorMelReal)) {
+      transaction.update(melCounterRef, {
+        count: String(Number(contadorMelReal) - 1).padStart(5, '0')
+      })
+    }
   })
 }
 

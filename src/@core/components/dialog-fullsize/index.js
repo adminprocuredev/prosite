@@ -45,6 +45,7 @@ import {
 
 import { ChevronLeft, ChevronRight, Close, Download, Edit } from '@mui/icons-material'
 import { useDropzone } from 'react-dropzone'
+import { validateFiles } from 'src/context/google-drive-functions/fileValidation'
 //* import DialogErrorOt from 'src/@core/components/dialog-error-ot'
 import DialogErrorFile from 'src/@core/components/dialog-errorFile'
 import AlertDialog from 'src/@core/components/dialog-warning'
@@ -831,38 +832,6 @@ export const FullScreenDialog = ({ open, handleClose, doc, roleData, editButtonV
     }
   }
 
-  const validateFiles = acceptedFiles => {
-    const imageExtensions = ['jpeg', 'jpg', 'png', 'webp', 'bmp', 'tiff', 'svg', 'heif', 'HEIF']
-    const documentExtensions = ['xls', 'xlsx', 'doc', 'docx', 'ppt', 'pptx', 'pdf', 'csv', 'txt']
-    const maxSizeBytes = 5 * 1024 * 1024 // 5 MB in bytes
-
-    const isValidImage = file => {
-      const extension = file.name.split('.').pop().toLowerCase()
-
-      return imageExtensions.includes(extension) && file.size <= maxSizeBytes
-    }
-
-    const isValidDocument = file => {
-      const extension = file.name.split('.').pop().toLowerCase()
-
-      return documentExtensions.includes(extension) && file.size <= maxSizeBytes
-    }
-
-    const isValidFile = file => {
-      return isValidImage(file) || isValidDocument(file)
-    }
-
-    const validationResults = acceptedFiles.map(file => {
-      return {
-        name: file.name,
-        isValid: isValidFile(file),
-        msj: isValidFile(file) ? `${file.name}` : `${file.name} - El archivo excede el tamaño máximo de 5 MB`
-      }
-    })
-
-    return validationResults
-  }
-
   const handleOpenErrorDialog = msj => {
     setErrorFileMsj(msj)
     setErrorDialog(true)
@@ -874,11 +843,9 @@ export const FullScreenDialog = ({ open, handleClose, doc, roleData, editButtonV
 
   const { getRootProps, getInputProps } = useDropzone({
     onDrop: acceptedFiles => {
-      const invalidFiles = validateFiles(acceptedFiles).filter(file => !file.isValid)
+      const invalidFiles = validateFiles(acceptedFiles, 5).filter(file => !file.isValid)
       if (invalidFiles.length > 0) {
-        const res = validateFiles(invalidFiles)
-        const msj = res[0].msj
-        handleOpenErrorDialog(msj)
+        handleOpenErrorDialog(invalidFiles[0].msj)
 
         return invalidFiles
       }

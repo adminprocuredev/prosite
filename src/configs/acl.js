@@ -125,9 +125,13 @@ const defineRulesFor = (role, subject) => {
     can('manage', ['calendario', 'home', 'mapa', 'nuestro-equipo', 'user-profile', 'carga-de-horas'])
   } else if (role === 12) {
     can('manage', ['calendario', 'home', 'mapa', 'nuestro-equipo', 'user-profile', 'carga-de-horas'])
-  }else {
-    can('manage', subject)
   }
+
+  // Antes habia un `else { can('manage', subject) }`: cualquier rol fuera del
+  // 1-12 —un documento sin campo `role`, un 13, o un valor de texto como "1" en
+  // vez del numero 1— recibia el permiso que pidiera. Un ACL que falla abierto
+  // no es un ACL. Sin rol conocido no se concede nada y el usuario ve la
+  // pantalla de "no autorizado", que es informacion util en vez de acceso.
 
   return rules
 }

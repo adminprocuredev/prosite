@@ -16,6 +16,7 @@ import {
   where
 } from 'firebase/firestore'
 import { db } from 'src/configs/firebase'
+import { crearCacheDeNombres } from './nombreCache'
 
 import { unixToDate } from 'src/@core/components/unixToDate'
 
@@ -130,10 +131,14 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
         try {
           const allDocs = []
 
+          // Antes se leía users/{uid} una vez por FILA. Muchas solicitudes comparten
+          // usuario, así que la cache se crea por snapshot: se deduplica entre filas y
+          // cada snapshot vuelve a leer, o sea los nombres siguen igual de frescos.
+          const nombreDe = crearCacheDeNombres(uid => getDoc(doc(db, 'users', uid)))
+
           const promises = querySnapshot.docs.map(async d => {
             const docData = d.data()
-            const userSnapshot = await getDoc(doc(db, 'users', docData.uid))
-            const name = userSnapshot.data() ? userSnapshot.data().name : 'No definido'
+            const name = await nombreDe(docData.uid)
             const newDoc = { ...docData, id: d.id, name }
             allDocs.push(newDoc)
           })
@@ -205,13 +210,17 @@ const getDomainData = async (document = null, field = null) => {
         // Si el 'document' indicado no existe, se maneja el error
         console.error(`El documento con ID '${document}' no existe.`)
 
-        return null
+        // Se devuelve {} y no null a proposito: quien llama hace
+        // Object.keys(...), Object.entries(...) o dictionary[estado] sin
+        // comprobar antes, y con null eso lanza TypeError y mata la pantalla
+        // completa. Con {} el resultado queda vacio y la pantalla se dibuja.
+        return {}
       }
     }
   } catch (error) {
     console.error('Error al obtener datos:', error)
 
-    return null
+    return {}
   }
 }
 
@@ -1043,8 +1052,58 @@ const getPlantInitals = async (plantName) => {
   }
 }
 
+/**
+ * Todos los Proyectistas y Supervisores habilitados, de CUALQUIER turno, para
+ * poder reasignarles un entregable.
+ *
+ * Incidencias Gabinete 5 y Solicitudes 2. Hasta ahora el diálogo de reasignar
+ * solo ofrecía `gabineteDraftmen`: los proyectistas que ya estaban en esa OT.
+ * Con eso no se podía sacar un entregable de alguien que se fue de la empresa
+ * —la lista se hereda de cuando se creó la OT— ni pasárselo al turno contrario
+ * cuando algo es urgente, que es justo lo que reportaron.
+ *
+ * Las consultas que ya existían para esto, getUserProyectistas y
+ * getUserSupervisor, filtran por el turno de quien consulta, así que tampoco
+ * servían: el turno contrario es el caso que hay que resolver.
+ *
+ * No se filtra por planta a propósito: un entregable puede necesitar a alguien
+ * de otra planta, y el gabinete es transversal.
+ */
+const getUsuariosParaReasignar = async () => {
+  const coll = collection(db, 'users')
+
+  try {
+    const snapshot = await getDocs(query(coll, where('role', 'in', [7, 8])))
+
+    return snapshot.docs
+      .map(documento => {
+        const datos = documento.data()
+
+        return {
+          userId: documento.id,
+          name: datos.name,
+          email: datos.email,
+          role: datos.role,
+          shift: datos.shift,
+          enabled: datos.enabled
+        }
+      })
+      // Un usuario deshabilitado no puede recibir trabajo. `enabled` ausente se
+      // toma como habilitado: es lo que hace el resto de la aplicación, y dejar
+      // fuera a todos los que no tienen el campo vaciaría la lista.
+      .filter(usuario => usuario.enabled !== false)
+      // Number() por si algún documento guardó el rol como texto: una resta con
+      // NaN devuelve NaN y sort deja la lista en cualquier orden, sin avisar.
+      .sort((a, b) => Number(a.role) - Number(b.role) || String(a.name).localeCompare(String(b.name), 'es'))
+  } catch (error) {
+    console.error('Error al obtener los usuarios para reasignar:', error)
+    throw error
+  }
+}
+
 
 export {
+  getUsuariosParaReasignar,
   useEvents,
   useSnapshot,
   getData,

@@ -3,6 +3,13 @@ import { IconButton, Tooltip, Typography } from '@mui/material'
 import { useState } from 'react'
 import { updateBlueprintsWithStorageOrHlc, getNextChar, getNextRevisionFolderName } from 'src/context/firebase-functions/firestoreFunctions'
 import { getPlantInitals } from 'src/context/firebase-functions/firestoreQuerys'
+import { puedeSubirHlc } from 'src/context/firebase-functions/permisosHlc'
+import {
+  emparejarArchivosConEntregables,
+  nombreEsperadoDeEntregable,
+  puedeSubirDocumento,
+  sinExtension
+} from './nombresEntregables'
 import { useGoogleAuth } from './useGoogleDriveAuth'
 // ** Configuración de Google Drive
 import googleAuthConfig from 'src/configs/googleDrive'
@@ -30,11 +37,14 @@ export const useGoogleDriveFolder = () => {
    */
   const executeApiCall = async (apiCall, ...args) => {
 
-    const storedParams = JSON.parse(localStorage.getItem('oauth2-params'))
-    const accessToken = storedParams.access_token
+    // JSON.parse(null) devuelve null, asi que leer .access_token de ahi lanzaba
+    // TypeError ANTES de llegar a la comprobacion de abajo: sin token, en vez
+    // de pedir autorizacion, reventaba.
+    const storedParams = JSON.parse(localStorage.getItem('oauth2-params') || 'null')
+    const accessToken = storedParams && storedParams.access_token
 
     if (!accessToken) {
-      setError('No access token found')
+      setError('Necesitas autorizar el acceso a Google Drive para continuar')
       await signInToGoogle()
 
       return
@@ -308,18 +318,20 @@ export const useGoogleDriveFolder = () => {
    */
   const validateFileName = (acceptedFiles, blueprint, authUser, approves) => {
 
-    // Desustructuración de objetos.
-    const { uid, role, displayName } = authUser
-    const { id, userId, clientCode, revision, approvedByDocumentaryControl, approvedBySupervisor, approvedByContractAdmin, blueprintCompleted } = blueprint
+    // El nombre esperado se calcula en nombresEntregables: la carga masiva
+    // necesita la misma regla para saber a qué entregable pertenece cada
+    // archivo del lote, y con dos copias se desincronizan.
+    const expectedFileName = nombreEsperadoDeEntregable({
+      blueprint,
+      authUser,
+      revisionEsperada: getNextRevisionFolderName(blueprint, authUser),
+      esHlc: puedeSubirHlc(authUser, blueprint),
+      puedeSerRevisadoPorCliente: checkRoleAndApproval(authUser.role, blueprint),
+      approves
+    })
 
-    // Booleano para definir si el Entregable es M3D.
-    const isM3D = id.split('-')[2] === 'M3D'
-
-    // Booleano para definir si el Entregable puede ser definido por el Cliente o no.
-    const canBeCheckedByClient = checkRoleAndApproval(role, blueprint)
-
-    // Si es Rol 9, está aprobado por control documental y puede ser revisado por el Cliente, se puede subir un documento con cualquier nombre.
-    if (blueprintCompleted || (role === 9 && approvedByDocumentaryControl === true && canBeCheckedByClient)) {
+    // null significa que para este entregable vale cualquier nombre.
+    if (expectedFileName === null) {
       return acceptedFiles.map(file => ({
         name: file.name,
         isValid: true,
@@ -327,29 +339,8 @@ export const useGoogleDriveFolder = () => {
       }))
     }
 
-    // Se define la letra/número de la siguiente revisión teórica.
-    const expectedRevision = getNextRevisionFolderName(blueprint, authUser)
-
-    let expectedFileName = null
-
-    console.log(canBeCheckedByClient)
-
-    // Se define el nombre esperado del Entregable a cargar según sea el caso.
-    // TODO: VALIDAR ESTOS CASOS
-    if (role === 8 || (role === 7 && userId === uid)) {
-      expectedFileName = `${clientCode}_REV_${expectedRevision}`
-    } else if (role === 9 && approvedByDocumentaryControl && !canBeCheckedByClient) {
-      expectedFileName = `${clientCode}_REV_${expectedRevision}_HLC`
-    } else if (role === 9 && (approvedBySupervisor || approvedByContractAdmin || isM3D) && revision !== 'A' && approves) {
-      expectedFileName = `${clientCode}_REV_${expectedRevision}`
-    } else {
-      const initials = displayName.toUpperCase().split(' ').map(word => word.charAt(0)).join('')
-      expectedFileName = `${clientCode}_REV_${expectedRevision}_${initials}`
-    }
-
     return acceptedFiles.map(file => {
-      const fileNameWithoutExtension = file.name.split('.')[0]
-      const isValid = fileNameWithoutExtension === expectedFileName
+      const isValid = sinExtension(file.name) === expectedFileName
 
       // Si el nombre del archivo no es válido, se retorna un Dialog con indicaciones.
       return {
@@ -439,6 +430,38 @@ export const useGoogleDriveFolder = () => {
     return null
   }
 
+  /**
+   * Empareja un lote de archivos con los entregables de una OT, usando el mismo
+   * nombre esperado que valida la carga de uno en uno. Incidencia Gabinete 11:
+   * carga masiva por OT.
+   *
+   * @param {Array.<Object>} archivos - Archivos que soltó el usuario.
+   * @param {Array.<Object>} entregables - Entregables de la OT.
+   * @param {Object} authUser - Usuario conectado.
+   * @returns {Array.<{archivo: Object, blueprint: Object|null, motivo: string}>}
+   */
+  const emparejarLoteConEntregables = (archivos, entregables, authUser) => {
+    const candidatos = (entregables || [])
+      .filter(blueprint =>
+        // Solo los que este usuario podría subir de a uno. La validación del
+        // nombre no distingue de quién es el entregable: sin este filtro, un
+        // Proyectista podría cargar por lote documentos de otros.
+        puedeSubirDocumento(authUser, blueprint, checkRoleAndApproval(authUser.role, blueprint))
+      )
+      .map(blueprint => ({
+        blueprint,
+        nombreEsperado: nombreEsperadoDeEntregable({
+          blueprint,
+          authUser,
+          revisionEsperada: getNextRevisionFolderName(blueprint, authUser),
+          esHlc: puedeSubirHlc(authUser, blueprint),
+          puedeSerRevisadoPorCliente: checkRoleAndApproval(authUser.role, blueprint)
+        })
+      }))
+
+    return emparejarArchivosConEntregables(archivos, candidatos)
+  }
+
   return {
     fetchFolders,
     createFolder,
@@ -451,6 +474,7 @@ export const useGoogleDriveFolder = () => {
     getNextRevisionFolderName,
     validateFileName,
     handleFileUpload,
-    checkRoleAndApproval
+    checkRoleAndApproval,
+    emparejarLoteConEntregables
   }
 }

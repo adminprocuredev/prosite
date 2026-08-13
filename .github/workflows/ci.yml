@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master, dev]
+  push:
+    branches: [master, dev]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      - run: npm ci
+
+      # Compila. Es la red que faltaba: el proyecto estuvo meses sin poder
+      # desplegar por un Node descontinuado y nadie se entero, porque nada
+      # construia fuera de Vercel.
+      #
+      # Las variables de abajo son FALSAS y estan aqui a proposito. Next ejecuta
+      # el codigo al recolectar las paginas, y Firebase exige una apiKey no vacia
+      # o el build muere con auth/invalid-api-key. Con estos valores el build
+      # compila sin tocar ningun Firebase real: esto verifica que el codigo
+      # COMPILA, no que este bien configurado. Las de verdad viven en Vercel.
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_DEV_APIKEY: ci-build-no-es-una-clave-real
+          NEXT_PUBLIC_DEV_AUTHDOMAIN: ci.example.com
+          NEXT_PUBLIC_DEV_PROJECTID: ci-build
+          NEXT_PUBLIC_DEV_STORAGEBUCKET: ci-build.appspot.com
+          NEXT_PUBLIC_DEV_MESSAGINGSENDERID: '000000000000'
+          NEXT_PUBLIC_DEV_APPID: '1:000000000000:web:0000000000000000000000'
+          NEXT_PUBLIC_DEV_MAINTENANCE_MOD: 'false'
+
+      - name: Self-checks
+        run: |
+          node src/context/firebase-functions/nombreCache.test.mjs
+          node src/context/google-drive-functions/fileValidation.test.mjs
+          node src/context/firebase-functions/correlativoCodigo.test.mjs
+          node src/context/firebase-functions/permisosHlc.test.mjs
+          node src/context/google-drive-functions/nombresEntregables.test.mjs
+          node src/views/table/data-grid/permisosDeRevision.test.mjs

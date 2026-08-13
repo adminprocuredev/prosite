@@ -79,12 +79,14 @@ export default function AlertDialogGabinete({
     isLoading: false,
     isUploading: false,
     errorDialog: false,
-    errorFileMsj: ''
+    errorFileMsj: '',
+    errorFileTitulo: ''
   })
   const previousBlueprintRef = useRef(blueprint)
 
   // Desestructuración de formState
-  const { values, toggleRemarks, toggleAttach, files, isLoading, isUploading, errorDialog, errorFileMsj } = formState
+  const { values, toggleRemarks, toggleAttach, files, isLoading, isUploading, errorDialog, errorFileMsj, errorFileTitulo } =
+    formState
 
   const updateFormState = (key, value) => {
     setFormState(prev => ({ ...prev, [key]: value }))
@@ -100,7 +102,8 @@ export default function AlertDialogGabinete({
       isLoading: false,
       isUploading: false,
       errorDialog: false,
-      errorFileMsj: ''
+      errorFileMsj: '',
+      errorFileTitulo: ''
     })
     setRemarksState('')
     setError('')
@@ -190,6 +193,12 @@ export default function AlertDialogGabinete({
 
     } catch (error) {
       console.error('Error al subir el archivo:', error)
+
+      // También era mudo: el archivo no subía y el diálogo se quedaba igual.
+      handleOpenErrorDialog(
+        error?.message || 'No se pudo subir el archivo. Vuelve a intentarlo.',
+        'No se pudo subir el archivo'
+      )
     } finally {
       updateFormState('isUploading', false)
     }
@@ -202,12 +211,8 @@ export default function AlertDialogGabinete({
     // Determina el valor de `remarks`
     const remarks = remarksState.length > 0 ? remarksState : false
 
-    console.log("handleUpdateFirestore")
-    console.log(petitionId)
-    console.log(blueprint)
-    console.log(approves)
-    console.log(authUser)
-    console.log(remarks)
+    // Aquí se imprimían en la consola del navegador el entregable completo y el
+    // usuario conectado -con su correo, su uid y su rol- en cada acción.
 
     try {
       if (authUser.role === 8) {
@@ -224,19 +229,32 @@ export default function AlertDialogGabinete({
       }
     } catch (err) {
       console.error(err)
-      setOpenAlert(false)
-    } finally {
-      // Desbloquea botones al terminar la actualización
-      setOpenAlert(false)
+
+      // El error se le muestra al usuario. Antes solo se escribía en la consola
+      // y el diálogo se cerraba igual: se apretaba "Sí", la ventana desaparecía
+      // y el entregable se quedaba donde estaba, sin ningún aviso.
+      // El acceso a .message va con ?. y despues de desbloquear: un rechazo sin
+      // motivo -Promise.reject() o throw null- hacia que el propio manejador de
+      // errores lanzara, y el boton quedaba bloqueado para siempre.
       setButtonClicked(false)
+      handleOpenErrorDialog(err?.message || 'No se pudo completar la acción. Vuelve a intentarlo.', 'No se pudo continuar')
+
+      return
     }
+
+    // El diálogo solo se cierra si la actualización salió bien.
+    setOpenAlert(false)
+    setButtonClicked(false)
   }
 
 
-  // Función para manejar el diálogo de error
-  const handleOpenErrorDialog = msj => {
+  // Función para manejar el diálogo de error. El título por omisión habla del
+  // archivo porque casi siempre es eso; cuando el aviso es de otra cosa se pasa
+  // el título que corresponda, o el encabezado contradice al mensaje.
+  const handleOpenErrorDialog = (msj, titulo) => {
     updateFormState('errorDialog', true)
     updateFormState('errorFileMsj', msj)
+    updateFormState('errorFileTitulo', titulo || 'Tipo de archivo inválido')
   }
 
   const handleDialogClose = () => {
@@ -419,7 +437,16 @@ export default function AlertDialogGabinete({
           Sí
         </Button>
       </DialogActions>
-      {errorDialog && <DialogErrorFile open={errorDialog} handleClose={handleCloseErrorDialog} msj={errorFileMsj} />}
+      {errorDialog && (
+        <DialogErrorFile
+          open={errorDialog}
+          handleClose={handleCloseErrorDialog}
+          msj={errorFileMsj}
+          // Vacío deja que el diálogo use su propio título por omisión, en vez
+          // de pisarlo con una cadena vacía.
+          titulo={errorFileTitulo || undefined}
+        />
+      )}
     </Dialog>
   )
 }

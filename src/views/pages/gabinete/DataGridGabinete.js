@@ -31,11 +31,11 @@ import { useGridApiRef } from '@mui/x-data-grid'
 import tableBody from 'public/html/table.js'
 import { DialogAssignGabineteDraftmen } from 'src/@core/components/dialog-assignGabineteDraftmen'
 import { DialogCodeGenerator } from 'src/@core/components/dialog-codeGenerator'
+import DialogCargaMasiva from 'src/@core/components/dialog-cargaMasiva'
 import DialogDeleteBlueprint from 'src/@core/components/dialog-deleteBlueprint'
 import ReasignarDialog from 'src/@core/components/dialog-deliverableReassign'
 import DialogErrorTransmittal from 'src/@core/components/dialog-errorTransmittal'
 import DialogFinishOt from 'src/@core/components/dialog-finishOt'
-import { generateTransmittal } from 'src/context/google-drive-functions/generate-transmittal'
 import TableGabinete from 'src/views/table/data-grid/TableGabinete'
 
 const DataGridGabinete = () => {
@@ -57,6 +57,7 @@ const DataGridGabinete = () => {
   const [checkedTypes, setCheckedTypes] = useState({})
   const [showReasignarSection, setShowReasignarSection] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [openCargaMasiva, setOpenCargaMasiva] = useState(false)
   const [gabineteDraftmenState, setGabineteDraftmenState] = useState([])
   const [transmittalNumber, setTransmittalNumber] = useState("")
 
@@ -162,6 +163,10 @@ const DataGridGabinete = () => {
   }
 
   const handleGenerateTransmittal = async (tableElement, selected, newCode) => {
+    // Se carga aqui y no arriba: generate-transmittal arrastra jsPDF y las dos
+    // fuentes Calibri, que suman 4,2 MB sin comprimir. Con el import estatico
+    // los pagaba todo el que abriera Gabinete, generara un transmittal o no.
+    const { generateTransmittal } = await import('src/context/google-drive-functions/generate-transmittal')
 
     const transmittalLink = await generateTransmittal(
       tableElement,
@@ -197,9 +202,23 @@ const DataGridGabinete = () => {
       // Actualiza el campo lastTransmittal en cada uno de los documentos seleccionados
       const selected = apiRef.current.getSelectedRows()
 
-      // Ahora, añade este contador al final de tu newCode
-      await generateTransmittalCounter(currentPetition)
-      const newCode = `21286-000-TT-${transmittalNumber}`
+      // generateTransmittalCounter ya devuelve el codigo completo y correlativo
+      // (21286-000-TT-NNNN), incrementado dentro de una transaccion. Antes se
+      // llamaba, se descartaba lo que devolvia, y el codigo se rearmaba con el
+      // campo manual: si venia vacio el PDF salia "21286-000-TT-" sin numero, y
+      // el contador quedaba con huecos igual. Incidencia Gabinete 2.
+      // Se respeta el numero manual cuando el usuario escribe uno, porque ese
+      // campo parece intencional; si lo deja vacio, usa el correlativo generado.
+      //
+      // El contador se pide SOLO cuando no hay numero manual. Pedirlo siempre y
+      // descartarlo -como se hacia- gasta un correlativo por cada transmittal
+      // escrito a mano: es el mismo hueco que esta incidencia venia a cerrar,
+      // por la otra puerta.
+      const numeroManual = transmittalNumber?.trim()
+
+      const newCode = numeroManual
+        ? `21286-000-TT-${numeroManual}`
+        : await generateTransmittalCounter(currentPetition)
 
       let tableElement = document.createElement('table')
       let numberOfDocuments = selected.size
@@ -404,6 +423,21 @@ const DataGridGabinete = () => {
               Borrar
             </Button>
           </>
+        )}
+
+        {/* Carga masiva por OT: incidencia Gabinete 11. Sin esto hay que abrir
+            cada entregable y subir su archivo de a uno, que es lo que hace lento
+            el cierre de una OT con muchos entregables. El diálogo solo ofrece
+            los entregables que este usuario podría subir de a uno. */}
+        {[7, 8, 9].includes(authUser.role) && (
+          <Button
+            variant='outlined'
+            sx={{ mx: 2, flexGrow: '1' }}
+            onClick={() => setOpenCargaMasiva(true)}
+            disabled={!currentPetition}
+          >
+            Carga masiva
+          </Button>
         )}
       </Box>
 
@@ -645,6 +679,15 @@ const DataGridGabinete = () => {
         doc={petitions && currentOT && petitions.find(petition => petition.ot == currentOT)}
         setSelectedRows={setSelectedRows}
       />
+
+      {openCargaMasiva && (
+        <DialogCargaMasiva
+          open={openCargaMasiva}
+          onClose={() => setOpenCargaMasiva(false)}
+          petition={currentPetition}
+          blueprints={blueprints}
+        />
+      )}
       {errorTransmittal && <DialogErrorTransmittal open={errorTransmittal} handleClose={handleCloseErrorTransmittal} />}
     </Box>
   )

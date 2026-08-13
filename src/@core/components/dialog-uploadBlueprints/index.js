@@ -29,6 +29,7 @@ import DialogErrorFile from 'src/@core/components/dialog-errorFile'
 import AlertDialog from 'src/@core/components/dialog-warning'
 import FileList from 'src/@core/components/file-list'
 import Icon from 'src/@core/components/icon'
+import { puedeSubirHlc } from 'src/context/firebase-functions/permisosHlc'
 import { getFileIcon, validateFiles } from 'src/context/google-drive-functions/fileValidation'
 import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
 import { useFirebase } from 'src/context/useFirebase'
@@ -157,9 +158,7 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
       // Valida los archivos con base en el tamaño y tipo
       const invalidFiles = validateFiles(acceptedFiles).filter(file => !file.isValid)
       if (invalidFiles.length > 0) {
-        const res = validateFiles(invalidFiles)
-        const msj = res[0].msj
-        handleOpenErrorDialog(msj)
+        handleOpenErrorDialog(invalidFiles[0].msj)
 
         return invalidFiles
       }
@@ -177,7 +176,10 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
         return invalidFileNames
       }
 
-      if (authUser.role === 9 && doc.approvedByDocumentaryControl && !checkRoleAndApproval(authUser.role, doc)) {
+      // El archivo soltado va a la HLC o al entregable segun quien sea y en que
+      // punto del flujo esta el documento. La condicion es la misma que decide
+      // si se dibuja el recuadro de la HLC, para que no puedan discrepar.
+      if (puedeSubirHlc(authUser, doc) && !checkRoleAndApproval(authUser.role, doc)) {
         setHlcDocuments(acceptedFiles[0])
       }
 
@@ -565,12 +567,7 @@ export const UploadBlueprintsDialog = ({ doc, petitionId, currentRow, petition }
                   <ListItem>
                     <FormControl fullWidth>
                       <Fragment>
-                        {authUser.role === 9 &&
-                        !hlcDocuments &&
-                        !doc.storageHlcDocuments &&
-                        (doc.sentByDesigner || doc.sentBySupervisor) &&
-                        doc.approvedByDocumentaryControl &&
-                        !checkRoleAndApproval(authUser.role, doc) ? (
+                        {puedeSubirHlc(authUser, doc) && !hlcDocuments && !checkRoleAndApproval(authUser.role, doc) ? (
                           <div {...getRootProps({ className: 'dropzone' })}>
                             <input {...getInputProps()} />
                             <Box

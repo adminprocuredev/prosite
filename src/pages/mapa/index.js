@@ -2,14 +2,16 @@ import React, { Component } from 'react'
 import { GoogleMap, LoadScript, Polygon, InfoWindow, Marker, Circle, Polyline } from '@react-google-maps/api'
 import IconButton from '@mui/material/IconButton'
 import GpsFixed from '@mui/icons-material/GpsFixed'
-import Checkbox from '@mui/material/Checkbox'
-import FormControlLabel from '@mui/material/FormControlLabel'
-import FormGroup from '@mui/material/FormGroup'
-import Grid from '@mui/material/Grid'
 import Box from '@mui/material/Box'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import ReactDOM from 'react-dom/client'
 
 const apiKey = process.env.NEXT_PUBLIC_PROD_APIKEY // process.env.REACT_APP_GOOGLE_MAP_KEY //
+
+// Encuadre que muestra las faenas completas. Es el estado inicial y el que
+// devuelve el boton "Mapa ampliado".
+const VISTA_GENERAL = { centro: { lat: -24.261986, lng: -69.060333 }, zoom: 13 }
 
 const UserLocationIcon = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" fill="none" class="css-i6dzq1">
@@ -842,15 +844,21 @@ class Map extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      position: { lat: -24.261986, lng: -69.060333 },
-      zoom: 13,
+      position: VISTA_GENERAL.centro,
+      zoom: VISTA_GENERAL.zoom,
       showInfoWindow: false,
       infoWindowPosition: null,
-      plantasVisible: Array(plantas.length).fill(true),
+
+      // null = todas las plantas a la vista. Antes era un array de seis
+      // booleanos con casillas para marcar y desmarcar: para ver una planta
+      // habia que apagar las otras cinco, que es justo al reves de lo que
+      // uno quiere hacer. Elegir una planta es una eleccion, no seis.
+      plantaSeleccionada: null,
       userLocation: null
     }
     this.handlePolygonClick = this.handlePolygonClick.bind(this)
-    this.togglePlantaVisibility = this.togglePlantaVisibility.bind(this)
+    this.irALaPlanta = this.irALaPlanta.bind(this)
+    this.elegirPlanta = this.elegirPlanta.bind(this)
   }
 
   handleMapClick() {
@@ -868,23 +876,34 @@ class Map extends Component {
     })
   }
 
-  togglePlantaVisibility(index) {
-    this.setState(
-      prevState => {
-        const plantasVisible = [...prevState.plantasVisible]
-        plantasVisible[index] = !plantasVisible[index]
+  /** Centra el mapa en una planta y le hace zoom. */
+  irALaPlanta(index) {
+    this.setState({
+      position: plantas[index].centro,
+      zoom: plantas[index].zoom
+    })
+  }
 
-        return { plantasVisible }
-      },
-      () => {
-        if (this.state.plantasVisible[index]) {
-          this.setState({
-            position: plantas[index].centro,
-            zoom: plantas[index].zoom // Agregamos el valor de zoom al estado
-          })
-        }
-      }
-    )
+  /**
+   * Elige qué se ve: una planta, o todas con el mapa ampliado.
+   *
+   * `index` null es "mapa ampliado" y vuelve a la vista general. Un segundo
+   * clic sobre la planta que ya está elegida también devuelve null, que es lo
+   * que hace el ToggleButtonGroup al deseleccionar, y cae en el mismo lugar.
+   */
+  elegirPlanta(index) {
+    if (index === null || index === undefined) {
+      this.setState({ plantaSeleccionada: null, position: VISTA_GENERAL.centro, zoom: VISTA_GENERAL.zoom })
+
+      return
+    }
+
+    this.setState({ plantaSeleccionada: index }, () => this.irALaPlanta(index))
+  }
+
+  /** Con el mapa ampliado se dibujan todas; si hay una elegida, solo esa. */
+  plantaVisible(index) {
+    return this.state.plantaSeleccionada === null || this.state.plantaSeleccionada === index
   }
 
   //
@@ -930,32 +949,41 @@ class Map extends Component {
     return (
       <LoadScript googleMapsApiKey={apiKey}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <FormGroup row>
-            <Grid container spacing={0}>
+          {/* Una planta es un boton y se elige, sin casillas que marcar. El
+              color de cada boton activo es el mismo con que esa planta se
+              dibuja en el mapa, para no tener que adivinar cual es cual. */}
+          <Box sx={{ px: 2, py: 2 }}>
+            <ToggleButtonGroup
+              exclusive
+              // El centinela es la cadena 'todas' y no null: MUI usa null para
+              // "nada seleccionado", asi que un boton con value={null} nunca se
+              // veria activo. Fuera del grupo el estado sigue siendo null.
+              value={this.state.plantaSeleccionada ?? 'todas'}
+              onChange={(event, valor) => this.elegirPlanta(valor === 'todas' ? null : valor)}
+              size='small'
+              sx={{ flexWrap: 'wrap', gap: 1, '& .MuiToggleButtonGroup-grouped': { border: 1, borderRadius: 1 } }}
+            >
+              <ToggleButton value='todas' sx={{ textTransform: 'none' }}>
+                Mapa ampliado
+              </ToggleButton>
               {plantas.map((planta, index) => (
-                <Grid item xs={4} key={index}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={this.state.plantasVisible[index]}
-                        onChange={() => this.togglePlantaVisibility(index)}
-                        sx={{
-                          '& .MuiSvgIcon-root': {
-                            width: '0.8em', // Cambia el tamaño de la casilla aquí
-                            height: '0.8em' // Cambia el tamaño de la casilla aquí
-                          }
-                        }}
-                      />
+                <ToggleButton
+                  key={index}
+                  value={index}
+                  sx={{
+                    textTransform: 'none',
+                    '&.Mui-selected': {
+                      color: planta.color,
+                      borderColor: planta.color,
+                      '&:hover': { borderColor: planta.color }
                     }
-                    label={planta.nombre}
-                    sx={{
-                      fontSize: '0.8rem' // Cambia el tamaño de la letra aquí
-                    }}
-                  />
-                </Grid>
+                  }}
+                >
+                  {planta.nombre}
+                </ToggleButton>
               ))}
-            </Grid>
-          </FormGroup>
+            </ToggleButtonGroup>
+          </Box>
           <GoogleMap
             mapContainerStyle={{ height: '700px', width: '100%' }}
             center={this.state.position}
@@ -971,7 +999,7 @@ class Map extends Component {
                     key={`${plantaIndex}-${areaIndex}`}
                     paths={area.paths}
                     onClick={e => this.handlePolygonClick(e, area.name)}
-                    visible={this.state.plantasVisible[plantaIndex]}
+                    visible={this.plantaVisible(plantaIndex)}
                     options={{
                       fillColor: planta.color,
                       fillOpacity: 0.01,
@@ -986,7 +1014,7 @@ class Map extends Component {
                     center={area.center}
                     radius={area.radius}
                     onClick={e => this.handlePolygonClick(e, area.name)}
-                    visible={this.state.plantasVisible[plantaIndex]}
+                    visible={this.plantaVisible(plantaIndex)}
                     options={{
                       fillColor: planta.color,
                       fillOpacity: 0.01,
@@ -1001,7 +1029,7 @@ class Map extends Component {
                       key={`${plantaIndex}-${areaIndex}`}
                       path={area.paths}
                       onClick={e => this.handlePolygonClick(e, area.name)}
-                      visible={this.state.plantasVisible[plantaIndex]}
+                      visible={this.plantaVisible(plantaIndex)}
                       options={{
                         strokeColor: planta.color,
                         strokeOpacity: 0.5,

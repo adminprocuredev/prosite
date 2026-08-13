@@ -2,8 +2,15 @@ import MoreHorizIcon from '@mui/icons-material/MoreHoriz'
 import { useTheme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { makeStyles } from '@mui/styles'
-import { DataGridPremium, esES } from '@mui/x-data-grid-premium'
-import { useEffect, useState } from 'react'
+import {
+  DataGridPremium,
+  GridToolbarColumnsButton,
+  GridToolbarContainer,
+  GridToolbarExport,
+  esES,
+  gridSortedRowIdsSelector
+} from '@mui/x-data-grid-premium'
+import { useCallback, useEffect, useState } from 'react'
 
 import { CancelOutlined, CheckCircleOutline, OpenInNew, Upload } from '@mui/icons-material'
 import SyncIcon from '@mui/icons-material/Sync'
@@ -26,13 +33,22 @@ import {
 } from '@mui/material'
 import { UploadBlueprintsDialog } from 'src/@core/components/dialog-uploadBlueprints'
 import AlertDialogGabinete from 'src/@core/components/dialog-warning-gabinete'
+import { unixToDate } from 'src/@core/components/unixToDate'
+import { puedeSubirHlc, veColumnaHlc } from 'src/context/firebase-functions/permisosHlc'
+import { permisosDeRevision } from './permisosDeRevision'
 import { useFirebase } from 'src/context/useFirebase'
 
 import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
 
-// TODO: Move to firebase-functions
-import { getStorage, list, ref } from 'firebase/storage'
 
+// Para distinguir, en la bitácora, quién hizo cada revisión. Solo los roles que
+// aparecen ahí. Incidencia Gabinete 7.
+const NOMBRE_DEL_ROL = {
+  6: 'Contract Owner',
+  7: 'Supervisor',
+  8: 'Proyectista',
+  9: 'Control Documental'
+}
 
 const TableGabinete = ({
   rows,
@@ -52,7 +68,6 @@ const TableGabinete = ({
   const [loadingProyectistas, setLoadingProyectistas] = useState(true)
   const [approve, setApprove] = useState(true)
   const [currentRow, setCurrentRow] = useState(null)
-  const [fileNames, setFileNames] = useState({})
   const [remarksState, setRemarksState] = useState('')
   const [openDialog, setOpenDialog] = useState(false)
   const [error, setError] = useState('')
@@ -63,6 +78,51 @@ const TableGabinete = ({
   const { authUser, getUserData, getBlueprintPercent, getNextRevisionFolderName } = useFirebase()
   const { checkRoleAndApproval } = useGoogleDriveFolder()
 
+  // Columnas que solo tienen sentido para Control Documental (rol 9). La de HLC
+  // no está aquí: los Proyectistas también la usan. Ver permisosHlc.
+  const COLUMNAS_SOLO_CONTROL_DOCUMENTAL = ['clientApprove', 'lastTransmittal']
+
+  // Incidencia Gabinete 10. Antes esto era un objeto literal escrito en el JSX:
+  // MUI lo tomaba como modelo controlado y el usuario no podia cambiar nada, ni
+  // desde el menu de la columna. Ahora es estado, asi que el menu de la columna
+  // y el boton "Columnas" del toolbar si funcionan.
+  const [columnVisibilityModel, setColumnVisibilityModel] = useState({
+    clientApprove: authUser?.role === 9,
+    storageHlcDocuments: veColumnaHlc(authUser),
+    lastTransmittal: authUser?.role === 9,
+    // Existe para poder exportarla y para que se pueda mostrar desde el menu,
+    // pero arranca oculta: la tabla se ve igual que antes.
+    clientCode: false
+  })
+
+  // El estado inicial se fija al montar, pero el rol puede llegar despues (la
+  // sesion se resuelve de forma asincrona) o cambiar sin desmontar. Sin esto,
+  // un Control Documental que entra con la sesion a medio cargar se queda sin
+  // sus columnas hasta recargar.
+  useEffect(() => {
+    setColumnVisibilityModel(prev => ({
+      ...prev,
+      clientApprove: authUser?.role === 9,
+      storageHlcDocuments: veColumnaHlc(authUser),
+      lastTransmittal: authUser?.role === 9
+    }))
+  }, [authUser?.role])
+
+  // El usuario puede mostrar y ocultar lo que quiera, MENOS las columnas
+  // restringidas: antes el modelo fijo las forzaba a ocultas para los demas
+  // roles, y con un modelo libre bastaria con pulsar "Mostrar todas" para
+  // sacarlas. La restriccion se reaplica en cada cambio.
+  const handleColumnVisibilityChange = modelo => {
+    if (authUser?.role === 9) {
+      setColumnVisibilityModel(modelo)
+
+      return
+    }
+
+    const restringidas = Object.fromEntries(COLUMNAS_SOLO_CONTROL_DOCUMENTAL.map(campo => [campo, false]))
+    setColumnVisibilityModel({ ...modelo, ...restringidas })
+  }
+
   const defaultSortingModel = [{ field: 'date', sort: 'desc' }]
 
   const handleOpenUploadDialog = doc => {
@@ -72,8 +132,14 @@ const TableGabinete = ({
     setOpenDialog(true)
   }
 
+  // Cierra el dialogo de carga. Tiene que bajar los DOS estados: mientras
+  // openUploadDialog siga en true, el efecto de mas abajo vuelve a poner en
+  // `doc` el entregable de `currentRow` cada vez que llega un snapshot, y el
+  // comentario termina guardandose en ese otro entregable (incidencia
+  // Gabinete 1).
   const handleCloseUploadDialog = () => {
     setOpenUploadDialog(false)
+    setOpenDialog(false)
   }
 
   const handleClickOpenAlert = (doc, isApproved) => {
@@ -123,20 +189,50 @@ const TableGabinete = ({
 
   const classes = useStyles()
 
-  const storage = getStorage()
+  // Incidencia Gabinete 9: la exportacion ya viene con la licencia MUI X
+  // Premium que el cliente paga; solo faltaba exponerla. Pero por defecto no
+  // produce un "maestro": si hay filas seleccionadas exporta SOLO esas, y las
+  // subfilas de revision entran o no segun cuales esten expandidas, o sea dos
+  // descargas seguidas pueden dar archivos distintos. Aqui se fija: siempre
+  // todos los entregables de la OT, nunca las revisiones.
+  const obtenerFilasParaExportar = ({ apiRef: api }) =>
+    gridSortedRowIdsSelector(api).filter(id => {
+      const fila = api.current.getRow(id)
 
-  const getBlueprintName = async id => {
-    const blueprintRef = ref(storage, `/uploadedBlueprints/${id}/blueprints`)
-    try {
-      const res = await list(blueprintRef)
+      return fila && !fila.isRevision
+    })
 
-      return res?.items[0]?.name || 'No disponible'
-    } catch (err) {
-      console.error(err)
+  // Solo los campos que exportan con dato util. Las demas columnas son
+  // acciones o se calculan en renderCell, que la exportacion NO ejecuta:
+  // saldrian vacias y darian un maestro enganoso.
+  const camposExportables = ['id', 'clientCode', 'revision', 'userName', 'attentive', 'description', 'date']
 
-      return 'Error al obtener el nombre del entregable'
-    }
+  // La OT se limpia antes de usarla como nombre de archivo: un '/' o un ':'
+  // producen un nombre invalido en Windows y macOS.
+  const otParaArchivo = String(petition?.ot || 'sin-ot').replace(/[^\w.-]+/g, '-')
+
+  const opcionesExportacion = {
+    fileName: `Entregables-OT-${otParaArchivo}`,
+    fields: camposExportables,
+    getRowsToExport: obtenerFilasParaExportar
   }
+
+  // useCallback para que el toolbar no se remonte en cada snapshot de
+  // Firestore, que en esta pantalla llegan seguido.
+  const Toolbar = useCallback(
+    () => (
+      <GridToolbarContainer sx={{ p: 2, gap: 2 }}>
+        <GridToolbarColumnsButton />
+        <GridToolbarExport
+          excelOptions={{ ...opcionesExportacion, includeHeaders: true }}
+          csvOptions={{ ...opcionesExportacion, utf8WithBom: true }}
+          printOptions={{ disableToolbarButton: true }}
+        />
+      </GridToolbarContainer>
+    ),
+    [otParaArchivo]
+  )
+
 
 
   /**
@@ -145,59 +241,6 @@ const TableGabinete = ({
    * @param {Object} authUser - Información del Usuario conectado que realiza la acción.
    * @returns {Object|undefined} - Retorna un Objeto con booleanos o Undefined en caso de errores.
    */
-  function permissions(row, authUser) {
-
-    if (!row) {
-      return { approve: false, reject: false }
-    }
-
-    // Desestructuración de Objetos.
-    const {
-      userId,
-      description,
-      clientCode,
-      storageBlueprints,
-      approvedByContractAdmin,
-      approvedByDocumentaryControl,
-      approvedBySupervisor,
-      blueprintCompleted,
-      attentive,
-      sentByDesigner,
-      sentBySupervisor
-    } = row
-
-    const { uid, role } = authUser
-
-    // Definición de variables booleanas.
-    const isRole6Turn = attentive === 6
-    const isRole7Turn = attentive === 7
-    const isRole8Turn = attentive === 8
-    const isRole9Turn = attentive === 9
-    const isMyBlueprint = userId === uid
-    const sentByAuthor = sentByDesigner || sentBySupervisor
-    const hasRequiredFields = description && clientCode && storageBlueprints && storageBlueprints.length >= 1
-
-    const dictionary = {
-      6: {
-        approve: isRole7Turn && !approvedByContractAdmin,
-        reject: isRole7Turn && !approvedByContractAdmin
-      },
-      7: {
-        approve: (isRole7Turn && sentByAuthor && !isMyBlueprint && !approvedBySupervisor) || (isRole7Turn && isMyBlueprint && hasRequiredFields && !blueprintCompleted),
-        reject: isRole7Turn  && sentByAuthor && !isMyBlueprint && !approvedBySupervisor
-      },
-      8: {
-        approve: isRole8Turn && isMyBlueprint && hasRequiredFields && !blueprintCompleted,
-        reject: false
-      },
-      9: {
-        approve: isRole9Turn && !approvedByDocumentaryControl,
-        reject: isRole9Turn && !approvedByDocumentaryControl
-      }
-    }
-
-    return dictionary[role]
-  }
 
 
   /**
@@ -397,13 +440,12 @@ const TableGabinete = ({
   }
 
   useEffect(() => {
-    // Primera parte: obtener los nombres de los planos
-    rows.map(async row => {
-      const blueprintName = await getBlueprintName(row.id)
-      setFileNames(prevNames => ({ ...prevNames, [row.id]: blueprintName }))
-    })
+    // Aqui habia una llamada a Firebase Storage POR CADA FILA para llenar
+    // `fileNames`, un estado que no se leia en ninguna parte. Con 200 entregables
+    // eran 200 llamadas y hasta 200 renders por cada vez que corria el efecto,
+    // sin ningun efecto visible. Se elimino junto con getBlueprintName.
 
-    // Segunda parte: manejar la apertura del diálogo de carga
+    // Manejo de la apertura del diálogo de carga
     if (openUploadDialog) {
       const filterRow = rows.find(rows => rows.id === currentRow)
       setDoc(filterRow)
@@ -504,6 +546,16 @@ const TableGabinete = ({
   const clientLocalWidth = Number(localStorage.getItem('clientGabineteWidthColumn'))
 
   const columns = [
+    {
+      // El codigo MEL solo se pintaba dentro de la columna 'id' con renderCell,
+      // asi que no existia como campo y por tanto no se podia exportar ni
+      // mostrar por separado. Como columna propia entra al maestro (Gabinete 9)
+      // y aparece en el menu de columnas (Gabinete 10). Oculta por defecto para
+      // no cambiar como se ve la tabla hoy.
+      field: 'clientCode',
+      headerName: 'Código MEL',
+      width: 260
+    },
     {
       field: 'id',
       width: idLocalWidth ? idLocalWidth : role === 9 && !lg ? 355 : role !== 9 && !lg ? 360 : role !== 9 ? 300 : 300,
@@ -728,15 +780,40 @@ const TableGabinete = ({
         let userNameContent
 
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
-          // Para las filas de revisión, muestra el autor de la revisión
+          // En la bitácora esta columna NO es el proyectista asignado: es quien
+          // hizo esa revisión. Se muestra con su rol porque el encabezado dice
+          // "ENCARGADO" y en la fila de arriba eso significa el proyectista;
+          // cuando Control Documental aprobaba, su nombre aparecía en la columna
+          // del proyectista y se leía como si lo fuera. Incidencia Gabinete 7.
+          //
+          // Las revisiones anteriores a este cambio no guardaron el rol: ahí se
+          // muestra solo el nombre, y el tooltip aclara igual que fue quien
+          // revisó.
           userNameContent = row.userName
+          // Number() por si el rol quedó guardado como texto en algún documento.
+          const rolDeQuienRevisa = NOMBRE_DEL_ROL[Number(row.userRole)]
 
           return (
-            <Box sx={{ overflow: 'hidden' }}>
-              <Typography noWrap sx={{ textOverflow: 'clip', fontSize: lg ? '0.8rem' : '1rem' }}>
-                {userNameContent || 'N/A'}
-              </Typography>
-            </Box>
+            <Tooltip
+              title={userNameContent ? `Revisó: ${userNameContent}${rolDeQuienRevisa ? ` (${rolDeQuienRevisa})` : ''}` : ''}
+              placement='bottom-start'
+            >
+              <Box sx={{ overflow: 'hidden' }}>
+                <Typography noWrap sx={{ textOverflow: 'clip', fontSize: lg ? '0.8rem' : '1rem' }}>
+                  {userNameContent || 'N/A'}
+                </Typography>
+                {rolDeQuienRevisa && (
+                  <Typography
+                    noWrap
+                    variant='caption'
+                    color='text.secondary'
+                    sx={{ display: 'block', textOverflow: 'clip', lineHeight: 1.2 }}
+                  >
+                    revisó · {rolDeQuienRevisa}
+                  </Typography>
+                )}
+              </Box>
+            </Tooltip>
           )
         } else if (!row.isRevision && !expandedRows.has(params.row.parentId)) {
           // Para las filas principales, muestra el responsable actual del blueprint
@@ -755,6 +832,10 @@ const TableGabinete = ({
     {
       field: 'attentive',
       headerName: 'EN ESPERA DE REVISIÓN POR',
+      // Igual que en 'date', y por la misma razon va en valueFormatter: sin
+      // esto el Excel saldria con el numero del rol (4, 7, 9...) en vez del
+      // nombre, y usar valueGetter cambiaria el criterio de ordenamiento.
+      valueFormatter: params => renderRole({ attentive: params.value }) || '',
       width: userNameLocalWidth
         ? userNameLocalWidth
         : role === 9 && !lg
@@ -1045,27 +1126,6 @@ const TableGabinete = ({
 
         localStorage.setItem('hlcGabineteWidthColumn', params.colDef.computedWidth)
 
-        const canGenerateBlueprint = checkRoleAndGenerateTransmittal(authUser.role, row)
-
-        const canUploadHlc = row => {
-          if (row.revision && typeof params.row.revision === 'string' && row.revisions.length > 0) {
-            const sortedRevisions = [...row.revisions].sort((a, b) => new Date(b.date) - new Date(a.date))
-            const lastRevision = sortedRevisions[0]
-
-            if (
-              (row.revision.charCodeAt(0) >= 66 || row.revision.charCodeAt(0) >= 48) &&
-              row.approvedByDocumentaryControl === true &&
-              !('lastTransmittal' in lastRevision)
-            ) {
-              return true
-            }
-
-            return false
-          }
-
-          return false
-        }
-
         if (row.isRevision && expandedRows.has(params.row.parentId)) {
           return (
             <Box
@@ -1134,15 +1194,7 @@ const TableGabinete = ({
                   </Typography>
                 )}
 
-                {(canGenerateBlueprint &&
-                  authUser.role === 9 &&
-                  row.approvedByDocumentaryControl &&
-                  row.sentByDesigner &&
-                  canUploadHlc(row)) ||
-                (authUser.role === 9 &&
-                  row.approvedByDocumentaryControl &&
-                  row.sentBySupervisor &&
-                  canUploadHlc(row)) ? (
+                {puedeSubirHlc(authUser, row) ? (
                   <IconButton
                     sx={{
                       my: 'auto',
@@ -1152,11 +1204,7 @@ const TableGabinete = ({
                       opacity: 0.7
                     }}
                     color='success'
-                    onClick={
-                      authUser.role === 9 && row.approvedByDocumentaryControl
-                        ? () => handleOpenUploadDialog(row)
-                        : null
-                    }
+                    onClick={() => handleOpenUploadDialog(row)}
                   >
                     {row.storageHlcDocuments ? null : (
                       <Upload
@@ -1178,6 +1226,12 @@ const TableGabinete = ({
     {
       field: 'date',
       headerName: 'Fecha de Creación',
+      // La exportacion NO ejecuta renderCell: sin esto, el Excel recibiria el
+      // objeto Timestamp de Firestore y escribiria [object Object].
+      // Va en valueFormatter y NO en valueGetter a proposito: el valueGetter
+      // tambien alimenta el ordenamiento, y con la fecha como texto dd/mm/yyyy
+      // MUI ordena alfabeticamente, dejando 31/12/2025 por encima de 1/1/2026.
+      valueFormatter: params => (params.value?.seconds != null ? unixToDate(params.value.seconds)[0] : ''),
       width: dateLocalWidth
         ? dateLocalWidth
         : role === 9 && !lg
@@ -1261,7 +1315,7 @@ const TableGabinete = ({
         // console.log("Se ingresa a Observaciones")
         const { row } = params || false
         localStorage.setItem('remarksGabineteWidthColumn', params.colDef.computedWidth)
-        const permissionsData = permissions(row, authUser)
+        const permissionsData = permisosDeRevision(row, authUser)
         const canApprove = permissionsData?.approve || false
         const canReject = permissionsData?.reject || false
 
@@ -1546,11 +1600,9 @@ const TableGabinete = ({
         rows={filteredRows}
         useGridApiRef
         columns={columns}
-        columnVisibilityModel={{
-          clientApprove: authUser.role === 9,
-          storageHlcDocuments: authUser.role === 9,
-          lastTransmittal: authUser.role === 9
-        }}
+        columnVisibilityModel={columnVisibilityModel}
+        onColumnVisibilityModelChange={handleColumnVisibilityChange}
+        slots={{ toolbar: Toolbar }}
         localeText={esES.components.MuiDataGrid.defaultProps.localeText}
         sortingModel={defaultSortingModel}
         getRowHeight={row => (row.id === currentRow ? 'auto' : 'auto')}
@@ -1590,7 +1642,7 @@ const TableGabinete = ({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cerrar</Button>
+          <Button onClick={handleCloseUploadDialog}>Cerrar</Button>
         </DialogActions>
       </Dialog>
     </Card>

@@ -12,8 +12,6 @@ import {
   deleteCurrentUser,
   formatAuthUser,
   resetPassword,
-  signAdminBack,
-  signAdminFailure,
   signGoogle,
   signInWithEmailAndPassword,
   updatePassword,
@@ -78,7 +76,8 @@ import {
   useSnapshot,
   fetchDisciplineProperties,
   fetchDeliverablesByDiscipline,
-  getPlantInitals
+  getPlantInitals,
+  getUsuariosParaReasignar
 } from 'src/context/firebase-functions/firestoreQuerys'
 
 import { updateUserProfile, uploadFilesToFirebaseStorage } from 'src/context/firebase-functions/storageFunctions'
@@ -143,14 +142,12 @@ const FirebaseContextProvider = props => {
     signInWithEmailAndPassword,
     createUser,
     updateUserProfile,
-    signAdminBack,
-    newDoc,
+      newDoc,
     useEvents,
     updateDocs,
     updateUserPhone,
     useSnapshot,
-    signAdminFailure,
-    getDomainData,
+      getDomainData,
     getData,
     getUserData,
     getAllUsersData,
@@ -201,6 +198,7 @@ const FirebaseContextProvider = props => {
     deleteCostCenter,
     setDefaultCostCenter,
     getPlantInitals,
+    getUsuariosParaReasignar,
     getNextChar,
     getBlueprintPercent,
     getNextRevisionFolderName

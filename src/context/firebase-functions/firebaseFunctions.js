@@ -1,14 +1,12 @@
 // ** Firebase Imports
 import { GoogleAuthProvider, deleteUser, getAuth, signInWithPopup } from 'firebase/auth'
 import { doc, setDoc, updateDoc } from 'firebase/firestore'
-import { Firebase, db } from 'src/configs/firebase'
+import { getFunctions, httpsCallable } from 'firebase/functions'
+import { Firebase, app, db } from 'src/configs/firebase'
 
 // ** Trae funcion que valida los campos del registro
 import { registerValidator } from '../form-validation/helperRegisterValidator'
 import { getData } from './firestoreQuerys'
-
-// ** Genera contraseña unica y aleatoria
-const generatorPassword = require('generate-password')
 
 // ** Auth object
 const auth = getAuth()
@@ -90,103 +88,58 @@ const signInWithEmailAndPassword = async (email, password, rememberMe) => {
 }
 
 // ** Registro de usuarios
-const createUser = async (values, userParam, saveEmail, saveUID) => {
-  const { name, email } = values
+//
+// Delega en la Cloud Function createUserAsAdmin (functions/index.js). Antes se
+// creaba la cuenta aqui, con el SDK de CLIENTE: eso cambiaba la sesion a la del
+// usuario recien creado, dejaba al administrador fuera de su propia cuenta, y
+// el documento de 'users' se escribia despues, solo si el administrador lograba
+// reautenticarse. Si eso fallaba quedaba una cuenta sin rol, imposible de usar
+// y con el correo ya ocupado. Son las incidencias Gabinete 6 y Solicitudes 1.
+//
+// Ahora el servidor comprueba que quien llama sea administrador, crea la cuenta
+// y escribe el documento; si lo segundo falla, borra la cuenta.
+const createUser = async values => {
+  const { email } = values
   try {
     registerValidator(values)
 
-    // Guarda correo del admin
-    saveEmail(userParam.email)
+    const crearUsuario = httpsCallable(getFunctions(app), 'createUserAsAdmin')
+    const { data } = await crearUsuario(values)
 
-    // Crea contraseña alfanumerica de 10 digitos
-    // Se comenta esta funcion para posterior uso en producción
-    // const newPassword = generatorPassword.generate({
-    //   length: 10,
-    //   numbers: true
-    // })
-    const newPassword = 'password'
-
-    // Crea usuario
+    // El correo para definir la contraseña se envia desde el cliente: no
+    // necesita privilegios y reutiliza la funcion que ya existia.
+    // Si el envio falla NO se reporta como fallo de creacion: el usuario ya
+    // quedo creado en el servidor, y decir "error al crear usuario" llevaria a
+    // reintentar y toparse con "el usuario ya se encuentra registrado".
     try {
-      await Firebase.auth().createUserWithEmailAndPassword(email, newPassword) // Reemplazar 'password' por newPassword
-    } catch (createError) {
-      console.log('Error al crear el usuario:', createError)
-      throw createError // Re-lanzar el error para que se pueda capturar en un nivel superior si es necesario
+      await resetPassword(email)
+    } catch (errorCorreo) {
+      console.error('Usuario creado, pero fallo el envio del correo:', errorCorreo)
+
+      return { ...data, correoEnviado: false }
     }
 
-    // Envía correo para cambiar la contraseña
-    resetPassword(email)
-
-    // Guardar uid en un estado
-    saveUID(Firebase.auth().currentUser.uid)
-
-    // Actualiza usuario
-    // try {
-    //   await updateProfile(Firebase.auth().currentUser, {
-    //     displayName: name,
-    //     photoURL: ''
-    //   })
-    //   console.log(Firebase.auth().currentUser)
-    // } catch (updateError) {
-    //   console.log('Error al actualizar el perfil:', updateError)
-    //   throw updateError // Re-lanzar el error para que se pueda capturar en un nivel superior si es necesario
-    // }
+    return { ...data, correoEnviado: true }
   } catch (error) {
-    if (error.message === 'Firebase: Error (auth/email-already-in-use).') {
+    if (error.code === 'functions/already-exists') {
       throw new Error('El usuario ya se encuentra registrado.')
-    } else {
-      console.log('Error en datos ingresados:', error)
-      throw new Error('Error al crear usuario: ' + error.message)
     }
+    if (error.code === 'functions/permission-denied') {
+      throw new Error('Solo un administrador puede crear usuarios.')
+    }
+
+    // La funcion vive aparte del sitio: se despliega con firebase, no con
+    // Vercel, asi que puede faltar en un ambiente donde el resto ya esta al
+    // dia. Sin este caso el mensaje era "Error al crear usuario: internal",
+    // que manda a buscar el problema en el formulario y no donde esta.
+    if (error.code === 'functions/not-found') {
+      throw new Error(
+        'La creación de usuarios no está habilitada en este ambiente: falta desplegar la función createUserAsAdmin. ' +
+          'Avisa a soporte; no es un problema de los datos que escribiste.'
+      )
+    }
+    throw new Error('Error al crear usuario: ' + (error.message || error))
   }
-}
-
-const createUserInDatabase = (values, uid) => {
-  const { name, firstName, fatherLastName, motherLastName, rut, phone, email, plant, engineering, shift, company, role, opshift, subtype } = values
-
-  // Lógica para calcular completedProfile
-  let completedProfile = false
-  if (company === 'Procure') {
-    completedProfile = true
-  } else if (company === 'MEL') {
-    if (role === 2) {
-      completedProfile = !!email && !!name && !!opshift && !!phone && !!plant && !!role && !!rut && !!shift
-    } else if (role === 3 || role === 4) {
-      completedProfile = !!email && !!name && !!phone && !!plant && !!role && !!rut
-    } else {
-      completedProfile = !!email && !!name && !!opshift && !!phone && !!plant && !!role && !!rut && !!shift
-    }
-  }
-
-  console.log('completedProfile: ' + completedProfile)
-
-  return new Promise(async (resolve, reject) => {
-    try {
-      await setDoc(doc(db, 'users', uid), {
-        name: name,
-        firstName: firstName,
-        fatherLastName: fatherLastName,
-        motherLastName: motherLastName,
-        email: email,
-        rut: rut,
-        phone: phone.replace(/\s/g, ''),
-        company: company,
-        role: role,
-        ...(plant && { plant }),
-        ...(engineering && { engineering }),
-        ...(shift && { shift }),
-        ...(opshift && { opshift }),
-        completedProfile: completedProfile,
-        ...(subtype && {subtype}),
-        enabled: true
-      })
-
-      resolve('Usuario creado exitosamente en la base de datos')
-    } catch (error) {
-      console.log(error)
-      reject(new Error('Error al crear el usuario en la base de datos: ' + error))
-    }
-  })
 }
 
 // * Actualizar información del usuario:
@@ -216,32 +169,11 @@ const updateUserInDatabase = async (values, uid) => {
 // password es la contraseña del Admin, la cual se necesita para reconectar luego de crear el usuario.
 // oldEmail es el e-mail del Admin, el cual se necesita para reconectar luego de crear el usuario.
 // uid es el UID del usuario que se está tratando de crear.
-const signAdminBack = async (values, password, oldEmail, uid) => {
-  try {
-    await Firebase.auth().signInWithEmailAndPassword(oldEmail, password)
-    const successMessage = await createUserInDatabase(values, uid)
-
-    // Realizar acciones adicionales si es necesario
-
-    return successMessage // Retornar el mensaje de éxito
-  } catch (error) {
-    console.log(error)
-    throw new Error(error)
-  }
-}
-
-async function signAdminFailure() {
-  const user = auth.currentUser
-
-  return new Promise(async (resolve, reject) => {
-    try {
-      await deleteUser(user)
-      resolve('Excediste el número de intentos. No se creó ningún usuario.')
-    } catch (error) {
-      reject(new Error(error))
-    }
-  })
-}
+// signAdminBack y signAdminFailure se eliminaron junto con el flujo antiguo de
+// creacion de usuarios. signAdminFailure hacia deleteUser(auth.currentUser)
+// para revertir el alta: eso funcionaba solo porque la sesion quedaba en el
+// usuario recien creado. Con la creacion en el servidor la sesion no cambia,
+// asi que esa misma linea habria borrado la cuenta del ADMINISTRADOR.
 
 const signGoogle = async () => {
   const provider = new GoogleAuthProvider()
@@ -288,9 +220,6 @@ export {
   updatePassword,
   signInWithEmailAndPassword,
   createUser,
-  createUserInDatabase,
-  signAdminBack,
-  signAdminFailure,
   signGoogle,
   deleteCurrentUser,
   updateUserInDatabase

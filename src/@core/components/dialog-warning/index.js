@@ -148,7 +148,11 @@ export default function AlertDialog({
                       }
                       error={Boolean(errors.option)}
                     >
-                      {Object.keys(domainData.cancelReasonOptions) &&
+                      {/* domainData parte como {} mientras se lee la coleccion domain, asi que
+                          esto era Object.keys(undefined) y lanzaba TypeError: el && nunca
+                          alcanzaba a evaluarse. Tumbaba la pantalla completa de Solicitudes si
+                          domain tardaba, fallaba por permisos o no traia cancelReasonOptions. */}
+                      {domainData?.cancelReasonOptions &&
                         Object.keys(domainData.cancelReasonOptions).map(option => {
                           return (
                             <MenuItem key={option} value={option}>
