@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore'
 import { db } from 'src/configs/firebase'
 import { crearLectorDeNombres } from './nombreCache'
+import { buscaPorNombre, faltaDatoPara } from './requisitosDeUsuarios'
 
 import { unixToDate } from 'src/@core/components/unixToDate'
 
@@ -314,6 +315,34 @@ const getUserData = async (type, plant, userParam = { shift: '', name: '', email
   }
 
   try {
+    // Buscar al solicitante por NOMBRE es otra consulta y no necesita la
+    // planta. Esto vivía más abajo, DESPUÉS de la consulta por planta: con una
+    // planta válida funcionaba, pero dialog-fullsize la llama con `plant` nulo
+    // a propósito y ahí reventaba antes de llegar, así que buscar por nombre
+    // desde el detalle de una solicitud devolvía null siempre. El error solo se
+    // veía en la consola del navegador.
+    if (buscaPorNombre(type, userParam)) {
+      const porNombre = await getDocs(query(coll, where('name', '==', userParam.name)))
+
+      // El nombre no es único en `users`: nada impide dos personas homónimas.
+      // Se devuelve el primero -como se hacía antes- pero queda registrado,
+      // porque aquí un homónimo significa atribuirle la solicitud a otro.
+      if (porNombre.size > 1) {
+        console.warn(`Hay ${porNombre.size} usuarios llamados "${userParam.name}": se usa el primero.`)
+      }
+
+      return porNombre.empty ? null : porNombre.docs[0].data()
+    }
+
+    // Sin el dato que la consulta necesita no se consulta: Firestore rechaza
+    // un `where()` con undefined y la excepción se comía el catch de abajo.
+    const falta = faltaDatoPara(type, plant, userParam)
+    if (falta) {
+      console.warn(`getUserData('${type}') sin ${falta}: no se consulta y se devuelve la lista vacía.`)
+
+      return allDocs
+    }
+
     // Obtener los documentos según la función de consulta y realizar la consulta
     const querySnapshot = await getDocs(queryFunc())
 
@@ -374,18 +403,10 @@ const getUserData = async (type, plant, userParam = { shift: '', name: '', email
     })
 
     if (type === 'getPetitioner') {
+      // La búsqueda por nombre estaba aquí y se movió arriba, antes de la
+      // consulta por planta: era inalcanzable.
       // Verificar el tipo de usuario actual y agregarlo al arreglo si corresponde
-      if (userParam.name) {
-        const querySnapshot = await getDocs(query(coll, where('name', '==', userParam.name)))
-
-        if (!querySnapshot.empty) {
-          const docSnapshot = querySnapshot.docs[0].data()
-
-          return docSnapshot
-        }
-
-        return null // Devolver nulo si no se encuentra el documento
-      } else if (userParam.plant === 'allPlants') {
+      if (userParam.plant === 'allPlants') {
         const allDocsFiltered = allDocs.filter(doc => doc.role === 2)
 
         return allDocsFiltered

@@ -46,3 +46,4 @@ jobs:
           node src/context/firebase-functions/permisosHlc.test.mjs
           node src/context/google-drive-functions/nombresEntregables.test.mjs
           node src/views/table/data-grid/permisosDeRevision.test.mjs
+          node src/context/firebase-functions/requisitosDeUsuarios.test.mjs
