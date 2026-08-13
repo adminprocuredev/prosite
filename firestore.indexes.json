@@ -234,25 +234,8 @@
   "fieldOverrides": [
     {
       "collectionGroup": "blueprints",
-      "fieldPath": "deleted",
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        },
-        {
-          "order": "DESCENDING",
-          "queryScope": "COLLECTION"
-        },
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION_GROUP"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "blueprints",
       "fieldPath": "blueprintCompleted",
+      "ttl": false,
       "indexes": [
         {
           "order": "ASCENDING",
@@ -260,6 +243,10 @@
         },
         {
           "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "arrayConfig": "CONTAINS",
           "queryScope": "COLLECTION"
         },
         {
@@ -271,6 +258,7 @@
     {
       "collectionGroup": "blueprints",
       "fieldPath": "date",
+      "ttl": false,
       "indexes": [
         {
           "order": "ASCENDING",
@@ -278,6 +266,33 @@
         },
         {
           "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "arrayConfig": "CONTAINS",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "blueprints",
+      "fieldPath": "deleted",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "arrayConfig": "CONTAINS",
           "queryScope": "COLLECTION"
         },
         {
