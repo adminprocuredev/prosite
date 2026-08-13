@@ -84,6 +84,7 @@ const Home = () => {
       // aviso dice QUÉ falta, no un "algo salió mal" que no lleva a ninguna
       // parte.
       const loQueFallo = []
+
       const sinLlevarseElResto = (queEs, promesa, siFalla) =>
         promesa.catch(error => {
           console.error(`Falló "${queEs}" en la portada:`, error.code || '', error.message || error)
