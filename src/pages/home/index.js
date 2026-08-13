@@ -93,6 +93,22 @@ const Home = () => {
           return siFalla
         })
 
+      // El top 10 va POR SU CUENTA, fuera del `Promise.all`.
+      //
+      // Es la única consulta de la portada que sigue bajando documentos: para
+      // ordenar por autor tiene que leer las solicitudes enteras, 8,6 MB desde
+      // `nam5`. Dentro del conjunto, esos 8,6 MB retrasaban TODO —los diez
+      // números y los seis gráficos esperaban a la tabla del fondo, que es lo
+      // último que alguien mira—. Medido en producción: los datos aparecían a
+      // los 19,7 s, y el tramo largo era este.
+      //
+      // Aparte, cada cosa aparece cuando está lista. Su propio `catch` porque
+      // ya no lo cubre el `try` de abajo: si falla, se queda la tabla vacía y
+      // el resto de la portada ni se entera.
+      getUsersWithSolicitudes()
+        .then(setTop10)
+        .catch(error => console.error('No se pudo armar el top 10 de usuarios:', error))
+
       try {
         const [
           allDocsCount,
@@ -104,7 +120,6 @@ const Home = () => {
           byStateDocs,
           byPlantsDocs,
           byPlantsObj,
-          resTop10,
           blueprintsLast30days
         ] = await Promise.all([
           consultDocs('all'),
@@ -116,7 +131,6 @@ const Home = () => {
           consultDocs('byState'),
           consultDocs('byPlants', { plants }),
           consultObjetives('byPlants', { plants }),
-          getUsersWithSolicitudes(),
           sinLlevarseElResto('revisiones de los últimos 30 días', consultBluePrints('last30daysRevisions'), [])
         ])
 
@@ -210,7 +224,6 @@ const Home = () => {
         setDocsByState(filteredByStateDocs)
         setObjetivesByState(filteredByStateObj)
         //setRevisionDataInBlueprint(filteredByRevision)
-        setTop10(resTop10)
         // Datos para los gráficos por turno
         setRevisionDataInBlueprintA(filteredByRevisionA)
         setRevisionDataInBlueprintB(filteredByRevisionB)
