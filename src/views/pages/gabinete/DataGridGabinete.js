@@ -209,9 +209,16 @@ const DataGridGabinete = () => {
       // el contador quedaba con huecos igual. Incidencia Gabinete 2.
       // Se respeta el numero manual cuando el usuario escribe uno, porque ese
       // campo parece intencional; si lo deja vacio, usa el correlativo generado.
-      const codigoGenerado = await generateTransmittalCounter(currentPetition)
+      //
+      // El contador se pide SOLO cuando no hay numero manual. Pedirlo siempre y
+      // descartarlo -como se hacia- gasta un correlativo por cada transmittal
+      // escrito a mano: es el mismo hueco que esta incidencia venia a cerrar,
+      // por la otra puerta.
       const numeroManual = transmittalNumber?.trim()
-      const newCode = numeroManual ? `21286-000-TT-${numeroManual}` : codigoGenerado
+
+      const newCode = numeroManual
+        ? `21286-000-TT-${numeroManual}`
+        : await generateTransmittalCounter(currentPetition)
 
       let tableElement = document.createElement('table')
       let numberOfDocuments = selected.size

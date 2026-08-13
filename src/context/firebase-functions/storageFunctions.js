@@ -1,5 +1,5 @@
 // ** Firebase Imports
-import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import { arrayUnion, doc, getDoc, updateDoc } from 'firebase/firestore'
 import { getDownloadURL, getStorage, ref, uploadBytes, uploadString } from 'firebase/storage'
 import { db } from 'src/configs/firebase'
 
@@ -78,7 +78,13 @@ const uploadFilesToFirebaseStorage = async (files, idSolicitud, destination = 's
           // array completo: subir una foto nueva borraba las anteriores de la
           // solicitud (los archivos quedaban en Storage, pero desaparecian del
           // documento y por tanto de la vista).
-          arrayActual = [...arrayActual, ...arrayURL]
+          //
+          // La escritura va con arrayUnion (mas abajo) y no con el array que se
+          // arma aqui: leer, concatenar y escribir el array entero pierde lo que
+          // otro haya subido en el intervalo -dos personas fotografiando la
+          // misma solicitud y la ultima en guardar borra las fotos de la otra-.
+          // arrayUnion lo resuelve en el servidor y de paso no repite una URL.
+          arrayActual = [...new Set([...arrayActual, ...arrayURL])]
         } else {
           // blueprints y hlcDocuments se dejan reemplazando a proposito: aqui el
           // array representa los archivos de la revision vigente del entregable,
@@ -88,15 +94,19 @@ const uploadFilesToFirebaseStorage = async (files, idSolicitud, destination = 's
         }
       }
 
-      // Escribe el array modificado de vuelta en el documento
-      if (destination === 'blueprints') {
-        await updateDoc(solicitudRef, { storageBlueprints: arrayActual })
-      } else if (destination === 'hlcDocuments') {
-        await updateDoc(solicitudRef, { storageHlcDocuments: arrayActual })
-      } else if (destination === 'solicitudes') {
-        await updateDoc(solicitudRef, { fotos: arrayActual })
+      // Escribe el array modificado de vuelta en el documento. Sin archivos
+      // nuevos no se escribe nada: antes se reescribia el mismo array que se
+      // acababa de leer, y arrayUnion() sin argumentos no es una escritura
+      // valida.
+      if (arrayURL.length > 0) {
+        if (destination === 'blueprints') {
+          await updateDoc(solicitudRef, { storageBlueprints: arrayActual })
+        } else if (destination === 'hlcDocuments') {
+          await updateDoc(solicitudRef, { storageHlcDocuments: arrayActual })
+        } else if (destination === 'solicitudes') {
+          await updateDoc(solicitudRef, { fotos: arrayUnion(...arrayURL) })
+        }
       }
-      console.log('URL de la foto actualizada exitosamente')
 
       return arrayActual
     } else {
