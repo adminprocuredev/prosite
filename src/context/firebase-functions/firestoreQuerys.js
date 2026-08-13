@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   Timestamp,
   collection,
+  collectionGroup,
   doc,
   documentId,
   getCountFromServer,
@@ -16,7 +17,7 @@ import {
   where
 } from 'firebase/firestore'
 import { db } from 'src/configs/firebase'
-import { crearCacheDeNombres } from './nombreCache'
+import { crearLectorDeNombres } from './nombreCache'
 
 import { unixToDate } from 'src/@core/components/unixToDate'
 
@@ -127,28 +128,42 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
         }
       }
 
+      // Los autores se resuelven en tandas dentro de una sola consulta, no con
+      // un getDoc por usuario. El lector vive FUERA del onSnapshot: así lo ya
+      // leído se conserva entre snapshots y una actualización cualquiera no
+      // vuelve a pedir los mismos nombres. El precio es que un cambio de nombre
+      // se ve al recargar la página, no al instante.
+      const nombresDe = crearLectorDeNombres(async uids => {
+        const snapshot = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', uids)))
+
+        return new Map(snapshot.docs.map(d => [d.id, d.data().name]))
+      })
+
+      // Firestore no espera a que termine un snapshot para entregar el
+      // siguiente, y aquí se espera a leer los nombres antes de pintar: sin
+      // este número de orden, un snapshot lento podía resolver DESPUÉS de uno
+      // más nuevo y devolver la tabla a un estado viejo —con solicitudes ya
+      // borradas, o estados anteriores— hasta que llegara otro cambio.
+      let ultimoSnapshot = 0
+
       const unsubscribe = onSnapshot(q, async querySnapshot => {
+        const miTurno = ++ultimoSnapshot
+
         try {
-          const allDocs = []
+          const nombres = await nombresDe(querySnapshot.docs.map(d => d.data().uid))
 
-          // Antes se leía users/{uid} una vez por FILA. Muchas solicitudes comparten
-          // usuario, así que la cache se crea por snapshot: se deduplica entre filas y
-          // cada snapshot vuelve a leer, o sea los nombres siguen igual de frescos.
-          const nombreDe = crearCacheDeNombres(uid => getDoc(doc(db, 'users', uid)))
-
-          const promises = querySnapshot.docs.map(async d => {
+          const allDocs = querySnapshot.docs.map(d => {
             const docData = d.data()
-            const name = await nombreDe(docData.uid)
-            const newDoc = { ...docData, id: d.id, name }
-            allDocs.push(newDoc)
-          })
 
-          await Promise.all(promises)
+            return { ...docData, id: d.id, name: nombres.get(docData.uid) }
+          })
 
           // Ordena manualmente las solicitudes por 'date' en orden descendente
           const sortedDocs = allDocs.sort((a, b) => b.date.seconds - a.date.seconds)
 
-          setData(sortedDocs)
+          if (miTurno === ultimoSnapshot) {
+            setData(sortedDocs)
+          }
         } catch (error) {
           console.error('Error al obtener los documentos de Firestore: ', error)
 
@@ -742,79 +757,88 @@ const fetchPetitionById = async id => {
   }
 }
 
+/**
+ * Consultas sobre los entregables de TODAS las solicitudes.
+ *
+ * Los entregables viven en subcolecciones (`solicitudes/{id}/blueprints`), y
+ * los tres casos de aquí recorrían las solicitudes una por una pidiendo la
+ * suya: con 486 solicitudes eran 487 viajes a us-central1 —486 de ellos
+ * disparados a la vez con un solo Promise.all— y 1567 documentos bajados
+ * enteros para mostrar un número. Es lo que dejaba la portada en "Cargando
+ * datos...".
+ *
+ * `collectionGroup` consulta las subcolecciones de una sola vez y
+ * `getCountFromServer` cuenta en el servidor sin traer un documento: Firestore
+ * cobra una lectura por cada mil contadas.
+ *
+ * Una consulta de grupo alcanza a CUALQUIER subcolección llamada `blueprints`,
+ * no solo a las que cuelgan de `solicitudes`. Hoy los 1567 entregables están
+ * bajo `/solicitudes/{id}/blueprints/` y no hay ninguno en otra parte —medido
+ * en BigQuery—, pero si algún día se crea otra colección con ese nombre, estos
+ * tres indicadores la contarían.
+ *
+ * OJO CON EL ORDEN DE DESPLIEGUE. Los índices de alcance COLLECTION_GROUP no
+ * se crean solos —Firestore solo genera automáticamente los de alcance
+ * COLLECTION—, así que las tres consultas de aquí responden
+ * `failed-precondition` hasta que se despliegan los `fieldOverrides` de
+ * firestore.indexes.json:
+ *
+ *     firebase deploy --only firestore:indexes --project procureterrenoweb
+ *
+ * Van ANTES que el sitio. No hay camino de respaldo a propósito: el recorrido
+ * viejo se limitaba a solicitudes con `state >= 8` mientras que el grupo mira
+ * todos los entregables, así que convivir con los dos hacía que el número
+ * cambiara solo por desplegar un índice, sin que cambiaran los datos.
+ */
 const consultBluePrints = async (type, options = {}) => {
-  const coll = collection(db, 'blueprints')
+  const entregables = collectionGroup(db, 'blueprints')
   let queryFunc
 
   switch (type) {
     case 'finished':
       queryFunc = async () => {
-        const solicitudesRef = collection(db, 'solicitudes')
-        const solicitudesQuery = query(solicitudesRef, where('state', '>=', 8))
+        // Antes se sumaba `counterBlueprintCompleted` de cada solicitud, un
+        // campo que no escribe nadie —ni el sitio ni las Cloud Functions—: el
+        // `|| 0` lo volvía cero y la portada mostraba "0 Entregables
+        // Finalizados" como si fuera un dato. Son 12.
+        const snapshot = await getCountFromServer(query(entregables, where('blueprintCompleted', '==', true)))
 
-        const solicitudesSnapshot = await getDocs(solicitudesQuery)
-
-        const totalBlueprintsCompleted = solicitudesSnapshot.docs.reduce((acc, doc) => {
-          const data = doc.data()
-
-          return acc + (data.counterBlueprintCompleted || 0) // Sumamos solo si existe
-        }, 0)
-
-        return totalBlueprintsCompleted
+        return snapshot.data().count
       }
       break
+
     case 'last30daysRevisions':
-      const thirtyDaysAgo = Timestamp.fromDate(moment().subtract(30, 'days').toDate())
-      const solicitudesRef = collection(db, 'solicitudes')
+      queryFunc = async () => {
+        const thirtyDaysAgo = Timestamp.fromDate(moment().subtract(30, 'days').toDate())
 
-      const solicitudesQuery = query(solicitudesRef, where('state', '>=', 8), where('date', '>=', thirtyDaysAgo))
+        // Aquí sí hacen falta los documentos: la portada los agrupa por
+        // revisión y por turno. El turno sale de la fecha del propio
+        // entregable —determineShift(doc.date)—, no de la solicitud, así que
+        // el filtro va sobre el entregable. El recorrido viejo filtraba por la
+        // fecha de la SOLICITUD, que es otra cosa: una solicitud de hace dos
+        // meses con una revisión de ayer no entraba.
+        const snapshot = await getDocs(query(entregables, where('date', '>=', thirtyDaysAgo)))
 
-      const solicitudesSnapshot = await getDocs(solicitudesQuery)
-
-      // array de Promises para obtener los blueprints de cada solicitud simultáneamente
-      const blueprintsPromises = solicitudesSnapshot.docs.map(async solicitudDoc => {
-        const blueprintsRef = collection(db, `solicitudes/${solicitudDoc.id}/blueprints`)
-        const blueprintsSnapshot = await getDocs(blueprintsRef)
-
-        return blueprintsSnapshot.docs.map(blueprintDoc => blueprintDoc.data())
-      })
-
-      // Se espera a que todas las promesas se resuelvan y "aplanamos" el resultado
-      const blueprintsData = (await Promise.all(blueprintsPromises)).flat()
-
-      return blueprintsData
-
+        return snapshot.docs.map(doc => doc.data())
+      }
       break
 
-    // Case para contar los blueprints existentes, excluyendo los que tienen "deleted: true"
     case 'existingBlueprints':
       queryFunc = async () => {
-        const solicitudesRef = collection(db, 'solicitudes')
-        const solicitudesQuery = query(solicitudesRef, where('state', '>=', 8))
+        // Los borrados se restan en vez de excluirse con
+        // where('deleted','!=',true): en Firestore un `!=` deja fuera a los
+        // documentos que NO tienen el campo, y 1554 de los 1567 entregables no
+        // lo tienen. Esa consulta habría devuelto 13 —los borrados— en lugar
+        // de 1554.
+        const [total, borrados] = await Promise.all([
+          getCountFromServer(entregables),
+          getCountFromServer(query(entregables, where('deleted', '==', true)))
+        ])
 
-        const solicitudesSnapshot = await getDocs(solicitudesQuery)
-
-        // Promesas para obtener y contar los blueprints, excluyendo los que están eliminados (deleted: true)
-        const blueprintCountPromises = solicitudesSnapshot.docs.map(async solicitudDoc => {
-          const blueprintsRef = collection(db, `solicitudes/${solicitudDoc.id}/blueprints`)
-
-          // Consultamos los documentos de la subcolección "blueprints"
-          const blueprintsSnapshot = await getDocs(blueprintsRef)
-
-          // Filtramos y contamos solo los que no tienen "deleted: true"
-          const validBlueprints = blueprintsSnapshot.docs.filter(blueprintDoc => {
-            const data = blueprintDoc.data()
-
-            return !data.deleted // Excluimos los que tienen "deleted" como true
-          })
-
-          return validBlueprints.length // Retornamos la cantidad de blueprints válidos
-        })
-
-        // Sumamos todos los conteos de blueprints
-        const totalBlueprintCount = (await Promise.all(blueprintCountPromises)).reduce((acc, count) => acc + count, 0)
-
-        return totalBlueprintCount
+        // Son dos agregaciones independientes, sin instante común: si alguien
+        // borra un entregable entre una y otra, la resta puede quedar corta o
+        // incluso negativa. Un contador a la vista nunca muestra -1.
+        return Math.max(0, total.data().count - borrados.data().count)
       }
       break
 
