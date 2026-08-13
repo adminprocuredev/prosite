@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 
 // ** Firebase Imports
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth'
@@ -94,6 +94,7 @@ const FirebaseContextProvider = props => {
     }
   })
   const [loading, setLoading] = useState(true)
+
   const [isCreatingProfile, setIsCreatingProfile] = useState(false)
   const [domainDictionary, setDomainDictionary] = useState({})
   const [domainRoles, setDomainRoles] = useState({})
@@ -101,31 +102,94 @@ const FirebaseContextProvider = props => {
   // ** Variables
   const auth = getAuth(app)
 
+  // Quién está publicado ahora mismo. Se lee dentro del callback, donde el
+  // `authUser` del closure sería el de cuando se montó el efecto.
+  const uidPublicado = useRef(null)
+
   // Este useEffect manejará los datos del usuario conectado
   useEffect(() => {
 
+    // Firebase no espera a que termine un callback para entregar el siguiente,
+    // y aquí hay tres lecturas antes de publicar nada: sin este número de
+    // orden, una carga lenta de A podía terminar DESPUÉS de un logout o del
+    // login de B y devolver a A al contexto.
+    // Firebase no espera a que termine un callback para entregar el siguiente,
+    // y aquí hay tres lecturas antes de publicar nada: sin este número de
+    // orden, una carga lenta de A podía terminar DESPUÉS de un logout o del
+    // login de B y devolver a A al contexto.
+    let turno = 0
+
     const unsubscribe = onAuthStateChanged(auth, async authState => {
-      if (!authState) {
-        setAuthUser(null)
-        setLoading(false)
-      } else {
-        setLoading(true)
+      const miTurno = ++turno
+
+      try {
+        if (!authState) {
+          uidPublicado.current = null
+          setAuthUser(null)
+
+          // Al cerrar sesión también se borra la copia de `localStorage`, que
+          // este mismo efecto escribe al publicar: si no, el navegador se queda
+          // con los datos completos de quien acaba de salir —y en un equipo
+          // compartido eso es de otra persona—.
+          try {
+            localStorage.removeItem('user')
+          } catch (errorGuardado) {
+            console.warn('No se pudo limpiar el usuario guardado:', errorGuardado)
+          }
+
+          return
+        }
+
+        // El spinner tapa la pantalla solo cuando cambia QUIÉN está conectado.
+        // Encenderlo en cada evento era lo que producía el "app → cargando →
+        // app" al entrar: el login te dejaba dentro y este callback volvía a
+        // taparlo todo mientras revalidaba al MISMO usuario. No taparlo nunca
+        // sería peor: en un cambio de cuenta se vería a la persona anterior
+        // mientras se cargan los datos de la nueva.
+        if (uidPublicado.current !== authState.uid) {
+          uidPublicado.current = null
+          setAuthUser(null)
+          setLoading(true)
+        }
+
         const databaseUserData = await formatAuthUser(authState)
-        setAuthUser(databaseUserData)
-        localStorage.setItem('user', JSON.stringify(databaseUserData))
-
         const dictionary = await getDomainData('dictionary')
-        setDomainDictionary(dictionary)
-
         const roles = await getDomainData('roles')
+
+        // Llegó otro evento de sesión mientras se cargaba: manda el nuevo.
+        if (miTurno !== turno) return
+
+        uidPublicado.current = authState.uid
+        setAuthUser(databaseUserData)
+        setDomainDictionary(dictionary)
         setDomainRoles(roles)
 
-        setLoading(false)
-
+        try {
+          localStorage.setItem('user', JSON.stringify(databaseUserData))
+        } catch (errorGuardado) {
+          console.warn('No se pudo guardar el usuario en localStorage:', errorGuardado)
+        }
+      } catch (error) {
+        // Sin este catch, una lectura que falle se come el setLoading(false) de
+        // abajo y los guards se quedan con el spinner para siempre, sin login,
+        // sin error y sin nada que mirar. Ahora se apaga y quien no tenga
+        // usuario publicado cae en el login, que sí es una salida.
+        console.error('Error al cargar los datos del usuario conectado:', error)
+      } finally {
+        // El spinner se apaga —salvo que esta ejecución ya esté pisada por una
+        // más nueva, que apagará el suyo.
+        if (miTurno === turno) {
+          setLoading(false)
+        }
       }
     })
 
-    return () => unsubscribe()
+    return () => {
+      // Invalida cualquier carga en vuelo: al desmontar, sus setState ya no
+      // corresponden a este provider.
+      turno++
+      unsubscribe()
+    }
   }, [])
 
   const value = {
