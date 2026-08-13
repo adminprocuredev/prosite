@@ -147,30 +147,66 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
       // borradas, o estados anteriores— hasta que llegara otro cambio.
       let ultimoSnapshot = 0
 
-      const unsubscribe = onSnapshot(q, async querySnapshot => {
-        const miTurno = ++ultimoSnapshot
+      const unsubscribe = onSnapshot(
+        q,
+        async querySnapshot => {
+          const miTurno = ++ultimoSnapshot
+          const comienzo = Date.now()
 
-        try {
-          const nombres = await nombresDe(querySnapshot.docs.map(d => d.data().uid))
+          try {
+            const llegoElSnapshot = Date.now()
+            const nombres = await nombresDe(querySnapshot.docs.map(d => d.data().uid))
+            const nombresListos = Date.now()
 
-          const allDocs = querySnapshot.docs.map(d => {
-            const docData = d.data()
+            const allDocs = querySnapshot.docs.map(d => {
+              const docData = d.data()
 
-            return { ...docData, id: d.id, name: nombres.get(docData.uid) }
-          })
+              return { ...docData, id: d.id, name: nombres.get(docData.uid) }
+            })
 
-          // Ordena manualmente las solicitudes por 'date' en orden descendente
-          const sortedDocs = allDocs.sort((a, b) => b.date.seconds - a.date.seconds)
+            // Ordena manualmente las solicitudes por 'date' en orden descendente.
+            //
+            // `segundosDe` existe porque esto era `b.date.seconds - a.date.seconds`:
+            // UNA sola solicitud sin `date` -o con date null, o migrada a otro
+            // tipo- lanzaba TypeError, reventaba el callback entero y la tabla no
+            // se pintaba NINGUNA fila. Sin fila, sin error visible y sin forma de
+            // saber por qué. Las que no tienen fecha se van al final.
+            const segundosDe = solicitud =>
+              typeof solicitud?.date?.seconds === 'number'
+                ? solicitud.date.seconds
+                : typeof solicitud?.date?.toDate === 'function'
+                ? Math.floor(solicitud.date.toDate().getTime() / 1000)
+                : -Infinity
 
-          if (miTurno === ultimoSnapshot) {
-            setData(sortedDocs)
+            const sortedDocs = allDocs.sort((a, b) => segundosDe(b) - segundosDe(a))
+
+            if (miTurno === ultimoSnapshot) {
+              setData(sortedDocs)
+            }
+
+            // De dónde salen los segundos que tarda la tabla. Sin esto solo se
+            // puede especular: Firestore, los nombres de usuario y el pintado
+            // son tres tiempos distintos y hay que saber cuál manda.
+            console.info(
+              `[solicitudes] ${querySnapshot.size} filas · ` +
+                `${querySnapshot.metadata.fromCache ? 'desde caché' : 'del servidor'} · ` +
+                `nombres ${nombresListos - llegoElSnapshot} ms · ` +
+                `armado ${Date.now() - nombresListos} ms · ` +
+                `total ${Date.now() - comienzo} ms`
+            )
+          } catch (error) {
+            console.error('Error al obtener los documentos de Firestore: ', error)
           }
-        } catch (error) {
-          console.error('Error al obtener los documentos de Firestore: ', error)
+        },
 
-          // Aquí puedes mostrar un mensaje de error
+        // Sin este callback, un índice que falte o un rechazo de las reglas
+        // dejaba la tabla vacía y muda: Firestore avisa por aquí, no por el
+        // try/catch de arriba.
+        error => {
+          console.error('Firestore rechazó la consulta de solicitudes:', error.code, error.message)
+          setData([])
         }
-      })
+      )
 
       // Devuelve una función de limpieza que se ejecuta al desmontar el componente
       return () => unsubscribe()
