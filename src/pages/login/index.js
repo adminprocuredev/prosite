@@ -5,7 +5,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 
 // ** MUI Components
-import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
@@ -105,7 +104,7 @@ const LoginPage = () => {
   const { settings } = useSettings()
 
   // ** Vars
-  const { signInWithEmailAndPassword, signGoogle, errorArranque } = useFirebase()
+  const { signInWithEmailAndPassword, signGoogle } = useFirebase()
   const { control, handleSubmit, formState: { errors } } = useForm({ mode: 'onBlur', resolver: yupResolver(schema) })
 
   // Función onSubmit.
@@ -170,14 +169,6 @@ const LoginPage = () => {
               <TypographyStyled variant='h7'sx={{ m: 2 }}>
                 {`¡Bienvenid@ a ${themeConfig.templateName}!`}
               </TypographyStyled>
-
-              {/* Si el arranque falló, se dice aquí. Antes ese caso dejaba la
-                  pantalla en el spinner, sin login ni explicación. */}
-              {errorArranque && (
-                <Alert severity='warning' sx={{ mt: 2, width: '100%' }}>
-                  {errorArranque}
-                </Alert>
-              )}
 
             </Box>
 
