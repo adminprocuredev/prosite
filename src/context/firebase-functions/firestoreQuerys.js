@@ -10,6 +10,7 @@ import {
   getCountFromServer,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   or,
   orderBy,
@@ -129,6 +130,55 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
         }
       }
 
+      // CARGA EN DOS TIEMPOS
+      //
+      // Este hook alimenta CINCO pantallas -Solicitudes, Calendario, Gabinete,
+      // Levantamientos y Editar usuarios- y todas esperan a que lleguen las
+      // 1.844 solicitudes completas: unos 3,5 MB desde `nam5`, en Estados
+      // Unidos, con la gente en faena.
+      //
+      // Primero se pide una foto de las más recientes, que es lo que se ve al
+      // abrir: la pantalla queda usable de inmediato. El listener completo de
+      // siempre sigue detrás y la reemplaza en cuanto llega, así que el
+      // resultado final es exactamente el mismo de antes —mismos filtros,
+      // mismo orden, mismo total, mismo tiempo real—.
+      //
+      // OJO CON EL ALCANCE: esto NO cubre las cinco pantallas. Solo las
+      // consultas sin desigualdad, o sea la tabla de solicitudes y la de
+      // levantamientos para los roles 1, 4, 5 y 6 —que son los que traen la
+      // colección entera y más esperan—. El calendario y el gabinete filtran
+      // por `state` y quedan igual que antes; el porqué está abajo.
+      //
+      // La foto SOLO se hace cuando la consulta no tiene desigualdad. Firestore
+      // exige que el primer orderBy sea el campo de la desigualdad, así que con
+      // `state >= N` habría que ordenar por `state` antes que por `date`, y el
+      // límite se aplica DESPUÉS del orden compuesto: las 200 primeras serían
+      // las de menor `state`, no las más recientes. En el calendario eso podría
+      // mostrar cero eventos del mes actual. Una foto que miente es peor que no
+      // tener foto.
+      //
+      // Con eso quedan cubiertos los roles 1, 4, 5 y 6, que son justamente los
+      // que traen la colección entera y más esperan hoy. Las consultas con
+      // `state >= N` -el calendario entre ellas- necesitan otra solución:
+      // acotar por el rango de fechas que se está mirando, que además es lo
+      // natural ahí. Va aparte.
+      //
+      // DOS LÍMITES CONOCIDOS de la foto, los dos sin consecuencia porque es un
+      // adelanto y el listener completo la reemplaza:
+      //
+      // - `orderBy('date')` deja fuera las solicitudes sin ese campo, y con
+      //   fechas de tipos mezclados -un string donde debería haber Timestamp-
+      //   el orden de Firestore no coincide con el que aplica `segundosDe`
+      //   después, así que la foto puede traer una fila rara y dejar afuera una
+      //   reciente. El listener completo no ordena en la consulta y sí las trae.
+      // - Si el armado del completo falla, la pantalla se queda con las 200 de
+      //   la foto y el error solo va a la consola. Son datos parciales, no
+      //   incorrectos, y se corrigen al siguiente cambio o al recargar.
+      const TAMANO_DE_LA_FOTO = 200
+      const sinDesigualdad = datagrid && [1, 4, 5, 6].includes(userParam.role)
+
+      const consultaRapida = sinDesigualdad ? query(q, orderBy('date', 'desc'), limit(TAMANO_DE_LA_FOTO)) : null
+
       // Los autores se resuelven en tandas dentro de una sola consulta, no con
       // un getDoc por usuario. El lector vive FUERA del onSnapshot: así lo ya
       // leído se conserva entre snapshots y una actualización cualquiera no
@@ -140,12 +190,64 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
         return new Map(snapshot.docs.map(d => [d.id, d.data().name]))
       })
 
+      // Ordena por 'date' descendente.
+      //
+      // `segundosDe` existe porque esto era `b.date.seconds - a.date.seconds`:
+      // UNA sola solicitud sin `date` -o con date null, o migrada a otro tipo-
+      // lanzaba TypeError, reventaba el callback entero y la tabla no pintaba
+      // NINGUNA fila. Sin filas, sin error visible y sin forma de saber por
+      // qué. Las que no tienen fecha se van al final.
+      const segundosDe = solicitud =>
+        typeof solicitud?.date?.seconds === 'number'
+          ? solicitud.date.seconds
+          : typeof solicitud?.date?.toDate === 'function'
+          ? Math.floor(solicitud.date.toDate().getTime() / 1000)
+          : -Infinity
+
+      const armarFilas = async docs => {
+        const nombres = await nombresDe(docs.map(d => d.data().uid))
+
+        return docs
+          .map(d => {
+            const docData = d.data()
+
+            return { ...docData, id: d.id, name: nombres.get(docData.uid) }
+          })
+          .sort((a, b) => segundosDe(b) - segundosDe(a))
+      }
+
       // Firestore no espera a que termine un snapshot para entregar el
       // siguiente, y aquí se espera a leer los nombres antes de pintar: sin
       // este número de orden, un snapshot lento podía resolver DESPUÉS de uno
       // más nuevo y devolver la tabla a un estado viejo —con solicitudes ya
       // borradas, o estados anteriores— hasta que llegara otro cambio.
       let ultimoSnapshot = 0
+      let completoPintado = false
+      let descartada = false
+
+      // La foto de las más recientes. Se pinta solo si el completo todavía no
+      // se pintó: en cuanto llega manda él, que trae todo y en vivo.
+      //
+      // La bandera dice "el completo YA SE PINTÓ", no "el callback empezó": si
+      // se marcara al entrar y luego fallara el armado, se descartaría una foto
+      // válida y la pantalla quedaría sin datos teniendo un adelanto utilizable.
+      if (consultaRapida) {
+        const comienzoFoto = Date.now()
+        getDocs(consultaRapida)
+          .then(async foto => {
+            if (completoPintado || descartada) return
+            const filas = await armarFilas(foto.docs)
+            if (completoPintado || descartada) return
+            setData(filas)
+            console.info(`[solicitudes] foto de ${foto.size} filas en ${Date.now() - comienzoFoto} ms`)
+          })
+          .catch(error => {
+            // La foto es un adelanto: si falla -por ejemplo, porque falta su
+            // índice-, se registra y se sigue esperando al listener completo,
+            // que es el que de verdad alimenta la pantalla.
+            console.warn('No se pudo traer la foto rápida de solicitudes:', error.code, error.message)
+          })
+      }
 
       const unsubscribe = onSnapshot(
         q,
@@ -154,33 +256,16 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
           const comienzo = Date.now()
 
           try {
-            const llegoElSnapshot = Date.now()
-            const nombres = await nombresDe(querySnapshot.docs.map(d => d.data().uid))
-            const nombresListos = Date.now()
+            const sortedDocs = await armarFilas(querySnapshot.docs)
 
-            const allDocs = querySnapshot.docs.map(d => {
-              const docData = d.data()
-
-              return { ...docData, id: d.id, name: nombres.get(docData.uid) }
-            })
-
-            // Ordena manualmente las solicitudes por 'date' en orden descendente.
-            //
-            // `segundosDe` existe porque esto era `b.date.seconds - a.date.seconds`:
-            // UNA sola solicitud sin `date` -o con date null, o migrada a otro
-            // tipo- lanzaba TypeError, reventaba el callback entero y la tabla no
-            // se pintaba NINGUNA fila. Sin fila, sin error visible y sin forma de
-            // saber por qué. Las que no tienen fecha se van al final.
-            const segundosDe = solicitud =>
-              typeof solicitud?.date?.seconds === 'number'
-                ? solicitud.date.seconds
-                : typeof solicitud?.date?.toDate === 'function'
-                ? Math.floor(solicitud.date.toDate().getTime() / 1000)
-                : -Infinity
-
-            const sortedDocs = allDocs.sort((a, b) => segundosDe(b) - segundosDe(a))
-
-            if (miTurno === ultimoSnapshot) {
+            if (miTurno === ultimoSnapshot && !descartada) {
+              // Solo un snapshot CONFIRMADO POR EL SERVIDOR cancela la foto.
+              // Firestore emite primero lo que tenga en caché -a veces vacío-, y
+              // marcar ahí habría descartado la foto para volver a esperar los
+              // 1.844 documentos: justo lo que esto viene a evitar.
+              if (!querySnapshot.metadata.fromCache) {
+                completoPintado = true
+              }
               setData(sortedDocs)
             }
 
@@ -188,11 +273,9 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
             // puede especular: Firestore, los nombres de usuario y el pintado
             // son tres tiempos distintos y hay que saber cuál manda.
             console.info(
-              `[solicitudes] ${querySnapshot.size} filas · ` +
+              `[solicitudes] completo: ${querySnapshot.size} filas · ` +
                 `${querySnapshot.metadata.fromCache ? 'desde caché' : 'del servidor'} · ` +
-                `nombres ${nombresListos - llegoElSnapshot} ms · ` +
-                `armado ${Date.now() - nombresListos} ms · ` +
-                `total ${Date.now() - comienzo} ms`
+                `${Date.now() - comienzo} ms`
             )
           } catch (error) {
             console.error('Error al obtener los documentos de Firestore: ', error)
@@ -209,7 +292,13 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
       )
 
       // Devuelve una función de limpieza que se ejecuta al desmontar el componente
-      return () => unsubscribe()
+      return () => {
+        // `descartada` invalida la foto en vuelo: si el efecto se rehace
+        // -cambia el usuario o el rol- y la foto anterior termina después,
+        // pintaría solicitudes que ya no corresponden a la consulta actual.
+        descartada = true
+        unsubscribe()
+      }
     }
   }, [userParam])
 
