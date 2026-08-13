@@ -74,6 +74,7 @@ import {
   subscribeToUserProfileChanges,
   useEvents,
   useSnapshot,
+  useSolicitudesEnRango,
   fetchDisciplineProperties,
   fetchDeliverablesByDiscipline,
   getPlantInitals,
@@ -109,10 +110,6 @@ const FirebaseContextProvider = props => {
   // Este useEffect manejará los datos del usuario conectado
   useEffect(() => {
 
-    // Firebase no espera a que termine un callback para entregar el siguiente,
-    // y aquí hay tres lecturas antes de publicar nada: sin este número de
-    // orden, una carga lenta de A podía terminar DESPUÉS de un logout o del
-    // login de B y devolver a A al contexto.
     // Firebase no espera a que termine un callback para entregar el siguiente,
     // y aquí hay tres lecturas antes de publicar nada: sin este número de
     // orden, una carga lenta de A podía terminar DESPUÉS de un logout o del
@@ -211,7 +208,8 @@ const FirebaseContextProvider = props => {
     updateDocs,
     updateUserPhone,
     useSnapshot,
-      getDomainData,
+    useSolicitudesEnRango,
+    getDomainData,
     getData,
     getUserData,
     getAllUsersData,
