@@ -23,7 +23,7 @@ const DataGridLevantamientos = () => {
   const [roleData, setRoleData] = useState({ name: 'admin' })
 
   const { useSnapshot, authUser, getDomainData } = useFirebase()
-  const data = useSnapshot(true, authUser)
+  const { filas: data, cargando } = useSnapshot(true, authUser)
 
   useEffect(() => {
     const role = async () => {
@@ -92,7 +92,7 @@ const DataGridLevantamientos = () => {
         {tabContent.map((element, index) => (
           <Grid item xs={12} key={index}>
             <TabPanel key={index} value={`${index + 1}`}>
-              <TableLevantamiento rows={element.data} roleData={roleData} role={authUser.role} />
+              <TableLevantamiento rows={element.data} roleData={roleData} role={authUser.role} cargando={cargando} />
             </TabPanel>
           </Grid>
         ))}

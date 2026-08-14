@@ -17,7 +17,7 @@ const DataGrid = () => {
   const [values, setValues] = useState({})
   const [roleData, setRoleData] = useState({ name: 'admin' })
   const { useSnapshot, authUser, getDomainData } = useFirebase()
-  const data = useSnapshot(true, authUser)
+  const { filas: data, cargando } = useSnapshot(true, authUser)
 
 
   const theme = useTheme()
@@ -39,7 +39,7 @@ const DataGrid = () => {
   return (
     <Box sx={{ width: '100%', typography: 'body1' }}>
       <Grid item xs={12}>
-        <TableEditUsers rows={usersData} roleData={authUser.role} role={authUser.role} />
+        <TableEditUsers rows={usersData} roleData={authUser.role} role={authUser.role} cargando={cargando} />
       </Grid>
     </Box>
   )

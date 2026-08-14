@@ -8,8 +8,9 @@ import EditIcon from '@mui/icons-material/Edit'
 import { Box, Card } from '@mui/material'
 import IconButton from '@mui/material/IconButton'
 import { EditUserDialog } from 'src/@core/components/dialog-editUser'
+import LinearProgress from '@mui/material/LinearProgress'
 
-const TableEditUsers = ({ rows, role, roleData }) => {
+const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
 
   // Definición de Estados.
   const [editingUser, setEditingUser] = useState({})
@@ -293,6 +294,8 @@ const TableEditUsers = ({ rows, role, roleData }) => {
               sortModel: [{ field: 'company', sort: 'desc' }]
             }
           }}
+          loading={cargando}
+          slots={{ loadingOverlay: LinearProgress }}
           rows={rows}
           columns={columns}
           localeText={esES.components.MuiDataGrid.defaultProps.localeText}

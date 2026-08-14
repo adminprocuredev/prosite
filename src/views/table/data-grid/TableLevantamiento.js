@@ -31,8 +31,9 @@ import EngineeringIcon from '@mui/icons-material/Engineering'
 //import moment from 'moment'
 import moment from 'moment-timezone'
 import 'moment/locale/es'
+import LinearProgress from '@mui/material/LinearProgress'
 
-const TableLevantamiento = ({ rows, role, roleData }) => {
+const TableLevantamiento = ({ rows, role, roleData, cargando = false }) => {
   const [open, setOpen] = useState(false)
   const [openEvents, setOpenEvents] = useState(false)
   const [openDone, setOpenDone] = useState(false)
@@ -490,6 +491,8 @@ const TableLevantamiento = ({ rows, role, roleData }) => {
       <Box sx={{ height: 500 }}>
         <DataGridPremium
           hideFooterSelectedRowCount
+          loading={cargando}
+          slots={{ loadingOverlay: LinearProgress }}
           rows={rows}
           columns={columns}
           columnVisibilityModel={{
