@@ -21,6 +21,7 @@ import { db } from 'src/configs/firebase'
 import { crearLectorDeNombres } from './nombreCache'
 import { buscaPorNombre, faltaDatoPara } from './requisitosDeUsuarios'
 import { agruparActividadReciente, ventanaActividadReciente } from './actividadReciente'
+import { desdeCuando, laVentanaAplicaA } from './ventanaDeSolicitudes'
 
 import { unixToDate } from 'src/@core/components/unixToDate'
 
@@ -165,7 +166,7 @@ const useSolicitudesEnRango = (userParam, desde, hasta) => {
 // segundos, que es una respuesta —equivocada— a la pregunta del usuario, no un
 // aviso de que está trabajando. Medido en producción: el cartel aparecía al
 // segundo y la primera fila llegaba a los siete.
-const useSnapshot = (datagrid = false, userParam, control = false) => {
+const useSnapshot = (datagrid = false, userParam, control = false, mesesDeVentana = null) => {
   const [data, setData] = useState([])
   const [cargando, setCargando] = useState(true)
 
@@ -229,6 +230,19 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
             q = query(collection(db, 'solicitudes'), where('state', '>=', 8))
             break
         }
+      }
+
+      // LA VENTANA DE FECHAS. El porqué —y por qué no es paginación— está en
+      // `ventanaDeSolicitudes.js`, junto con la lista de roles a los que se les
+      // puede aplicar sin pedir un índice compuesto.
+      //
+      // Va sobre `date`, que es el mismo campo por el que ordena la foto rápida
+      // de abajo: Firestore exige que el primer `orderBy` sea el de la
+      // desigualdad, y aquí coinciden, así que la foto sigue siendo válida.
+      const desde = datagrid && !control && laVentanaAplicaA(userParam.role) ? desdeCuando(mesesDeVentana) : null
+
+      if (desde) {
+        q = query(q, where('date', '>=', Timestamp.fromDate(desde)))
       }
 
       // CARGA EN DOS TIEMPOS
@@ -441,7 +455,14 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
       setData([])
       setCargando(false)
     }
-  }, [userParam])
+    // `mesesDeVentana` va en las dependencias: sin el, mover el selector no
+    // rehace la suscripcion y la tabla se queda con la ventana anterior.
+    //
+    // `datagrid` y `control` tambien, aunque hoy los cuatro llamadores los pasen
+    // como literales y no puedan cambiar: el cuerpo los lee para armar la
+    // consulta, y el dia que alguien los haga variables la tabla mostraria lo
+    // que pidio el render anterior sin una sola pista de por que.
+  }, [userParam, mesesDeVentana, datagrid, control])
 
   return { filas: data, cargando }
 }
