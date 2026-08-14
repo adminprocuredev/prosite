@@ -2,6 +2,7 @@
 import { useEffect } from 'react'
 
 import googleAuthConfig from '../../configs/googleDrive'
+import { LLAVE_DEL_STATE, crearState, stateCoincide } from './stateDeOauth'
 
 /**
  * Hook para interactuar con la Autenticación a Google Drive.
@@ -33,6 +34,17 @@ export const useGoogleAuth = () => {
     // Define la URL del endpoint de autenticación de Google OAuth 2.0
     const oauth2Endpoint = 'https://accounts.google.com/o/oauth2/v2/auth'
 
+    // El `state` es la defensa contra CSRF del flujo OAuth, y estaba comentado
+    // con un valor de ejemplo. Sin él, un tercero puede hacer que la víctima
+    // termine el flujo con un `code` AJENO: la sesión de Drive de Prosite queda
+    // apuntando a la cuenta del atacante y los entregables se suben ahí.
+    //
+    // Se guarda antes de salir y se comprueba al volver, en `getTokens`. Va en
+    // sessionStorage porque muere con la pestaña, que es justo lo que dura el
+    // viaje de ida y vuelta a Google.
+    const state = crearState()
+    sessionStorage.setItem(LLAVE_DEL_STATE, state)
+
     // Configura los parámetros necesarios para la autenticación
     const params = {
       redirect_uri: googleAuthConfig.REDIRECT_URI, // URI de redirección después de autenticarse
@@ -40,8 +52,7 @@ export const useGoogleAuth = () => {
       response_type: 'code', // Tipo de respuesta esperado (token de acceso)
       client_id: googleAuthConfig.CLIENT_ID, // ID del cliente de la aplicación
       scope: 'https://www.googleapis.com/auth/drive', // Alcances solicitados (acceso a Google Drive)
-      // state: 'try_sample_request', // Estado personalizado para el seguimiento
-      // include_granted_scopes: 'true', // Incluir permisos previamente otorgados
+      state,
       access_type: 'offline'
     }
 
@@ -72,19 +83,42 @@ export const useGoogleAuth = () => {
     const urlParams = new URLSearchParams(window.location.search)
     const code = urlParams.get('code')
 
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        code: code,
-        client_id: googleAuthConfig.CLIENT_ID,
-        client_secret: googleAuthConfig.CLIENT_SECRET,
-        redirect_uri: googleAuthConfig.REDIRECT_URI,
-        grant_type: 'authorization_code',
-      }),
-    })
+    // La otra mitad del `state`: se compara con el que guardamos antes de salir.
+    // Si no calza, ese `code` no lo pedimos nosotros y no se cambia por tokens.
+    const stateEsperado = sessionStorage.getItem(LLAVE_DEL_STATE)
+
+    if (!stateCoincide(stateEsperado, urlParams.get('state'))) {
+      // Aquí sí se borra de inmediato: es lo que impide reintentar con un
+      // `state` ajeno una y otra vez.
+      sessionStorage.removeItem(LLAVE_DEL_STATE)
+      console.error('El state de OAuth no coincide: se descarta el codigo de autorizacion.')
+      window.history.replaceState({}, document.title, window.location.pathname)
+
+      return
+    }
+
+    // Al servidor, no a Google: el `client_secret` no puede pasar por aquí.
+    // Ver `pages/api/google/token.js`.
+    let response
+    try {
+      response = await fetch('/api/google/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      })
+    } catch (error) {
+      // El `state` NO se toca: la petición no llegó a salir —sin red, una
+      // extensión de por medio— así que el `code` sigue sin usar y recargar
+      // reintenta. Borrarlo aquí obligaba a rehacer el flujo entero de Google
+      // por un problema que dura segundos.
+      console.error('No se pudo pedir el intercambio de tokens:', error)
+
+      return
+    }
+
+    // Llegó respuesta del servidor: el `code` se consumió pase lo que pase, así
+    // que el `state` ya no sirve para nada y no debe quedar dando vueltas.
+    sessionStorage.removeItem(LLAVE_DEL_STATE)
 
     const data = await response.json()
 
@@ -120,18 +154,12 @@ export const useGoogleAuth = () => {
     const refreshToken = storedParams.refresh_token
 
     // Configura los parámetros necesarios para refrescar el token de acceso
-    const params = new URLSearchParams()
-    params.append('client_id', googleAuthConfig.CLIENT_ID) // ID del cliente
-    params.append('client_secret', googleAuthConfig.CLIENT_SECRET) // Secreto del cliente
-    params.append('refresh_token', refreshToken) // Token de actualización
-    params.append('grant_type', 'refresh_token') // Tipo de concesión (token de actualización)
-
     try {
-      // Realiza una solicitud POST al endpoint para refrescar el token
-      const response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST', // Método POST
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, // Encabezados necesarios
-        body: params.toString() // Cuerpo con los parámetros en formato URL-encoded
+      // Al servidor, no a Google, por la misma razón que el intercambio inicial.
+      const response = await fetch('/api/google/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken })
       })
 
       // Si la respuesta al hacer la solicitud para refrescar el Token no es exitosa,
