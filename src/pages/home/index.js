@@ -12,6 +12,7 @@ import CardContent from '@mui/material/CardContent'
 import Icon from 'src/@core/components/icon'
 import Box from '@mui/material/Box'
 import Alert from '@mui/material/Alert'
+import Skeleton from '@mui/material/Skeleton'
 
 // ** Custom Component Import
 import ObjetivesByDay from 'src/views/dashboard/ObjetivesByDay'
@@ -275,7 +276,7 @@ const Home = () => {
                   </CustomAvatar>
                   <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                     <Typography variant='h6' sx={{ fontWeight: 600 }}>
-                      {allDocs}
+                      {loading ? <Skeleton variant='text' width={56} /> : allDocs}
                     </Typography>
                     <Typography variant='caption'>Solicitudes</Typography>
                   </Box>
@@ -288,7 +289,7 @@ const Home = () => {
                   </CustomAvatar>
                   <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                     <Typography variant='h6' sx={{ fontWeight: 600 }}>
-                      {allObjetives}
+                      {loading ? <Skeleton variant='text' width={56} /> : allObjetives}
                     </Typography>
                     <Typography variant='caption'>Levantamientos</Typography>
                   </Box>
@@ -301,7 +302,7 @@ const Home = () => {
                   </CustomAvatar>
                   <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                     <Typography variant='h6' sx={{ fontWeight: 600 }}>
-                      {allBlueprintsExisting}
+                      {loading ? <Skeleton variant='text' width={56} /> : allBlueprintsExisting}
                     </Typography>
                     <Typography variant='caption'> Entregables Existentes</Typography>
                   </Box>
@@ -314,7 +315,7 @@ const Home = () => {
                   </CustomAvatar>
                   <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                     <Typography variant='h6' sx={{ fontWeight: 600 }}>
-                      {allBlueprintsFinished}
+                      {loading ? <Skeleton variant='text' width={56} /> : allBlueprintsFinished}
                     </Typography>
                     <Typography variant='caption'> Entregables Finalizados</Typography>
                   </Box>
@@ -326,13 +327,14 @@ const Home = () => {
       </Grid>
 
       <Grid item xs={12} sm={6} md={6}>
-        <ObjetivesByDay objetivesOfActualWeek={objetivesOfActualWeek} />
+        <ObjetivesByDay objetivesOfActualWeek={objetivesOfActualWeek} loading={loading} />
       </Grid>
 
       <Grid item xs={12} sm={6} md={6}>
         <ObjetivesByMonth
           objetivesOfLastSixMonths={objetivesOfLastSixMonths}
           monthsOfLastSixMonths={monthsOfLastSixMonths}
+          loading={loading}
         />
       </Grid>
 
@@ -364,7 +366,7 @@ const Home = () => {
       </Grid>
 
       <Grid item xs={12} sm={6} md={6}>
-        <ChartBarsObjetivesByPlants objetivesByPlants={objetivesByPlants} />
+        <ChartBarsObjetivesByPlants objetivesByPlants={objetivesByPlants} loading={loading} />
       </Grid>
 
       <Grid item xs={12} sm={12} md={12}>
