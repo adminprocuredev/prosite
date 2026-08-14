@@ -9,13 +9,18 @@ import { useFirebase } from 'src/context/useFirebase'
 import TabContext from '@mui/lab/TabContext'
 import TabList from '@mui/lab/TabList'
 import TabPanel from '@mui/lab/TabPanel'
-import { Box, Grid, Tab, Tooltip } from '@mui/material'
+import { Box, Grid, MenuItem, Tab, TextField, Tooltip } from '@mui/material'
 
 // ** Custom Components Imports
 import filterByLabel from 'src/@core/components/custom-filters/customFilters'
 import FilterComponent from 'src/@core/components/filter-component'
 import generateFilterConfig from 'src/@core/components/filter-configs/filterConfigs'
 import TableBasic from 'src/views/table/data-grid/TableBasic'
+import {
+  MESES_POR_DEFECTO,
+  VENTANAS,
+  laVentanaAplicaA
+} from 'src/context/firebase-functions/ventanaDeSolicitudes'
 
 const DataGrid = () => {
   const [values, setValues] = useState({})
@@ -23,7 +28,11 @@ const DataGrid = () => {
   const [filterConfig, setFilterConfig] = useState({})
   const [roleData, setRoleData] = useState({ name: 'admin' })
   const { useSnapshot, authUser, getDomainData } = useFirebase()
-  const { filas: data, cargando } = useSnapshot(true, authUser)
+  // La tabla trae los ultimos 12 meses y no los cuatro anos completos. El
+  // porque esta en `ventanaDeSolicitudes.js`; aqui solo queda a la vista, para
+  // que quien necesite lo viejo lo pida y sepa que lo esta pidiendo.
+  const [meses, setMeses] = useState(MESES_POR_DEFECTO)
+  const { filas: data, cargando } = useSnapshot(true, authUser, false, meses)
 
   // Objeto de configuración de filtros
   useEffect(() => {
@@ -131,6 +140,25 @@ const DataGrid = () => {
         handleFilterChange={handleFilterChange}
         handleClearFilters={setValues} // Usar setValues para limpiar los filtros
       />
+      {laVentanaAplicaA(authUser?.role) && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+          <TextField
+            select
+            size='small'
+            label='Periodo'
+            value={meses === null ? 'todas' : meses}
+            onChange={evento => setMeses(evento.target.value === 'todas' ? null : Number(evento.target.value))}
+            sx={{ minWidth: 220 }}
+            helperText='Pestañas, filtros, buscador y export trabajan sobre este periodo'
+          >
+            {VENTANAS.map(ventana => (
+              <MenuItem key={ventana.etiqueta} value={ventana.meses === null ? 'todas' : ventana.meses}>
+                {ventana.etiqueta}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
+      )}
       <TabContext value={tabValue}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <TabList
