@@ -49,3 +49,4 @@ jobs:
           node src/context/firebase-functions/requisitosDeUsuarios.test.mjs
           node src/context/firebase-functions/actividadReciente.test.mjs
           node src/context/firebase-functions/ventanaDeSolicitudes.test.mjs
+          node src/context/google-drive-functions/stateDeOauth.test.mjs
