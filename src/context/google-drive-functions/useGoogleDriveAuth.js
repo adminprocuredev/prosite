@@ -83,13 +83,14 @@ export const useGoogleAuth = () => {
     const urlParams = new URLSearchParams(window.location.search)
     const code = urlParams.get('code')
 
-    // La otra mitad del `state`: se compara con el que guardamos antes de salir
-    // y se consume, para que no sirva dos veces. Si no calza, ese `code` no lo
-    // pedimos nosotros y no se cambia por tokens.
+    // La otra mitad del `state`: se compara con el que guardamos antes de salir.
+    // Si no calza, ese `code` no lo pedimos nosotros y no se cambia por tokens.
     const stateEsperado = sessionStorage.getItem(LLAVE_DEL_STATE)
-    sessionStorage.removeItem(LLAVE_DEL_STATE)
 
     if (!stateCoincide(stateEsperado, urlParams.get('state'))) {
+      // Aquí sí se borra de inmediato: es lo que impide reintentar con un
+      // `state` ajeno una y otra vez.
+      sessionStorage.removeItem(LLAVE_DEL_STATE)
       console.error('El state de OAuth no coincide: se descarta el codigo de autorizacion.')
       window.history.replaceState({}, document.title, window.location.pathname)
 
@@ -98,11 +99,26 @@ export const useGoogleAuth = () => {
 
     // Al servidor, no a Google: el `client_secret` no puede pasar por aquí.
     // Ver `pages/api/google/token.js`.
-    const response = await fetch('/api/google/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
-    })
+    let response
+    try {
+      response = await fetch('/api/google/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      })
+    } catch (error) {
+      // El `state` NO se toca: la petición no llegó a salir —sin red, una
+      // extensión de por medio— así que el `code` sigue sin usar y recargar
+      // reintenta. Borrarlo aquí obligaba a rehacer el flujo entero de Google
+      // por un problema que dura segundos.
+      console.error('No se pudo pedir el intercambio de tokens:', error)
+
+      return
+    }
+
+    // Llegó respuesta del servidor: el `code` se consumió pase lo que pase, así
+    // que el `state` ya no sirve para nada y no debe quedar dando vueltas.
+    sessionStorage.removeItem(LLAVE_DEL_STATE)
 
     const data = await response.json()
 

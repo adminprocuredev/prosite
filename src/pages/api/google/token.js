@@ -19,12 +19,21 @@
 // conviene renombrar la variable a `GOOGLE_CLIENT_SECRET`, sin el prefijo, para
 // que no pueda volver a colarse al navegador por descuido.
 //
-// ponytail: este endpoint no comprueba quién llama, igual que no lo comprobaba
-// el navegador. Con un `refresh_token` robado alguien puede pedir un
-// `access_token` aquí. Es estrictamente menos que hoy —hoy el secreto entero
-// está publicado y sirve para eso y para más— pero no es el final del camino:
-// el paso siguiente es exigir el ID token de Firebase del usuario y validarlo
-// aquí con el Admin SDK, lo que pide credenciales de servicio en Vercel.
+// ponytail: ESTE ENDPOINT NO COMPRUEBA QUIÉN LLAMA, igual que no lo comprobaba
+// el navegador, y hay que decirlo entero en vez de a medias. Un tercero puede
+// pedirle un `code` a Google con nuestro `client_id` —que es público—, mandarlo
+// aquí y recibir tokens, porque el servidor le pone el secreto que a él le
+// falta; lo mismo con cualquier `refresh_token` que consiga por otra vía. O sea
+// sacar el secreto del bundle impide leer su valor, NO impide usarlo de forma
+// indirecta a través de esta puerta.
+//
+// Aun así el cambio vale: hoy el secreto está publicado y sirve para eso y para
+// todo lo demás, incluso fuera de prosite.cl. Esto lo reduce a lo que pase por
+// aquí. Pero el camino no termina: el paso siguiente es exigir el ID token de
+// Firebase del usuario y validarlo en esta misma función, que para verificar
+// firmas NO necesita credenciales de servicio —le basta el projectId y las
+// llaves públicas de Google—. Queda anotado como el próximo movimiento, no como
+// un detalle.
 
 const PUNTO_DE_TOKEN = 'https://oauth2.googleapis.com/token'
 
@@ -32,16 +41,16 @@ const PUNTO_DE_TOKEN = 'https://oauth2.googleapis.com/token'
 // `configs/googleDrive.js`. Aquí no hay `window`, así que decide el `Host` de la
 // petición.
 //
-// ponytail: el `Host` lo manda el cliente, así que en teoría se puede pedir la
-// configuración de producción desde otro origen. Se mantiene igual a propósito:
-// el `client_id` y el `redirect_uri` que usa el navegador SÍ salen del hostname
-// (`configs/googleDrive.js`), y decidir aquí por otra vía —`VERCEL_ENV`, por
-// ejemplo— desalinea las dos mitades y rompe el intercambio en cualquier
-// despliegue de vista previa. Lo que se puede conseguir mintiendo en el `Host`
-// es que Google rechace el intercambio, porque el `code` está atado al
-// `client_id` y al `redirect_uri` con que se pidió; el secreto no sale de aquí
-// en ningún caso. Si algún día las dos mitades se deciden en un solo lugar,
-// este es el lugar.
+// ponytail: el `Host` lo manda el cliente, así que se puede pedir la
+// configuración de producción desde otro despliegue. Se mantiene igual a
+// propósito: el `client_id` y el `redirect_uri` que usa el navegador SÍ salen
+// del hostname (`configs/googleDrive.js`), y decidir aquí por otra vía
+// —`VERCEL_ENV`, por ejemplo— desalinea las dos mitades y rompe el intercambio
+// en cualquier despliegue de vista previa. El techo, dicho sin adornos: quien
+// haya pedido un `code` con el cliente de producción puede forzar que aquí se
+// usen esas credenciales. No es peor que el estado del endpoint en general
+// —ver el aviso de arriba—, y se cierra por el mismo lado: comprobando quién
+// llama. El secreto no sale de aquí en ninguno de los casos.
 const credenciales = host => {
   const esProduccion = host === 'www.prosite.cl' || host === 'procureterrenoweb.vercel.app'
 
