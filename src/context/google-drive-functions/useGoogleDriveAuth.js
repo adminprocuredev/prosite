@@ -101,7 +101,7 @@ export const useGoogleAuth = () => {
     // Ver `pages/api/google/token.js`.
     let response
     try {
-      response = await fetch('/api/google/token', {
+      response = await fetch('/api/google/token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code })
@@ -156,7 +156,7 @@ export const useGoogleAuth = () => {
     // Configura los parámetros necesarios para refrescar el token de acceso
     try {
       // Al servidor, no a Google, por la misma razón que el intercambio inicial.
-      const response = await fetch('/api/google/token', {
+      const response = await fetch('/api/google/token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refreshToken })

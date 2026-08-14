@@ -35,6 +35,13 @@
 // llaves públicas de Google—. Queda anotado como el próximo movimiento, no como
 // un detalle.
 
+// La barra final NO es un detalle de estilo: `next.config.js` trae
+// `trailingSlash: true`, que tambien aplica a las API routes. Sin ella, cada
+// intercambio se come un 308 antes de llegar aqui. El POST y su cuerpo
+// sobreviven el redirect -comprobado contra produccion- pero es un viaje de ida
+// y vuelta regalado y una dependencia de que el cliente siga redirecciones
+// preservando el metodo. Quien llame a esta route: `/api/google/token/`.
+
 const PUNTO_DE_TOKEN = 'https://oauth2.googleapis.com/token'
 
 // Las dos configuraciones conviven porque el sitio elige por hostname, igual que
