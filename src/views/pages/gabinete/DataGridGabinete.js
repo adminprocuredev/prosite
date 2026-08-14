@@ -79,7 +79,7 @@ const DataGridGabinete = () => {
     subscribeToPetition
   } = useFirebase()
 
-  let petitions = useSnapshot(false, authUser, true)
+  let { filas: petitions } = useSnapshot(false, authUser, true)
 
   if (authUser.role === 8) {
     petitions = petitions.filter(petition =>

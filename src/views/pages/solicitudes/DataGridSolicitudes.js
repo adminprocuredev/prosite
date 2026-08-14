@@ -23,7 +23,7 @@ const DataGrid = () => {
   const [filterConfig, setFilterConfig] = useState({})
   const [roleData, setRoleData] = useState({ name: 'admin' })
   const { useSnapshot, authUser, getDomainData } = useFirebase()
-  const data = useSnapshot(true, authUser)
+  const { filas: data, cargando } = useSnapshot(true, authUser)
 
   // Objeto de configuración de filtros
   useEffect(() => {
@@ -155,7 +155,7 @@ const DataGrid = () => {
         {tabContent.map((element, index) => (
           <Grid item xs={12} key={index}>
             <TabPanel key={index} value={`${index + 1}`}>
-              <TableBasic rows={applyFilters(element.data, values)} roleData={roleData} role={authUser.role} />
+              <TableBasic rows={applyFilters(element.data, values)} roleData={roleData} role={authUser.role} cargando={cargando} />
             </TabPanel>
           </Grid>
         ))}

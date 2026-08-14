@@ -158,11 +158,21 @@ const useSolicitudesEnRango = (userParam, desde, hasta) => {
 }
 
 // ** Escucha cambios en los documentos en tiempo real
+//
+// Devuelve `{ filas, cargando }` y no el arreglo pelado. `cargando` existe
+// porque la tabla arrancaba con `[]` y sin nada que distinguiera "todavía no
+// llega" de "no hay": el DataGrid mostraba **«Sin filas»** durante los primeros
+// segundos, que es una respuesta —equivocada— a la pregunta del usuario, no un
+// aviso de que está trabajando. Medido en producción: el cartel aparecía al
+// segundo y la primera fila llegaba a los siete.
 const useSnapshot = (datagrid = false, userParam, control = false) => {
   const [data, setData] = useState([])
+  const [cargando, setCargando] = useState(true)
 
   useEffect(() => {
     if (userParam) {
+      // Cambió el usuario o el rol: lo que se ve es de la consulta anterior.
+      setCargando(true)
       let q = query(collection(db, 'solicitudes'), where('state', '>=', 1))
 
       if (datagrid) {
@@ -265,7 +275,15 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
       // - Si el armado del completo falla, la pantalla se queda con las 200 de
       //   la foto y el error solo va a la consola. Son datos parciales, no
       //   incorrectos, y se corrigen al siguiente cambio o al recargar.
-      const TAMANO_DE_LA_FOTO = 200
+      // ponytail: 50 es la perilla. Eran 200, y cada solicitud pesa ~4,66 kB
+      // —medido contra producción—, o sea ~930 kB en la ruta crítica del primer
+      // pintado; con 50 son ~230 kB. En pantalla caben 13 filas, así que 50 son
+      // cuatro pantallas de margen para alcanzar a desplazarse antes de que
+      // llegue el listener completo. El techo conocido: durante esos segundos
+      // el pie dice «Filas Totales: 50» y quien baje hasta el fondo llega al
+      // final de la foto, no al de la tabla. Si molesta, se sube este número y
+      // se paga en descarga.
+      const TAMANO_DE_LA_FOTO = 50
       const sinDesigualdad = datagrid && [1, 4, 5, 6].includes(userParam.role)
 
       const consultaRapida = sinDesigualdad ? query(q, orderBy('date', 'desc'), limit(TAMANO_DE_LA_FOTO)) : null
@@ -330,6 +348,13 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
             const filas = await armarFilas(foto.docs)
             if (completoPintado || descartada) return
             setData(filas)
+
+            // La foto NO apaga el indicador, a propósito. Trae 50 filas de
+            // 1.849: apagarlo aquí diría "esto es todo", y un filtro sobre esas
+            // 50 respondería «Sin filas» a una solicitud que sí existe —el
+            // mismo falso negativo que esto viene a matar, movido de lugar—.
+            // Con las filas en pantalla y la barra encendida, el DataGrid dice
+            // las dos cosas a la vez: ya hay algo, y todavía viene más.
             console.info(`[solicitudes] foto de ${foto.size} filas en ${Date.now() - comienzoFoto} ms`)
           })
           .catch(error => {
@@ -358,6 +383,7 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
                 completoPintado = true
               }
               setData(sortedDocs)
+              setCargando(false)
             }
 
             // De dónde salen los segundos que tarda la tabla. Sin esto solo se
@@ -370,6 +396,18 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
             )
           } catch (error) {
             console.error('Error al obtener los documentos de Firestore: ', error)
+
+            // Se apaga igual: si el armado falla en cada snapshot, dejar el
+            // `cargando` encendido cambia una tabla vacía por una tabla que
+            // gira para siempre. Las dos están mal, pero la que gira además
+            // promete que algo viene.
+            //
+            // Con el mismo resguardo que el camino bueno: un armado de la
+            // consulta ANTERIOR que reviente después de cambiar de usuario no
+            // tiene por qué apagar el indicador de la consulta nueva.
+            if (miTurno === ultimoSnapshot && !descartada) {
+              setCargando(false)
+            }
           }
         },
 
@@ -379,6 +417,7 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
         error => {
           console.error('Firestore rechazó la consulta de solicitudes:', error.code, error.message)
           setData([])
+          setCargando(false)
         }
       )
 
@@ -390,10 +429,21 @@ const useSnapshot = (datagrid = false, userParam, control = false) => {
         descartada = true
         unsubscribe()
       }
+    } else {
+      // Sin usuario no hay consulta ni nada que esperar: aquí la tabla vacía SÍ
+      // es la respuesta, y dejarla girando sería la mentira contraria.
+      //
+      // Y se VACÍA. Quedarse con las filas de quien acaba de salir es enseñarle
+      // las solicitudes de otra persona a quien entre después en el mismo
+      // equipo —lo mismo que ya obligó a limpiar el `localStorage` al cerrar
+      // sesión—. Hoy los guards desmontan la tabla antes de que se vea, así que
+      // esto es el cinturón, no el freno.
+      setData([])
+      setCargando(false)
     }
   }, [userParam])
 
-  return data
+  return { filas: data, cargando }
 }
 
 // Función para obtener los datos de un documento de la colección 'domain'
