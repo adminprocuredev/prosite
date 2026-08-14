@@ -79,7 +79,7 @@ const DataGridGabinete = () => {
     subscribeToPetition
   } = useFirebase()
 
-  let { filas: petitions } = useSnapshot(false, authUser, true)
+  let { filas: petitions, cargando } = useSnapshot(false, authUser, true)
 
   if (authUser.role === 8) {
     petitions = petitions.filter(petition =>
@@ -391,6 +391,19 @@ const DataGridGabinete = () => {
         <Autocomplete
           options={petitions.map(doc => ({ value: doc.ot, title: doc.title }))}
           getOptionLabel={option => option.value + ' - ' + option.title + ' '}
+          // Mientras la consulta no llega, `petitions` esta vacio y el
+          // Autocomplete mostraba «No options»: una respuesta -equivocada- a la
+          // pregunta de quien lo abre, no un aviso de que esta trabajando. Es lo
+          // mismo que hacia la tabla de solicitudes con «Sin filas», y aqui pesa
+          // mas porque la consulta de gabinete trae casi toda la coleccion -1490
+          // de 1849, medido contra produccion el 13-ago-2026- y no tiene foto
+          // rapida que tape el hueco.
+          //
+          // MUI solo cambia el texto cuando ademas NO hay opciones
+          // (`loading && groupedOptions.length === 0`), asi que esto no esconde
+          // nada una vez que llegaron.
+          loading={cargando}
+          loadingText='Cargando OT…'
           sx={{ mx: 6.5, flexGrow: '9' }}
           onChange={(event, value) => handleChange(value)}
           onInputChange={(event, value) => setCurrentAutoComplete(value)}
