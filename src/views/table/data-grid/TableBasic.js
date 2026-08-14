@@ -23,8 +23,9 @@ import CustomChip from 'src/@core/components/mui/chip'
 //import moment from 'moment'
 import moment from 'moment-timezone'
 import 'moment/locale/es'
+import LinearProgress from '@mui/material/LinearProgress'
 
-const TableBasic = ({ rows, role, roleData }) => {
+const TableBasic = ({ rows, role, roleData, cargando = false }) => {
   const [open, setOpen] = useState(false)
   const [openAlert, setOpenAlert] = useState(false)
   const [doc, setDoc] = useState('')
@@ -690,12 +691,19 @@ const TableBasic = ({ rows, role, roleData }) => {
             }
           }}
           hideFooterSelectedRowCount
+          loading={cargando}
           rows={rows}
           columns={columns}
           columnVisibilityModel={columnVisibilityModel}
           localeText={esES.components.MuiDataGrid.defaultProps.localeText}
           sortingModel={defaultSortingModel}
           slots={{
+          // La barra lineal en vez del spinner por defecto, que viene dentro de
+          // un GridOverlay con fondo y TAPA la grilla entera: con el spinner,
+          // las 50 filas de la foto rapida quedarian escondidas hasta que
+          // llegue el listener completo y la carga en dos tiempos dejaria de
+          // verse. La barra ocupa 4 px arriba y deja las filas a la vista.
+          loadingOverlay: LinearProgress,
             columnMenu: CustomColumnMenu,
             toolbar:
               authUser.role === 1 ||
