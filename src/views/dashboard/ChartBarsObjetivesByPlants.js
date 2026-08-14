@@ -9,8 +9,9 @@ import ReactApexcharts from 'src/@core/components/react-apexcharts'
 
 // ** Util Import
 import { hexToRGBA } from 'src/@core/utils/hex-to-rgba'
+import CargandoGrafico from 'src/views/dashboard/CargandoGrafico'
 
-const ChartBarsObjetivesByPlants = ({ objetivesByPlants }) => {
+const ChartBarsObjetivesByPlants = ({ objetivesByPlants, loading = false }) => {
   // ** Hook
   const theme = useTheme()
 
@@ -115,7 +116,11 @@ const ChartBarsObjetivesByPlants = ({ objetivesByPlants }) => {
         titleTypographyProps={{ sx: { letterSpacing: '0.15px' } }}
       />
       <CardContent sx={{ pt: { xs: `${theme.spacing(6)} !important`, md: `${theme.spacing(0)} !important` } }}>
+        {loading ? (
+          <CargandoGrafico alto={150} />
+        ) : (
         <ReactApexcharts type='bar' height={150} options={options} series={options.series} />
+        )}
       </CardContent>
     </Card>
   )

@@ -6,6 +6,7 @@ import CardContent from '@mui/material/CardContent'
 
 // ** Component Import
 import ReactApexcharts from 'src/@core/components/react-apexcharts'
+import CargandoGrafico from 'src/views/dashboard/CargandoGrafico'
 
 const donutColors = {
   series1: '#fdd835',
@@ -115,7 +116,7 @@ const ChartDonutObjetivesLast30days = ({ objetivesByState, loading }) => {
       />
       <CardContent>
         {loading ? (
-          <p>Cargando datos...</p>
+          <CargandoGrafico alto={400} />
         ) : (
           <ReactApexcharts type='donut' height={400} options={options} series={objetivesByState} />
         )}
