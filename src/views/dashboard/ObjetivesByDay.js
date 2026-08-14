@@ -10,8 +10,9 @@ import ReactApexcharts from 'src/@core/components/react-apexcharts'
 
 // ** Util Import
 import { hexToRGBA } from 'src/@core/utils/hex-to-rgba'
+import CargandoGrafico from 'src/views/dashboard/CargandoGrafico'
 
-const ObjetivesByDay = ({objetivesOfActualWeek}) => {
+const ObjetivesByDay = ({ objetivesOfActualWeek, loading = false }) => {
   // ** Hooks
   const theme = useTheme()
 
@@ -101,12 +102,16 @@ const ObjetivesByDay = ({objetivesOfActualWeek}) => {
         titleTypographyProps={{ sx: { letterSpacing: '0.15px' } }}
       />
       <CardContent sx={{ pt: { xs: `${theme.spacing(6)} !important`, md: `${theme.spacing(0)} !important` } }}>
+        {loading ? (
+          <CargandoGrafico alto={120} />
+        ) : (
         <ReactApexcharts
           type='bar'
           height={120}
           options={options}
           series={[{ name: 'Levantamientos', data: objetivesOfActualWeek }]}
         />
+        )}
       </CardContent>
     </Card>
   )

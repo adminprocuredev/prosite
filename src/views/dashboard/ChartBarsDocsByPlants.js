@@ -9,6 +9,7 @@ import ReactApexcharts from 'src/@core/components/react-apexcharts'
 
 // ** Util Import
 import { hexToRGBA } from 'src/@core/utils/hex-to-rgba'
+import CargandoGrafico from 'src/views/dashboard/CargandoGrafico'
 
 const ChartBarsDocsByPlants = ({ docsByPlants, loading }) => {
   // ** Hook
@@ -97,12 +98,16 @@ const ChartBarsDocsByPlants = ({ docsByPlants, loading }) => {
         titleTypographyProps={{ sx: { letterSpacing: '0.15px' } }}
       />
       <CardContent sx={{  pt: { xs: `${theme.spacing(6)} !important`, md: `${theme.spacing(0)} !important` } }}>
+        {loading ? (
+          <CargandoGrafico alto={150} />
+        ) : (
         <ReactApexcharts
           type='bar'
           height={150}
           options={options}
-          series={[{ name: 'Solicitudes', data: loading ? [0, 0, 0, 0, 0, 0] : docsByPlants }]}
+          series={[{ name: 'Solicitudes', data: docsByPlants || [] }]}
         />
+        )}
       </CardContent>
     </Card>
   )
