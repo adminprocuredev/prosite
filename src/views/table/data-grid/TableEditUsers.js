@@ -5,7 +5,7 @@ import useMediaQuery from '@mui/material/useMediaQuery'
 import { DataGridPremium } from '@mui/x-data-grid-premium'
 import { esES } from '@mui/x-data-grid-pro'
 import EditIcon from '@mui/icons-material/Edit'
-import { Box, Card } from '@mui/material'
+import { Box, Button, Card, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Switch } from '@mui/material'
 import IconButton from '@mui/material/IconButton'
 import { EditUserDialog } from 'src/@core/components/dialog-editUser'
 import LinearProgress from '@mui/material/LinearProgress'
@@ -20,8 +20,33 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
   const [roles, setRoles] = useState([])
   const [userTypes, setUserTypes] = useState([])
 
+  // Habilitar o deshabilitar SIEMPRE pregunta antes. Es una acción de un clic
+  // sobre una fila de una tabla larga, o sea la clase de cosa que se aprieta
+  // sin querer al pasar el dedo. `porConfirmar` guarda a quién y hacia dónde;
+  // en null, el diálogo está cerrado.
+  const [porConfirmar, setPorConfirmar] = useState(null)
+  const [guardando, setGuardando] = useState(false)
+
   // Importación de funciones de Firebase.
-  const { getDomainData } = useFirebase()
+  const { getDomainData, updateUserData } = useFirebase()
+
+  const confirmarCambioDeHabilitado = async () => {
+    if (!porConfirmar) return
+
+    setGuardando(true)
+    try {
+      await updateUserData(porConfirmar.id, { enabled: porConfirmar.quedaraHabilitado })
+
+      // La tabla se alimenta de un listener en vivo, así que la fila se
+      // actualiza sola en cuanto Firestore confirma. No hace falta recargar.
+      setPorConfirmar(null)
+    } catch (error) {
+      console.error('No se pudo cambiar el estado del usuario:', error)
+      alert('No se pudo cambiar el estado del usuario. Intenta de nuevo o avisa a soporte.')
+    } finally {
+      setGuardando(false)
+    }
+  }
 
   // Función para obtener las Plantas desde Firestore.
   const getPlantNames = async () => {
@@ -260,10 +285,29 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
       maxWidth: 150,
       renderCell: params => {
         const { row } = params
-        // localStorage.setItem('userSolicitudesWidthColumn', params.colDef.computedWidth)
 
-        return <div>{row.enabled ? 'Si' : 'No'}</div>
+        // `enabled` falta en muchas fichas antiguas, y ausente significa
+        // HABILITADO -mismo criterio que en el login-. Sin este `!== false`,
+        // toda esa gente se vería en rojo como si estuviera bloqueada.
+        const habilitado = row.enabled !== false
 
+        return (
+          <Switch
+            checked={habilitado}
+            color={habilitado ? 'success' : 'error'}
+            onClick={event => event.stopPropagation()}
+            onChange={() =>
+              setPorConfirmar({ id: row.id, nombre: row.name, quedaraHabilitado: !habilitado })
+            }
+            inputProps={{ 'aria-label': habilitado ? 'Deshabilitar usuario' : 'Habilitar usuario' }}
+            sx={{
+              '& .MuiSwitch-switchBase:not(.Mui-checked)': { color: theme.palette.error.main },
+              '& .MuiSwitch-switchBase:not(.Mui-checked) + .MuiSwitch-track': {
+                backgroundColor: theme.palette.error.main
+              }
+            }}
+          />
+        )
       }
     },
     {
@@ -311,6 +355,35 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
             userTypes={userTypes}
           />
         )}
+
+        {/* Confirmación antes de habilitar o deshabilitar. El texto dice el
+            NOMBRE y qué va a pasar, no un "¿estás seguro?" a secas: en una
+            tabla larga hay que poder confirmar que se apretó la fila correcta. */}
+        <Dialog open={Boolean(porConfirmar)} onClose={() => !guardando && setPorConfirmar(null)}>
+          <DialogTitle>
+            {porConfirmar?.quedaraHabilitado ? 'Habilitar usuario' : 'Deshabilitar usuario'}
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              {porConfirmar?.quedaraHabilitado
+                ? `${porConfirmar?.nombre || 'Este usuario'} podrá volver a ingresar a Prosite.`
+                : `${porConfirmar?.nombre || 'Este usuario'} no podrá volver a ingresar a Prosite. Si tiene la sesión abierta, seguirá dentro hasta que la cierre.`}
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setPorConfirmar(null)} disabled={guardando}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmarCambioDeHabilitado}
+              disabled={guardando}
+              color={porConfirmar?.quedaraHabilitado ? 'success' : 'error'}
+              variant='contained'
+            >
+              {guardando ? 'Guardando...' : porConfirmar?.quedaraHabilitado ? 'Habilitar' : 'Deshabilitar'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Card>
   )
