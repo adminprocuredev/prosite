@@ -234,7 +234,10 @@ const FormLayoutsBasic = () => {
     }
 
     if (values.company === 'Procure') {
-      updatedKeys.push('rut', 'subtype')
+      // El RUT salio de aqui: ya no es obligatorio. Se pedia para la empresa
+      // Procure y dejaba fuera la creacion de cualquiera cuyo RUT no se tuviera
+      // a mano en ese momento. `subtype` si sigue siendo obligatorio.
+      updatedKeys.push('subtype')
     }
 
     // Establece las claves calculadas.
@@ -258,13 +261,16 @@ const FormLayoutsBasic = () => {
           }
           break
         case 'rut':
+          // Vacio ya NO es error: el RUT es opcional. Pero si se escribe algo,
+          // se sigue exigiendo que sea un RUT valido -un digito verificador malo
+          // es un dato equivocado, y eso conviene atajarlo aqui-.
           if (isRutLike(values.rut)) {
             values.rut = formatRut(values.rut)
             if (!validateRut(values.rut)) {
               newErrors['rut'] = 'Dígito verificador incorrecto'
             }
-          } else if (!values.rut || values.rut === '') {
-            newErrors['rut'] = 'Por favor, ingresa un valor.'
+          } else if (values.rut && values.rut !== '') {
+            newErrors['rut'] = 'El RUT no tiene un formato valido. Dejalo en blanco si no lo tienes.'
           }
           break
         case 'shift':
