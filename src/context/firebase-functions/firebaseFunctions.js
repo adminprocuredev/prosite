@@ -27,6 +27,12 @@ const formatAuthUser = async user => {
     company: data ? data.company || 'No definido' : 'No disponible',
     contop: data ? data.contop || 'No definido' : 'No disponible',
     opshift: data ? data.opshift || 'No definido' : 'No disponible',
+    // `enabled` NO venia aqui, y por eso el campo "Habilitado" de la pantalla
+    // de usuarios se guardaba pero no lo miraba nadie al entrar. Ojo con el
+    // valor por defecto: la mayoria de las fichas antiguas NO tienen el campo,
+    // asi que ausente tiene que significar habilitado. Si fuera al reves,
+    // deshabilitariamos de golpe a casi todos.
+    enabled: data ? data.enabled !== false : true,
     registered: data ? true : false,
     rut: data ? data.rut || 'No definido' : 'No disponible',
     completedProfile: data ? data.completedProfile || false : false
@@ -58,10 +64,41 @@ const signInWithEmailAndPassword = async (email, password, rememberMe) => {
     try {
       const userCredential = await Firebase.auth().signInWithEmailAndPassword(email, password)
       const userData = await formatAuthUser(userCredential.user)
+
+      // Un usuario deshabilitado NO entra.
+      //
+      // Hasta ahora "Habilitado: No" solo servia para dejar de mandarle correos
+      // y para sacarlo de algunas listas: al iniciar sesion nadie lo miraba, asi
+      // que la persona seguia entrando con total normalidad. Peor que no tener
+      // la opcion, porque quien la usaba se quedaba tranquilo creyendo que habia
+      // cerrado un acceso.
+      //
+      // La comprobacion va AQUI, en el login, y no en el `onAuthStateChanged`
+      // del contexto: ahi ya se intento una vez expulsar gente a media sesion y
+      // termino en un bucle de login del que no se salia. Esto solo corta al
+      // entrar, que es el momento en que corresponde.
+      //
+      // ponytail: techo conocido. Quien YA tenga la sesion abierta sigue dentro
+      // hasta que la cierre. Cortar de inmediato pide deshabilitar tambien la
+      // cuenta en Authentication, que es cosa de la Cloud Function.
+      if (userData.enabled === false) {
+        await Firebase.auth().signOut()
+        throw new Error('Tu cuenta esta deshabilitada. Habla con un administrador de Prosite.')
+      }
+
       localStorage.setItem('user', JSON.stringify(userData))
 
       return userCredential
     } catch (err) {
+      // Los errores NUESTROS pasan tal cual. Sin esto, el mensaje de la cuenta
+      // deshabilitada -que se lanza unas lineas mas arriba, dentro de este
+      // mismo `try`- caia en el `default` y salia como "Error al iniciar
+      // sesion": el peor mensaje posible, porque manda a la persona a pensar
+      // que escribio mal la clave. Los de Firebase si traen `code`.
+      if (!err.code) {
+        throw err
+      }
+
       switch (err.code) {
         case 'auth/wrong-password':
           throw new Error('Contraseña incorrecta, intente de nuevo')
