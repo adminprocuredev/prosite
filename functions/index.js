@@ -847,6 +847,10 @@ exports.createUserAsAdmin = functions
   }
 
   try {
+    // OJO: `rut` ya NO entra en `completedProfile`. Si entrara, quitar la
+    // obligacion en el formulario no serviria de nada: la cuenta se crearia y
+    // despues el guard mandaria a la persona a "completar perfil" sin dejarla
+    // usar el sitio. Las dos cosas tenian que salir juntas.
     const { firstName, fatherLastName, motherLastName, rut, phone, plant, engineering, shift, company, opshift, subtype } = data
 
     // Misma regla de completedProfile que usaba createUserInDatabase.
@@ -855,11 +859,11 @@ exports.createUserAsAdmin = functions
       completedProfile = true
     } else if (company === 'MEL') {
       if (role === 2) {
-        completedProfile = !!email && !!name && !!opshift && !!phone && !!plant && !!role && !!rut && !!shift
+        completedProfile = !!email && !!name && !!opshift && !!phone && !!plant && !!role && !!shift
       } else if (role === 3 || role === 4) {
-        completedProfile = !!email && !!name && !!phone && !!plant && !!role && !!rut
+        completedProfile = !!email && !!name && !!phone && !!plant && !!role
       } else {
-        completedProfile = !!email && !!name && !!opshift && !!phone && !!plant && !!role && !!rut && !!shift
+        completedProfile = !!email && !!name && !!opshift && !!phone && !!plant && !!role && !!shift
       }
     }
 
