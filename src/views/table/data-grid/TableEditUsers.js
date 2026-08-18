@@ -5,6 +5,8 @@ import useMediaQuery from '@mui/material/useMediaQuery'
 import { DataGridPremium } from '@mui/x-data-grid-premium'
 import { esES } from '@mui/x-data-grid-pro'
 import EditIcon from '@mui/icons-material/Edit'
+import MailOutlineIcon from '@mui/icons-material/MailOutline'
+import Tooltip from '@mui/material/Tooltip'
 import { Box, Button, Card, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Switch } from '@mui/material'
 import IconButton from '@mui/material/IconButton'
 import { EditUserDialog } from 'src/@core/components/dialog-editUser'
@@ -28,7 +30,31 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
   const [guardando, setGuardando] = useState(false)
 
   // Importación de funciones de Firebase.
-  const { getDomainData, updateUserData } = useFirebase()
+  const { getDomainData, updateUserData, resetPassword } = useFirebase()
+
+  // Reenviar la invitacion.
+  //
+  // El enlace que Firebase manda para definir la contrasena dura UNA HORA y no
+  // es configurable. Para una invitacion es poquisimo: si la persona lo abre al
+  // dia siguiente ve "la peticion ha caducado", y hasta ahora no habia forma de
+  // mandarle otro -crear el usuario de nuevo falla con "ya se encuentra
+  // registrado"-. Quedaba atascada sin poder entrar nunca.
+  //
+  // Es el mismo correo que se envia al crear la cuenta.
+  const [reenviando, setReenviando] = useState(null)
+
+  const reenviarInvitacion = async (email, nombre) => {
+    setReenviando(email)
+    try {
+      await resetPassword(email)
+      alert(`Se le envió un correo a ${nombre || email} para que defina su contraseña. El enlace dura una hora.`)
+    } catch (error) {
+      console.error('No se pudo reenviar la invitación:', error)
+      alert('No se pudo enviar el correo. Revisa que la dirección esté bien escrita.')
+    } finally {
+      setReenviando(null)
+    }
+  }
 
   const confirmarCambioDeHabilitado = async () => {
     if (!porConfirmar) return
@@ -319,6 +345,32 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
               }
             }}
           />
+        )
+      }
+    },
+    {
+      field: 'invitacion',
+      headerName: 'Reenviar invitación',
+      minWidth: 150,
+      maxWidth: 160,
+      sortable: false,
+      renderCell: params => {
+        const { row } = params
+
+        return (
+          <Tooltip title='Enviar un correo para que defina su contraseña'>
+            <span>
+              <IconButton
+                onClick={event => {
+                  event.stopPropagation()
+                  reenviarInvitacion(row.email, row.name)
+                }}
+                disabled={reenviando === row.email}
+              >
+                <MailOutlineIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
         )
       }
     },
