@@ -37,9 +37,21 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
     try {
       await updateUserData(porConfirmar.id, { enabled: porConfirmar.quedaraHabilitado })
 
-      // La tabla se alimenta de un listener en vivo, así que la fila se
-      // actualiza sola en cuanto Firestore confirma. No hace falta recargar.
       setPorConfirmar(null)
+
+      // Recarga, y no es pereza: la lista de usuarios NO escucha en vivo. Se
+      // pide una sola vez al abrir la pantalla, con `getAllUsersData` dentro de
+      // un `useEffect` (`DataGridEditUsers.js:33`), y las filas llegan aquí como
+      // una prop que este componente no puede tocar. Sin esto el cambio se
+      // guardaba en la base y el interruptor se quedaba como estaba: parecía que
+      // no había funcionado.
+      //
+      // Es lo mismo que ya hace el diálogo de editar usuario al guardar.
+      //
+      // ponytail: la salida limpia es que la pantalla escuche en vivo, o que le
+      // pase una función para recargar su propia lista. Las dos son cambios en
+      // el componente de arriba y aquí lo que urgía era que el botón no mintiera.
+      window.location.reload()
     } catch (error) {
       console.error('No se pudo cambiar el estado del usuario:', error)
       alert('No se pudo cambiar el estado del usuario. Intenta de nuevo o avisa a soporte.')
