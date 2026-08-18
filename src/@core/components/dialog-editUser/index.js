@@ -393,7 +393,13 @@ export const EditUserDialog = ({ open, handleClose, doc, roleData, editButtonVis
                   <FormControl fullWidth>
                     <InputLabel>Rol</InputLabel>
                     <Select
-                      disabled={true}
+                      // Estaba `disabled={true}` fijo, escrito a mano: el rol se
+                      // mostraba pero no se podia cambiar NUNCA, ni siendo
+                      // administrador. Y no hay motivo: esta pantalla es de rol
+                      // 1 y punto -en src/configs/acl.js solo ese rol alcanza
+                      // 'editar-usuarios'-, asi que quien la ve ya es quien
+                      // corresponde. Sin esto, cambiar el rol de alguien pedia
+                      // entrar a la base de datos a mano.
                       label='Rol'
                       value={values.role}
                       onChange={handleChange('role')}
