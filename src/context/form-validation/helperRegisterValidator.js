@@ -13,9 +13,13 @@ function setMandatoryFields(values) {
   // Ahora se definirá, caso por caso, para los campos "no obligatorios" si deben serlo o no.
 
   // rut
-  if (values.company === 'Procure') {
-    mandatoryFields.push('rut')
-  }
+  //
+  // Ya NO es obligatorio. Lo era solo para la empresa Procure, y dejaba fuera
+  // la creacion de cualquier persona cuyo RUT no se tuviera a mano en ese
+  // momento -contratistas, gente nueva, alguien que se suma a mitad de una OT-.
+  //
+  // La VALIDACION se mantiene: si se escribe un RUT, tiene que ser valido. Lo
+  // que se quito es la obligacion de escribirlo, que es otra cosa.
 
   // phone
   // No será obligatorio
