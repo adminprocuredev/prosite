@@ -434,6 +434,7 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false, recargarUsuari
             allowableDomains={allowableEmails}
             userRoles={roles}
             userTypes={userTypes}
+            recargarUsuarios={recargarUsuarios}
           />
         )}
 

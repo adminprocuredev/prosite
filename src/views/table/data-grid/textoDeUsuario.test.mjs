@@ -114,13 +114,21 @@ for (const sigla of siglas) {
 //
 // Esto vigila que no vuelva: recargar la página desmonta la aplicación entera y
 // se lleva por delante los filtros, el orden y la pantalla en la que se estaba.
-const tabla = readFileSync(new URL('./TableEditUsers.js', import.meta.url), 'utf8')
-const codigo = tabla
-  .split('\n')
-  .filter(linea => !linea.trimStart().startsWith('//'))
-  .join('\n')
+// Las dos piezas de la pantalla: la tabla, con el interruptor, y el diálogo de
+// editar usuario, que hacía exactamente lo mismo al apretar «Aceptar».
+const SIN_RELOAD = [
+  new URL('./TableEditUsers.js', import.meta.url),
+  new URL('../../../@core/components/dialog-editUser/index.js', import.meta.url)
+]
 
-assert.equal(codigo.includes('location.reload'), false)
-assert.equal(codigo.includes('recargarUsuarios'), true)
+for (const archivo of SIN_RELOAD) {
+  const codigo = readFileSync(archivo, 'utf8')
+    .split('\n')
+    .filter(linea => !linea.trimStart().startsWith('//'))
+    .join('\n')
+
+  assert.equal(codigo.includes('location.reload'), false)
+  assert.equal(codigo.includes('recargarUsuarios'), true)
+}
 
 console.log(`ok — ${comprobaciones} comprobaciones`)
