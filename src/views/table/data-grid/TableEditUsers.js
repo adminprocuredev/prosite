@@ -19,7 +19,7 @@ import {
   textoDeTurno
 } from 'src/views/table/data-grid/textoDeUsuario'
 
-const TableEditUsers = ({ rows, role, roleData, cargando = false, recargarUsuarios }) => {
+const TableEditUsers = ({ rows, role, roleData, cargando = false, recargarUsuarios, actualizarUsuario }) => {
 
   // Definición de Estados.
   const [editingUser, setEditingUser] = useState({})
@@ -70,18 +70,18 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false, recargarUsuari
     try {
       await updateUserData(porConfirmar.id, { enabled: porConfirmar.quedaraHabilitado })
 
-      // Antes esto era un `window.location.reload()`: la lista no escucha en
-      // vivo, así que sin recargar el interruptor se quedaba como estaba y
-      // parecía que no había funcionado. El costo lo reportó Mario Mella —
-      // «se reinicia Prosite, me borra los filtros y me saca del módulo»—,
-      // porque recargar la página vuelve a montar la aplicación entera: se
-      // pierden los filtros y el orden de la tabla, y el arranque deja al
-      // usuario en la portada.
+      // Esto empezó siendo un `window.location.reload()` -porque la lista no
+      // escucha en vivo y sin recargar el interruptor se quedaba como estaba-,
+      // y Mario Mella reportó lo que costaba: «se reinicia Prosite, me borra
+      // los filtros y me saca del módulo». Después pasó a volver a pedir la
+      // lista entera, y volvió a reportar lo mismo en otras palabras: «se carga
+      // de nuevo el módulo». Tenía razón las dos veces: bajar de nuevo los ~240
+      // usuarios enciende el indicador de carga y la tabla parpadea.
       //
-      // Ahora el padre entrega `recargarUsuarios`, que vuelve a pedir SOLO la
-      // lista de usuarios. El componente no se desmonta, así que los filtros,
-      // el orden y la posición se quedan donde estaban.
-      await recargarUsuarios?.()
+      // La escritura en Firestore ya salió bien, así que la fila se corrige en
+      // el sitio: un campo, una fila, cero viajes. El interruptor cambia al
+      // instante y no se mueve nada más de la pantalla.
+      actualizarUsuario?.(porConfirmar.id, { enabled: porConfirmar.quedaraHabilitado })
 
       setPorConfirmar(null)
     } catch (error) {

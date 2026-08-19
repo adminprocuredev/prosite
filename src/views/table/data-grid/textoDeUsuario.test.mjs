@@ -131,4 +131,12 @@ for (const archivo of SIN_RELOAD) {
   assert.equal(codigo.includes('recargarUsuarios'), true)
 }
 
+// El interruptor no vuelve a pedir la lista entera: corrige la fila en el sitio.
+// Mario reportó DOS veces lo mismo con distintas palabras -«se reinicia
+// Prosite» con el reload, «se carga de nuevo el módulo» con la recarga de la
+// lista-, y las dos veces el problema fue mover más pantalla de la necesaria
+// para cambiar un campo de una fila.
+const tablaDeUsuarios = readFileSync(new URL('./TableEditUsers.js', import.meta.url), 'utf8')
+assert.equal(tablaDeUsuarios.includes('actualizarUsuario?.(porConfirmar.id'), true)
+
 console.log(`ok — ${comprobaciones} comprobaciones`)
