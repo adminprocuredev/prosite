@@ -36,7 +36,7 @@ const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction='up' ref={ref} {...props} />
 })
 
-export const EditUserDialog = ({ open, handleClose, doc, roleData, editButtonVisible, canComment = false, plantNames, allowableDomains, userRoles, userTypes }) => {
+export const EditUserDialog = ({ open, handleClose, doc, roleData, editButtonVisible, canComment = false, plantNames, allowableDomains, userRoles, userTypes, recargarUsuarios }) => {
 
   console.log(doc)
 
@@ -231,7 +231,18 @@ export const EditUserDialog = ({ open, handleClose, doc, roleData, editButtonVis
 
   const handleAccept = async () => {
     setLoading(false)
-    window.location.reload() // Recarga la página
+
+    // Antes esto era `window.location.reload()`. Es el mismo defecto que
+    // reporto Mario Mella con el interruptor de habilitado -"se reinicia
+    // Prosite, me borra los filtros y me saca del modulo"-: recargar la pagina
+    // remonta la aplicacion entera, se lleva los filtros y el orden de la tabla
+    // y el arranque deja al usuario en la portada.
+    //
+    // La lista de usuarios no escucha en vivo, asi que algo hay que hacer para
+    // que la fila editada se vea actualizada; ese algo es volver a pedir SOLO
+    // la lista.
+    await recargarUsuarios?.()
+    handleClose()
   }
 
   const onSubmit = async event => {

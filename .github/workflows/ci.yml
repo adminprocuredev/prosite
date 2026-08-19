@@ -38,15 +38,12 @@ jobs:
           NEXT_PUBLIC_DEV_APPID: '1:000000000000:web:0000000000000000000000'
           NEXT_PUBLIC_DEV_MAINTENANCE_MOD: 'false'
 
+      # Todos los *.test.mjs del repo, buscados con un glob.
+      #
+      # Antes eran diez rutas escritas a mano y ya se habia soltado una:
+      # `palette.test.mjs` -el que vigila la pantalla en blanco de la portada-
+      # no lo corria nadie. Una lista a mano se desincroniza siempre; el glob
+      # no puede.
       - name: Self-checks
         run: |
-          node src/context/firebase-functions/nombreCache.test.mjs
-          node src/context/google-drive-functions/fileValidation.test.mjs
-          node src/context/firebase-functions/correlativoCodigo.test.mjs
-          node src/context/firebase-functions/permisosHlc.test.mjs
-          node src/context/google-drive-functions/nombresEntregables.test.mjs
-          node src/views/table/data-grid/permisosDeRevision.test.mjs
-          node src/context/firebase-functions/requisitosDeUsuarios.test.mjs
-          node src/context/firebase-functions/actividadReciente.test.mjs
-          node src/context/firebase-functions/ventanaDeSolicitudes.test.mjs
-          node src/context/google-drive-functions/stateDeOauth.test.mjs
+          for t in $(git ls-files '*.test.mjs'); do echo "== $t"; node "$t" || exit 1; done
