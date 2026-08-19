@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useFirebase } from 'src/context/useFirebase'
 import { useTheme } from '@mui/material/styles'
 import useMediaQuery from '@mui/material/useMediaQuery'
-import { DataGridPremium } from '@mui/x-data-grid-premium'
+import { DataGridPremium, GridToolbar } from '@mui/x-data-grid-premium'
 import { esES } from '@mui/x-data-grid-pro'
 import EditIcon from '@mui/icons-material/Edit'
 import MailOutlineIcon from '@mui/icons-material/MailOutline'
@@ -11,8 +11,15 @@ import { Box, Button, Card, Dialog, DialogActions, DialogContent, DialogContentT
 import IconButton from '@mui/material/IconButton'
 import { EditUserDialog } from 'src/@core/components/dialog-editUser'
 import LinearProgress from '@mui/material/LinearProgress'
+import {
+  textoDeHabilitado,
+  textoDePlantas,
+  textoDeRol,
+  textoDeSiNo,
+  textoDeTurno
+} from 'src/views/table/data-grid/textoDeUsuario'
 
-const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
+const TableEditUsers = ({ rows, role, roleData, cargando = false, recargarUsuarios }) => {
 
   // Definición de Estados.
   const [editingUser, setEditingUser] = useState({})
@@ -63,21 +70,20 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
     try {
       await updateUserData(porConfirmar.id, { enabled: porConfirmar.quedaraHabilitado })
 
-      setPorConfirmar(null)
+      // Antes esto era un `window.location.reload()`: la lista no escucha en
+      // vivo, así que sin recargar el interruptor se quedaba como estaba y
+      // parecía que no había funcionado. El costo lo reportó Mario Mella —
+      // «se reinicia Prosite, me borra los filtros y me saca del módulo»—,
+      // porque recargar la página vuelve a montar la aplicación entera: se
+      // pierden los filtros y el orden de la tabla, y el arranque deja al
+      // usuario en la portada.
+      //
+      // Ahora el padre entrega `recargarUsuarios`, que vuelve a pedir SOLO la
+      // lista de usuarios. El componente no se desmonta, así que los filtros,
+      // el orden y la posición se quedan donde estaban.
+      await recargarUsuarios?.()
 
-      // Recarga, y no es pereza: la lista de usuarios NO escucha en vivo. Se
-      // pide una sola vez al abrir la pantalla, con `getAllUsersData` dentro de
-      // un `useEffect` (`DataGridEditUsers.js:33`), y las filas llegan aquí como
-      // una prop que este componente no puede tocar. Sin esto el cambio se
-      // guardaba en la base y el interruptor se quedaba como estaba: parecía que
-      // no había funcionado.
-      //
-      // Es lo mismo que ya hace el diálogo de editar usuario al guardar.
-      //
-      // ponytail: la salida limpia es que la pantalla escuche en vivo, o que le
-      // pase una función para recargar su propia lista. Las dos son cambios en
-      // el componente de arriba y aquí lo que urgía era que el botón no mintiera.
-      window.location.reload()
+      setPorConfirmar(null)
     } catch (error) {
       console.error('No se pudo cambiar el estado del usuario:', error)
       alert('No se pudo cambiar el estado del usuario. Intenta de nuevo o avisa a soporte.')
@@ -145,25 +151,11 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
   // const md = useMediaQuery(theme.breakpoints.up('md'))
   // const xl = useMediaQuery(theme.breakpoints.up('xl'))
 
-  // Objeto para traducir el nombre de la Planta a su sigla.
-  const plantsObject = {
-    'Planta Concentradora Los Colorados': 'PCLC',
-    'Planta Concentradora Laguna Seca | Línea 1': 'LSL1',
-    'Planta Concentradora Laguna Seca | Línea 2': 'LSL2',
-    'Chancado y Correas': 'CHCO',
-    'Puerto Coloso': 'PCOL',
-    'Instalaciones Cátodo': 'ICAT',
-    'Instalaciones Mina': 'IMIN',
-    'Instalaciones Lixiviación Sulfuros': 'SLIX',
-    'Instalaciones Escondida Water Supply': 'IEWS',
-    'Instalaciones Concentraducto': 'ICON',
-    'Instalaciones Monturaqui': 'IMON',
-    'Instalaciones Auxiliares': 'IAUX',
-    'Subestaciones Eléctricas': 'SUBE',
-    'Tranque y Relaves': 'TREL',
-    'Campamento Villa San Lorenzo': 'CVSL',
-    'Campamento Villa Cerro Alegre': 'CVCA'
-  }
+  // El diccionario de siglas de planta y el resto del texto legible de una fila
+  // viven en `textoDeUsuario.js`. Se sacaron de aquí porque la tabla ahora se
+  // descarga a Excel y a CSV, y la exportación de MUI NO pasa por `renderCell`:
+  // usa `valueGetter`. Con las dos cosas apuntando al mismo lugar, lo que se ve
+  // y lo que se descarga no pueden separarse.
 
   // Definición de columns. Éste arreglo contiene todas las columnas que se desplegarán en la tabla.
   // Cada columna tendrá las siguientes variables:
@@ -249,12 +241,12 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
       //width: userLocalWidth ? userLocalWidth : 190,
       minWidth: 150,
       maxWidth: 200,
+      valueGetter: params => textoDeRol(params.row.role, roles),
       renderCell: params => {
         const { row } = params
-        const role = roles.find(role => role.id === row.role)
         // localStorage.setItem('userSolicitudesWidthColumn', params.colDef.computedWidth)
 
-        return <div>{role?.name || ''}</div>
+        return <div>{textoDeRol(row.role, roles)}</div>
 
       }
     },
@@ -264,6 +256,7 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
       //width: userLocalWidth ? userLocalWidth : 190,
       minWidth: 50,
       maxWidth: 100,
+      valueGetter: params => params.row.subtype || 'N/A',
       renderCell: params => {
         const { row } = params
         // localStorage.setItem('userSolicitudesWidthColumn', params.colDef.computedWidth)
@@ -278,11 +271,12 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
       //width: userLocalWidth ? userLocalWidth : 190,
       minWidth: 50,
       maxWidth: 70,
+      valueGetter: params => textoDeTurno(params.row.shift),
       renderCell: params => {
         const { row } = params
         // localStorage.setItem('userSolicitudesWidthColumn', params.colDef.computedWidth)
 
-        return <div>{row.shift && row.shift.length > 0 ? row.shift.join(', ') : ['N/A']}</div>
+        return <div>{textoDeTurno(row.shift)}</div>
 
       }
     },
@@ -292,12 +286,12 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
       //width: userLocalWidth ? userLocalWidth : 190,
       minWidth: 150,
       maxWidth: 600,
+      valueGetter: params => textoDePlantas(params.row.plant),
       renderCell: params => {
         const { row } = params
         // localStorage.setItem('userSolicitudesWidthColumn', params.colDef.computedWidth)
-        const plantDescriptions = row.plant && row.plant.length > 0 ? row.plant.map(plantKey => plantsObject[plantKey]) : ['N/A']
 
-        return <div>{plantDescriptions.join(', ')}</div>
+        return <div>{textoDePlantas(row.plant)}</div>
 
       }
     },
@@ -307,11 +301,12 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
       //width: userLocalWidth ? userLocalWidth : 190,
       minWidth: 100,
       maxWidth: 150,
+      valueGetter: params => textoDeSiNo(params.row.completedProfile),
       renderCell: params => {
         const { row } = params
         // localStorage.setItem('userSolicitudesWidthColumn', params.colDef.computedWidth)
 
-        return <div>{row.completedProfile ? 'Si' : 'No'}</div>
+        return <div>{textoDeSiNo(row.completedProfile)}</div>
 
       }
     },
@@ -321,6 +316,9 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
       //width: userLocalWidth ? userLocalWidth : 190,
       minWidth: 100,
       maxWidth: 150,
+      // En la pantalla es un interruptor; en la planilla descargada tiene que
+      // decir «Habilitado» o «Deshabilitado», no true/false.
+      valueGetter: params => textoDeHabilitado(params.row.enabled),
       renderCell: params => {
         const { row } = params
 
@@ -354,6 +352,7 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
       minWidth: 150,
       maxWidth: 160,
       sortable: false,
+      disableExport: true,
       renderCell: params => {
         const { row } = params
 
@@ -379,6 +378,8 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
       headerName: 'Editar Usuario',
       minWidth: 150,
       maxWidth: 150,
+      sortable: false,
+      disableExport: true,
       renderCell: params => {
         const { row } = params
 
@@ -403,7 +404,23 @@ const TableEditUsers = ({ rows, role, roleData, cargando = false }) => {
             }
           }}
           loading={cargando}
-          slots={{ loadingOverlay: LinearProgress }}
+          // La barra trae Exportar -a CSV y a Excel-, que es lo que pidió Mario
+          // Mella para bajar el maestro de usuarios; de paso deja a la vista
+          // Columnas, Filtros y Densidad, que ya venían con la licencia MUI X
+          // Premium que Procure paga y que nadie había encendido.
+          //
+          // Exporta lo que se está viendo: respeta el filtro y el orden de la
+          // tabla, no la colección entera.
+          slots={{ toolbar: GridToolbar, loadingOverlay: LinearProgress }}
+          slotProps={{
+            toolbar: {
+              // `delimiter: ';'` y `utf8WithBom` son para el Excel en español:
+              // con coma mete todo en una columna y sin BOM los acentos salen
+              // como «Ã¡». El CSV se abre bien de un doble clic.
+              csvOptions: { fileName: 'Usuarios Prosite', delimiter: ';', utf8WithBom: true },
+              excelOptions: { fileName: 'Usuarios Prosite' }
+            }
+          }}
           rows={rows}
           columns={columns}
           localeText={esES.components.MuiDataGrid.defaultProps.localeText}
