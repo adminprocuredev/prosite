@@ -21,6 +21,7 @@ import {
   VENTANAS,
   laVentanaAplicaA
 } from 'src/context/firebase-functions/ventanaDeSolicitudes'
+import { estaPorAprobar, infoPorAprobar } from 'src/views/pages/solicitudes/estadosPorAprobar'
 
 const DataGrid = () => {
   const [values, setValues] = useState({})
@@ -69,9 +70,14 @@ const DataGrid = () => {
           info: 'Todas las solicitudes'
         },
         {
-          data: data.filter(authUser.role === 5 ? doc => (doc.state === 3 || doc.state === 4) : doc => doc.state === authUser.role - 1), //TODO: revisar visibilidad
+          // Esto era `doc.state === authUser.role - 1`, con el rol 5 parchado
+          // aparte. Para un Administrador -rol 1- la resta da estado 0, que es
+          // RECHAZADO: la pestaña mostraba las mismas solicitudes que
+          // «Rechazadas». Los números de rol y los de estado son dos escalas
+          // distintas que solo coinciden en el medio de la cadena.
+          data: data.filter(doc => estaPorAprobar(doc, authUser.role)),
           label: 'Por aprobar',
-          info: 'Solicitudes pendientes de mi aprobación'
+          info: infoPorAprobar(authUser.role)
         },
         {
           data: data.filter(doc => doc.state >= 6 && doc.state < 10),
@@ -131,6 +137,15 @@ const DataGrid = () => {
     })
   }
 
+  // Cada pestaña con sus filas ya filtradas, una sola vez: el número que se
+  // muestra en el rótulo tiene que ser exactamente el de la tabla de abajo, o
+  // es otra cosa que miente.
+  //
+  // Los números están porque Mario Mella no tenía cómo saber si «Aprobadas»
+  // mostraba lo mismo que «Todas las solicitudes» -no lo mostraba: son 1.622 de
+  // 1.849- y tuvo que preguntarlo. Con el conteo a la vista se responde solo.
+  const pestanas = tabContent.map(pestana => ({ ...pestana, filas: applyFilters(pestana.data, values) }))
+
   return (
     <Box sx={{ width: '100%', typography: 'body1' }}>
       <FilterComponent
@@ -167,11 +182,15 @@ const DataGrid = () => {
             variant='scrollable'
             scrollButtons='auto'
           >
-            {tabContent.map((element, index) => (
+            {pestanas.map((element, index) => (
               <Tab
                 label={
                   <Tooltip arrow title={element.info} placement='top-end' key={element.label}>
-                    <span>{element.label}</span>
+                    {/* El conteo aparece cuando terminó de cargar. Un «(0)»
+                        mientras llegan los datos se lee como «no hay», que es
+                        el mismo vacío-usado-como-respuesta de la tabla y del
+                        desplegable del Gabinete. */}
+                    <span>{cargando ? element.label : `${element.label} (${element.filas.length})`}</span>
                   </Tooltip>
                 }
                 value={`${index + 1}`}
@@ -180,10 +199,10 @@ const DataGrid = () => {
             ))}
           </TabList>
         </Box>
-        {tabContent.map((element, index) => (
+        {pestanas.map((element, index) => (
           <Grid item xs={12} key={index}>
             <TabPanel key={index} value={`${index + 1}`}>
-              <TableBasic rows={applyFilters(element.data, values)} roleData={roleData} role={authUser.role} cargando={cargando} />
+              <TableBasic rows={element.filas} roleData={roleData} role={authUser.role} cargando={cargando} />
             </TabPanel>
           </Grid>
         ))}

@@ -1,6 +1,8 @@
 // Import the moment library for date manipulation
 const moment = require('moment')
 
+import { estaPorAprobar } from 'src/views/pages/solicitudes/estadosPorAprobar'
+
 // This file contains the filter config for the requests page
 // It recieves the authUser object as a parameter for differentiating the filters by role
 // The filter config is an object with the following structure:
@@ -27,7 +29,13 @@ const generateFilterConfig = authUser => {
       label: 'Por aprobar',
       canSee: [2, 3, 5], // Ejemplo de números permitidos para ver este filtro
       type: 'Estado',
-      filterFunction: authUser.role === 5 ? doc => doc.state === 3 || 4 : doc => doc.state === authUser.role - 1
+      // Estaba escrito `doc.state === 3 || 4`, que por precedencia es
+      // `(doc.state === 3) || 4`: como 4 es verdadero, el filtro «Por aprobar»
+      // devolvía TODAS las solicitudes para el Planificador. Y la otra rama era
+      // la misma resta `role - 1` que rompía la pestaña.
+      //
+      // Ahora los dos —el filtro y la pestaña— salen de `estadosPorAprobar`.
+      filterFunction: doc => estaPorAprobar(doc, authUser.role)
     },
     approved: {
       label: 'Aprobadas',
