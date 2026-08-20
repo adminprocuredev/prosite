@@ -1172,6 +1172,38 @@ const consultBluePrints = async (type, options = {}) => {
   return queryFunc()
 }
 
+/**
+ * TODOS los entregables, de todas las OT, para el «Maestro de entregables».
+ *
+ * Incidencia Gabinete 9: «Se requiere acceder al listado completo de
+ * entregables independiente del usuario asignado». La exportación de la tabla
+ * del Gabinete baja UNA OT por archivo, así que el catálogo completo salía de
+ * pegar planillas a mano.
+ *
+ * Es una consulta de grupo SIN `where` ni `orderBy`, y eso es a propósito: las
+ * de `consultBluePrints` necesitan `fieldOverrides` de alcance COLLECTION_GROUP
+ * desplegados antes que el sitio o responden `failed-precondition`. Esta no
+ * necesita ningún índice, así que no arrastra ese orden de despliegue.
+ *
+ * Son 1567 documentos en una sola consulta. Se piden al apretar el botón, no al
+ * abrir la pantalla.
+ *
+ * La OT no vive en el entregable: se devuelve el id de la solicitud de la que
+ * cuelga (`ref.parent.parent`) y quien llama la traduce con la lista de OT que
+ * ya tiene cargada.
+ *
+ * @returns {Promise<Object[]>} entregables con `id` y `solicitudId`
+ */
+const getMaestroDeEntregables = async () => {
+  const snapshot = await getDocs(collectionGroup(db, 'blueprints'))
+
+  return snapshot.docs.map(documento => ({
+    ...documento.data(),
+    id: documento.id,
+    solicitudId: documento.ref.parent.parent?.id || ''
+  }))
+}
+
 const consultObjetives = async (type, options = {}) => {
   const coll = collection(db, 'solicitudes')
   let queryFunc
@@ -1472,6 +1504,7 @@ export {
   getUsersWithSolicitudes,
   fetchPetitionById,
   consultBluePrints,
+  getMaestroDeEntregables,
   subscribeToPetition,
   consultOT,
   subscribeToUserProfileChanges,

@@ -58,6 +58,7 @@ import {
 import {
   consultBlockDayInDB,
   consultBluePrints,
+  getMaestroDeEntregables,
   consultDocs,
   consultOT,
   consultObjetives,
@@ -241,6 +242,7 @@ const FirebaseContextProvider = props => {
     updateSelectedDocuments,
     updateTransmittalCollection,
     consultBluePrints,
+  getMaestroDeEntregables,
     deleteCurrentUser,
     addComment,
     updateUserData,

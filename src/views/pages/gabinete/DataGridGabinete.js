@@ -37,6 +37,8 @@ import ReasignarDialog from 'src/@core/components/dialog-deliverableReassign'
 import DialogErrorTransmittal from 'src/@core/components/dialog-errorTransmittal'
 import DialogFinishOt from 'src/@core/components/dialog-finishOt'
 import TableGabinete from 'src/views/table/data-grid/TableGabinete'
+import { COLUMNAS_MAESTRO, armarMaestro } from 'src/views/pages/gabinete/maestroDeEntregables'
+import { saveAs } from 'file-saver'
 
 const DataGridGabinete = () => {
   const [currentPetition, setCurrentPetition] = useState(null)
@@ -76,7 +78,8 @@ const DataGridGabinete = () => {
     updateSelectedDocuments,
     updateTransmittalCollection,
     finishPetition,
-    subscribeToPetition
+    subscribeToPetition,
+    getMaestroDeEntregables
   } = useFirebase()
 
   let { filas: petitions, cargando } = useSnapshot(false, authUser, true)
@@ -385,6 +388,66 @@ const DataGridGabinete = () => {
     })
   }
 
+  // Incidencia Gabinete 9 — «Permitir descargar un Maestro de los entregables.
+  // Se requiere acceder al listado completo de entregables independiente del
+  // usuario asignado».
+  //
+  // La exportacion de la tabla de abajo baja UNA OT por archivo
+  // (`Entregables-OT-1216`), asi que el catalogo completo salia de pegar
+  // planillas a mano. Cristina Bustamante, de Control Documental, lo volvio a
+  // pedir el 20-ago-2026.
+  //
+  // Los 1567 entregables se piden al APRETAR el boton, no al abrir la pantalla:
+  // es una descarga puntual y no tiene por que costarle nada a quien entra a
+  // revisar una OT.
+  const [descargandoMaestro, setDescargandoMaestro] = useState(false)
+
+  const descargarMaestro = async () => {
+    setDescargandoMaestro(true)
+    try {
+      const entregables = await getMaestroDeEntregables()
+
+      // La OT no vive en el entregable, sino en la solicitud de la que cuelga.
+      // `petitions` ya esta en memoria -es la lista del selector de arriba-,
+      // asi que traducirla no cuesta un viaje mas.
+      const otsPorSolicitud = new Map(petitions.map(solicitud => [solicitud.id, solicitud.ot]))
+      const filas = armarMaestro(entregables, otsPorSolicitud)
+
+      if (filas.length === 0) {
+        alert('No se encontraron entregables para exportar.')
+
+        return
+      }
+
+      // ExcelJS se carga aqui y no arriba: son unos 300 KB comprimidos que si
+      // no descargaria todo el que abra el Gabinete, exporte o no.
+      const modulo = await import('exceljs')
+      const ExcelJS = modulo.default ?? modulo
+
+      const workbook = new ExcelJS.Workbook()
+      const worksheet = workbook.addWorksheet('Entregables')
+      worksheet.columns = COLUMNAS_MAESTRO
+      filas.forEach(fila => worksheet.addRow(fila))
+      worksheet.getRow(1).font = { bold: true, size: 13 }
+      worksheet.views = [{ state: 'frozen', ySplit: 1 }]
+      worksheet.autoFilter = { from: 'A1', to: { row: 1, column: COLUMNAS_MAESTRO.length } }
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const hoy = new Date()
+      const sello = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
+
+      saveAs(
+        new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+        `Maestro de entregables ${sello}.xlsx`
+      )
+    } catch (error) {
+      console.error('No se pudo descargar el maestro de entregables:', error)
+      alert('No se pudo generar el maestro de entregables. Intenta de nuevo o avisa a soporte.')
+    } finally {
+      setDescargandoMaestro(false)
+    }
+  }
+
   return (
     <Box id='main' sx={{ display: 'flex', width: '100%', flexDirection: 'column' }}>
       <Box sx={{ display: 'flex' }}>
@@ -418,6 +481,22 @@ const DataGridGabinete = () => {
           id='average'
           InputProps={{ readOnly: true }}
         />
+
+        {/* El maestro NO depende de la OT elegida: es el catalogo completo.
+            Se esconde para el rol 8 -proyectista-, que es el unico cuyo listado
+            de OT esta acotado a lo suyo unas lineas mas arriba; para el resto
+            no muestra nada que no pudiera ver abriendo OT por OT. */}
+        {authUser.role !== 8 && (
+          <Button
+            variant='outlined'
+            sx={{ mr: 6.5, whiteSpace: 'nowrap' }}
+            onClick={descargarMaestro}
+            disabled={descargandoMaestro}
+            startIcon={descargandoMaestro ? <CircularProgress size={16} color='inherit' /> : null}
+          >
+            {descargandoMaestro ? 'Preparando…' : 'Maestro de entregables'}
+          </Button>
+        )}
 
         {[5, 6, 7].includes(authUser.role) && (
           <>
