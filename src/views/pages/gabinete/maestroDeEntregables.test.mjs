@@ -9,7 +9,15 @@
 //     queda en la base con `deleted: true`);
 //   - un entregable sin fecha sale con la celda VACÍA, nunca con la de hoy.
 import assertOriginal from 'node:assert/strict'
-import { COLUMNAS_MAESTRO, armarMaestro, estadoLegible, fechaLegible, filaDelMaestro } from './maestroDeEntregables.js'
+import {
+  COLUMNAS_MAESTRO,
+  armarMaestro,
+  enEsperaDe,
+  enEsperaDeEnPlanilla,
+  fechaLegible,
+  filaDelMaestro,
+  otDeEntregable
+} from './maestroDeEntregables.js'
 
 let comprobaciones = 0
 const assert = new Proxy(assertOriginal, {
@@ -51,16 +59,57 @@ assert.equal(fechaLegible({}), '')
 assert.equal(fechaLegible({ seconds: 'ayer' }), '')
 assert.equal(fechaLegible(new Date('no soy una fecha')), '')
 
-// --- Estados -----------------------------------------------------------------
+// --- En espera de revisión por ------------------------------------------------
 
-assert.equal(estadoLegible(6), 'Aprobado por Procure')
-assert.equal(estadoLegible(0), 'Rechazado')
+// `attentive` es un numero de ROL y los entregables tienen SU PROPIA escala. La
+// primera version uso el diccionario de estados de las SOLICITUDES, que es otra
+// cosa: Cristina Bustamante lo reporto como «algunos salen con un numero, no
+// sabemos que significan». Estos son los seis valores de la pantalla.
+assert.equal(enEsperaDe(4), 'Cliente')
+assert.equal(enEsperaDe(6), 'Administrador de Contrato')
+assert.equal(enEsperaDe(7), 'Supervisor')
+assert.equal(enEsperaDe(8), 'Proyectista')
+assert.equal(enEsperaDe(9), 'Control Documental')
 
-// Un estado que el diccionario no conoce sale como número, no en blanco: una
-// celda vacía esconde el caso que falta.
-assert.equal(estadoLegible(42), '42')
-assert.equal(estadoLegible(undefined), '')
-assert.equal(estadoLegible(null), '')
+// El 10 es el que salio crudo en la planilla: no existe en el diccionario de
+// solicitudes y aqui si tiene nombre.
+assert.equal(enEsperaDe(10), 'Finalizado')
+
+// En pantalla, un valor fuera de la tabla queda en blanco -es lo que hacia
+// `renderRole`, y la celda muestra 'N/A'-.
+assert.equal(enEsperaDe(5), '')
+assert.equal(enEsperaDe(undefined), '')
+
+// En la planilla NUNCA sale un numero pelado, que es justo lo que no se pudo
+// leer; se nombra y se deja el numero para rastrearlo.
+assert.equal(enEsperaDeEnPlanilla(10), 'Finalizado')
+assert.equal(enEsperaDeEnPlanilla(5), 'Sin identificar (5)')
+assert.equal(enEsperaDeEnPlanilla(undefined), '')
+assert.equal(enEsperaDeEnPlanilla(null), '')
+for (const valor of [4, 5, 6, 7, 8, 9, 10, 42]) {
+  assert.equal(/^\d+$/.test(enEsperaDeEnPlanilla(valor)), false)
+}
+
+// --- La OT --------------------------------------------------------------------
+
+// La fuente buena es la solicitud de la que cuelga el entregable.
+assert.equal(otDeEntregable({ solicitudId: 'sol-a', clientCode: '21286-OT0001-X' }, OTS), 1216)
+
+// Y el respaldo, el codigo MEL: la primera version dependia SOLO del mapa y la
+// columna OT salio vacia en las 1.500 filas -«no se ve la OT en el item»-,
+// porque el maestro se puede pedir antes de que llegue la lista de OT.
+assert.equal(otDeEntregable({ solicitudId: 'sol-fantasma', clientCode: '21286-OT1296-PCOL-0510-GN-TRE-00001' }, OTS), 1296)
+assert.equal(otDeEntregable({ clientCode: '21286-OT1497-LSL2-1310-GN-TRE-00001' }, new Map()), 1497)
+assert.equal(otDeEntregable({ clientCode: '21286-OT1497-LSL2-1310-GN-TRE-00001' }, undefined), 1497)
+
+// El segmento se busca por su FORMA, no por su posicion: contar segmentos a ojo
+// ya dio un falso positivo antes.
+assert.equal(otDeEntregable({ clientCode: 'ALGO-MAS-21286-OT0980-PCLC-0242' }, undefined), 980)
+
+// Sin ninguna de las dos fuentes, celda vacia y nunca 'undefined' ni NaN.
+assert.equal(otDeEntregable({ clientCode: '21286-500-PL-2077' }, undefined), '')
+assert.equal(otDeEntregable({}, undefined), '')
+assert.equal(otDeEntregable(undefined, undefined), '')
 
 // --- Una fila ----------------------------------------------------------------
 
@@ -69,17 +118,21 @@ assert.equal(fila.ot, 1216)
 assert.equal(fila.codigo, '21286-500-PL-2077')
 assert.equal(fila.codigoCliente, '21286-OT1216-PCLC-0252-PP-DET-00001')
 assert.equal(fila.asignadoA, 'Ana Pérez')
-assert.equal(fila.estado, 'Aprobado por Procure')
+assert.equal(fila.enEsperaDe, 'Administrador de Contrato')
 assert.equal(fila.transmittal, '21286-000-TT-1521')
 
 // Cada columna declarada tiene su valor en la fila, y la fila no trae campos
 // que la planilla no vaya a escribir.
 assert.deepEqual(Object.keys(fila).sort(), COLUMNAS_MAESTRO.map(c => c.key).sort())
 
-// Una solicitud que no está en el mapa deja la OT vacía, no `undefined`
-// escrito en la celda.
-assert.equal(filaDelMaestro({ ...ENTREGABLE, solicitudId: 'sol-fantasma' }, OTS).ot, '')
-assert.equal(filaDelMaestro(ENTREGABLE, undefined).ot, '')
+// Una solicitud que no está en el mapa cae al respaldo del código MEL: la
+// columna OT no puede quedar vacía teniendo el dato a la vista en la fila de
+// al lado, que es exactamente lo que reportó Control Documental.
+assert.equal(filaDelMaestro({ ...ENTREGABLE, solicitudId: 'sol-fantasma' }, OTS).ot, 1216)
+assert.equal(filaDelMaestro(ENTREGABLE, undefined).ot, 1216)
+
+// Sin mapa y sin código MEL sí queda vacía, pero nunca `undefined` ni NaN.
+assert.equal(filaDelMaestro({ id: '21286-500-PL-2077' }, undefined).ot, '')
 
 // Un entregable al que le falta todo no puede escribir 'undefined' en ninguna
 // celda: es una planilla que va a leer una persona.
