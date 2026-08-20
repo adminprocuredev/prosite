@@ -39,6 +39,7 @@ import { permisosDeRevision } from './permisosDeRevision'
 import { useFirebase } from 'src/context/useFirebase'
 
 import { useGoogleDriveFolder } from 'src/context/google-drive-functions/useGoogleDriveFolder'
+import { enEsperaDe } from 'src/views/pages/gabinete/maestroDeEntregables'
 
 
 // Para distinguir, en la bitácora, quién hizo cada revisión. Solo los roles que
@@ -515,22 +516,12 @@ const TableGabinete = ({
     })
   }
 
-  const roleMap = {
-    "Cliente": row => row.attentive === 4,
-    "Administrador de Contrato": row => row.attentive === 6,
-    "Supervisor": row => row.attentive === 7,
-    "Proyectista": row => row.attentive === 8,
-    "Control Documental": row => row.attentive === 9,
-    "Finalizado": row => row.attentive === 10
-  }
-
-  const renderRole = row => {
-    for (const role in roleMap) {
-      if (roleMap[role](row)) {
-        return role
-      }
-    }
-  }
+  // La tabla rol -> nombre vive en `maestroDeEntregables.js` y la usan las DOS
+  // salidas: esta columna y el Maestro de entregables. Estaban separadas y el
+  // maestro salio con la escala equivocada -la de los estados de solicitudes-,
+  // asi que Control Documental leyo numeros: «algunos salen con un numero, no
+  // sabemos que significan». Una sola definicion, una sola verdad.
+  const renderRole = row => enEsperaDe(row?.attentive) || undefined
 
   const idLocalWidth = Number(localStorage.getItem('idGabineteWidthColumn'))
   const revisionLocalWidth = Number(localStorage.getItem('revisionGabineteWidthColumn'))

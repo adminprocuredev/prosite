@@ -499,10 +499,15 @@ const DataGridGabinete = () => {
             variant='outlined'
             sx={{ mr: 6.5, whiteSpace: 'nowrap' }}
             onClick={descargarMaestro}
-            disabled={descargandoMaestro}
+            // Mientras `cargando`, la lista de OT todavia no llego y el mapa
+            // solicitud->OT esta vacio. La primera version no esperaba y la
+            // columna OT salio en blanco en las 1.500 filas. Hay ademas un
+            // respaldo que saca la OT del codigo MEL, pero la fuente buena es
+            // esta y no cuesta nada esperarla.
+            disabled={descargandoMaestro || cargando}
             startIcon={descargandoMaestro ? <CircularProgress size={16} color='inherit' /> : null}
           >
-            {descargandoMaestro ? 'Preparando…' : 'Maestro de entregables'}
+            {descargandoMaestro ? 'Preparando…' : cargando ? 'Cargando OT…' : 'Maestro de entregables'}
           </Button>
         )}
 
