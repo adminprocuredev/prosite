@@ -474,9 +474,17 @@ const DataGridGabinete = () => {
           renderInput={params => <TextField {...params} label='OT' />}
         />
 
+        {/* El rotulo se pintaba solo cuando ya habia un valor
+            (`label={otPercent ? '...' : ''}`), asi que mientras no hubiera una
+            OT elegida esto era una caja vacia sin nada adentro: nadie podia
+            saber que era. Es el mismo vacio-usado-como-respuesta del «Sin
+            filas» de la tabla y del «No options» del selector.
+            El rotulo ahora esta siempre; lo que falta hasta elegir una OT es el
+            numero, y eso se ve. «Avance promedio» y no «Porcentaje Promedio de
+            Avance» porque el campo mide 0.2 de flex y el texto largo se corta. */}
         <TextField
           sx={{ mr: 6.5, flexGrow: '0.2' }}
-          label={otPercent ? 'Porcentaje Promedio de Avance' : ''}
+          label='Avance promedio'
           value={otPercent ? `${otPercent} %` : ''}
           id='average'
           InputProps={{ readOnly: true }}
